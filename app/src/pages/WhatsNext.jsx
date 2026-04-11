@@ -3,43 +3,25 @@ export default function WhatsNext() {
     <div className="max-w-3xl mx-auto py-8 sm:py-14 px-2 space-y-12">
 
       {/* Headline */}
-      <section className="space-y-4">
+      <section className="space-y-5">
         <h2 className="text-2xl sm:text-3xl font-bold leading-tight tracking-tight">
-          This started because a 6-year-old was assaulted and nobody was held
-          accountable.
+          My son asked me to do something.
         </h2>
+        <p className="text-[15px] leading-relaxed text-text/90">
+          He told me he wants to make sure what happened to him doesn't happen
+          to other kids. He's six — he doesn't fully understand the system that
+          failed him, but he knows it did. And he asked me to fix it.
+        </p>
+        <p className="text-[15px] leading-relaxed text-text/90">
+          I sit on the board of two technology companies —{' '}
+          <strong>Elevate.Cloud</strong> and <strong>Arcflare.ai</strong> —
+          alongside people who build complex enterprise systems for a living.
+          AI platforms, cloud infrastructure, data pipelines that Fortune 500
+          companies depend on. So I called them. And I said: help me build
+          something that gives every parent what we had to build from scratch.
+        </p>
         <p className="text-lg sm:text-xl text-accent font-semibold leading-snug">
-          It's going to end with every parent having the tools to fight back.
-        </p>
-      </section>
-
-      {/* The story */}
-      <section className="space-y-5 text-[15px] leading-relaxed text-text/90">
-        <p>
-          My son Liam was assaulted in an after-school program that we were led
-          to believe operated under our school district's safety standards. We
-          trusted the marketing. We trusted the lease. We trusted a system that,
-          at every level, told us our kids were in good hands.
-        </p>
-        <p>
-          When we tried to get answers, we hit a wall that every parent in this
-          situation hits. The district said it wasn't their program. The program
-          said it followed its own policies. The administrators circled up,
-          lawyered up, and waited for us to go away. That's the playbook — make
-          it so exhausting, so expensive, so bureaucratically impenetrable that
-          families just give up. Most of them do. Not because they want to, but
-          because they have to. They can't afford the attorneys. They can't take
-          the time off work. They don't know where to look or what questions to
-          ask. And the institutions counting on that silence know it.
-        </p>
-        <p>
-          I happen to be a technologist. So instead of giving up, I built this
-          — the Case Command Center you're looking at right now. It started as a
-          way to organize our own evidence, map the relationships, and pressure-test
-          the legal arguments. And somewhere along the way I realized: every
-          parent fighting a school district, a county program, a public
-          institution that failed their child — they need this too. And they
-          shouldn't have to build it themselves.
+          They said yes.
         </p>
       </section>
 
@@ -50,8 +32,11 @@ export default function WhatsNext() {
         </h3>
         <div className="text-[15px] leading-relaxed text-text/90 space-y-5">
           <p>
-            We're turning the Case Command Center into a platform that any
-            parent can use. You tell it what happened. It goes to work.
+            We — not me, <em>we</em> — are turning the Case Command Center
+            into a platform that any parent can use. The same people who
+            architect enterprise AI systems are now pointing that firepower at
+            the bureaucracies that count on you not having it. You tell it what
+            happened. It goes to work.
           </p>
           <p>
             It uses <strong>semantic search</strong> to comb through public
@@ -77,11 +62,12 @@ export default function WhatsNext() {
       {/* The ask */}
       <section className="border-t border-border pt-10 space-y-4">
         <p className="text-[15px] leading-relaxed text-text/90">
-          I'm building this in Liam's name. He's six. He doesn't understand
+          We're building this in Liam's name. He's six. He doesn't understand
           why the adults who were supposed to protect him didn't. He doesn't
           understand why the people responsible won't say they're sorry. But
           he told me he wants to make sure it doesn't happen to other kids.
-          So that's what we're doing.
+          So that's what we're doing — a father, a team of engineers, and two
+          companies that decided this matters more than the next SaaS dashboard.
         </p>
         <p className="text-[15px] leading-relaxed text-text/90">
           This tool will be free. Not freemium. Not "free with a catch." Free —
