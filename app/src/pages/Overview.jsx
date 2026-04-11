@@ -226,7 +226,7 @@ export default function Overview() {
 }
 
 function VideoModal({ url, onClose }) {
-  const embedUrl = url + (url.includes('?') ? '&' : '?') + 'autoplay=1';
+  const embedUrl = url + (url.includes('?') ? '&' : '?') + 'autoplay=1&transparent=0';
 
   return (
     <>
@@ -241,15 +241,18 @@ function VideoModal({ url, onClose }) {
               Close &times;
             </button>
           </div>
-          <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-            <iframe
-              src={embedUrl}
-              title="Why you should care"
-              className="absolute inset-0 w-full h-full rounded-lg"
-              allow="autoplay; fullscreen; picture-in-picture"
-              allowFullScreen
-            />
-          </div>
+          <iframe
+            src={embedUrl}
+            title="Why you should care"
+            width="1920"
+            height="1080"
+            className="w-full rounded-lg"
+            style={{ aspectRatio: '16 / 9' }}
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+            frameBorder="0"
+          />
         </div>
       </div>
     </>
