@@ -231,25 +231,23 @@ function VideoModal({ url, onClose }) {
   return (
     <>
       <div className="fixed inset-0 bg-black/90 z-50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-3 sm:p-6">
-        <div className="flex flex-col max-h-full items-center">
-          <div className="flex justify-end w-full max-w-md mb-2 shrink-0">
-            <button
-              onClick={onClose}
-              className="text-white/70 hover:text-white text-sm font-medium px-3 py-2 relative z-10"
-            >
-              Close &times;
-            </button>
-          </div>
-          <div className="relative shrink min-h-0" style={{ aspectRatio: '9 / 16', maxHeight: 'calc(100vh - 80px)', width: 'min(100%, 420px)' }}>
+      <div className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-6">
+        <div className="min-h-full flex flex-col items-center justify-center">
+          <button
+            onClick={onClose}
+            className="text-white/70 hover:text-white text-sm font-medium px-3 py-2 mb-2 self-center"
+          >
+            Close &times;
+          </button>
+          <div style={{ width: 'min(100%, 420px)', padding: '177.78% 0 0 0', position: 'relative', maxWidth: '420px' }}>
             <iframe
               src={embedUrl}
               title="Why You Care"
-              className="absolute inset-0 w-full h-full rounded-lg"
+              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+              frameBorder="0"
               allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
               referrerPolicy="strict-origin-when-cross-origin"
               allowFullScreen
-              frameBorder="0"
             />
           </div>
         </div>
