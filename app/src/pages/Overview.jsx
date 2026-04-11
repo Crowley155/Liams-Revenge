@@ -226,33 +226,33 @@ export default function Overview() {
 }
 
 function VideoModal({ url, onClose }) {
-  const embedUrl = url + (url.includes('?') ? '&' : '?') + 'autoplay=1&transparent=0';
+  const embedUrl = url + (url.includes('?') ? '&' : '?') + 'autoplay=1';
 
   return (
     <>
       <div className="fixed inset-0 bg-black/90 z-50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6">
-        <div className="relative w-full max-w-5xl">
-          <div className="flex justify-end mb-2">
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-3 sm:p-6">
+        <div className="w-full max-w-5xl flex flex-col max-h-full">
+          <div className="flex justify-end mb-2 shrink-0">
             <button
               onClick={onClose}
-              className="text-white/70 hover:text-white text-sm font-medium px-3 py-1"
+              className="text-white/70 hover:text-white text-sm font-medium px-3 py-2 relative z-10"
             >
               Close &times;
             </button>
           </div>
-          <iframe
-            src={embedUrl}
-            title="Why you should care"
-            width="1920"
-            height="1080"
-            className="w-full rounded-lg"
-            style={{ aspectRatio: '16 / 9' }}
-            allow="autoplay; fullscreen; picture-in-picture"
-            allowFullScreen
-            loading="lazy"
-            frameBorder="0"
-          />
+          <div className="relative w-full flex-1 min-h-0" style={{ aspectRatio: '16 / 9', maxHeight: 'calc(100vh - 80px)' }}>
+            <iframe
+              src={embedUrl}
+              title="Why you should care"
+              width="1920"
+              height="1080"
+              className="absolute inset-0 w-full h-full rounded-lg"
+              allow="autoplay; fullscreen; picture-in-picture"
+              allowFullScreen
+              frameBorder="0"
+            />
+          </div>
         </div>
       </div>
     </>
