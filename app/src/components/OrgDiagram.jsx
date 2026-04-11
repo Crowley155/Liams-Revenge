@@ -243,9 +243,9 @@ export default function OrgDiagram() {
 
       {tooltip && (
         <div
-          className="absolute z-20 pointer-events-none max-w-xs bg-bg border border-border rounded-lg px-3 py-2 shadow-xl"
+          className="absolute z-20 pointer-events-none max-w-[260px] bg-bg border border-border rounded-lg px-3 py-2 shadow-xl"
           style={{
-            left: Math.min(mousePos.x + 14, (containerRef.current?.clientWidth || 400) - 280),
+            left: Math.max(0, Math.min(mousePos.x + 14, (containerRef.current?.clientWidth || 375) - 270)),
             top: mousePos.y + 14,
           }}
         >

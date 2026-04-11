@@ -85,7 +85,7 @@ export default function Sources() {
       </div>
 
       <div className="space-y-3">
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center flex-wrap">
           {[
             { key: CATEGORY_ALL, label: 'All' },
             { key: CATEGORY_LEGAL, label: 'Legal Authorities' },
@@ -111,7 +111,7 @@ export default function Sources() {
             placeholder="Search..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm w-64 focus:border-accent focus:outline-none"
+            className="bg-surface-alt border border-border rounded-lg px-3 py-2 text-sm w-full sm:w-64 focus:border-accent focus:outline-none"
           />
           <button
             onClick={() => setImportantOnly(!importantOnly)}

@@ -13,17 +13,17 @@ export default function Overview() {
     <div className="space-y-10">
       {/* Section 1: The Incident + Core Problem */}
       <section>
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
           <div>
             <h2 className="text-2xl font-bold mb-1">Duty of Care Briefing</h2>
-            <p className="text-xs text-text-dim mb-6">
+            <p className="text-xs text-text-dim mb-4 sm:mb-6">
               Crowley v. USD 232 / JCPRD — What parents are told vs. what actually happens
             </p>
           </div>
           {videoUrl && (
             <button
               onClick={() => setShowVideo(true)}
-              className="shrink-0 px-4 py-2 rounded-lg text-sm font-semibold bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 transition-colors animate-pulse-subtle"
+              className="w-full sm:w-auto shrink-0 px-4 py-3 sm:py-2 rounded-lg text-sm font-semibold bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 transition-colors animate-pulse-subtle text-center"
             >
               ▶ Tell me why I care
             </button>
@@ -226,20 +226,25 @@ export default function Overview() {
 }
 
 function VideoModal({ url, onClose }) {
+  const embedUrl = url + (url.includes('?') ? '&' : '?') + 'autoplay=1';
+
   return (
     <>
-      <div className="fixed inset-0 bg-black/80 z-50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-        <div className="relative w-full max-w-4xl">
-          <button
-            onClick={onClose}
-            className="absolute -top-10 right-0 text-white/70 hover:text-white text-sm font-medium"
-          >
-            Close &times;
-          </button>
+      <div className="fixed inset-0 bg-black/90 z-50" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-6">
+        <div className="relative w-full max-w-5xl">
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={onClose}
+              className="text-white/70 hover:text-white text-sm font-medium px-3 py-1"
+            >
+              Close &times;
+            </button>
+          </div>
           <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
             <iframe
-              src={url}
+              src={embedUrl}
+              title="Why you should care"
               className="absolute inset-0 w-full h-full rounded-lg"
               allow="autoplay; fullscreen; picture-in-picture"
               allowFullScreen
