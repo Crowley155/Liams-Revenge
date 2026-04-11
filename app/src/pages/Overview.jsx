@@ -231,15 +231,17 @@ function VideoModal({ url, onClose }) {
   return (
     <>
       <div className="fixed inset-0 bg-black/90 z-50" onClick={onClose} />
-      <div className="fixed inset-0 z-50 overflow-y-auto p-3 sm:p-6">
-        <div className="min-h-full flex flex-col items-center justify-center">
-          <button
-            onClick={onClose}
-            className="text-white/70 hover:text-white text-sm font-medium px-3 py-2 mb-2 self-center"
-          >
-            Close &times;
-          </button>
-          <div style={{ width: 'min(100%, 420px)', padding: '177.78% 0 0 0', position: 'relative', maxWidth: '420px' }}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
+        <div className="w-full" style={{ maxWidth: '420px' }}>
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={onClose}
+              className="text-white/70 hover:text-white text-sm font-medium px-3 py-2"
+            >
+              Close &times;
+            </button>
+          </div>
+          <div style={{ padding: '177.78% 0 0 0', position: 'relative' }}>
             <iframe
               src={embedUrl}
               title="Why You Care"
