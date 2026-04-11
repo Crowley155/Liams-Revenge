@@ -1,0 +1,6 @@
+node_modules/
+dist/
+sources/
+lease-extracted.pdf
+*.local
+.DS_Store
