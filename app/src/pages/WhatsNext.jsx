@@ -8,16 +8,16 @@ export default function WhatsNext() {
           My son asked me to do something.
         </h2>
         <p className="text-[15px] leading-relaxed text-text/90">
-          He told me he wants to make sure what happened to him doesn't happen
-          to other kids. He's six — he doesn't fully understand the system that
-          failed him, but he knows it did. And he asked me to fix it.
+          He's six. He doesn't fully understand the system that failed him, but
+          he knows it did. And he asked me to make sure it doesn't happen to
+          other kids.
         </p>
         <p className="text-[15px] leading-relaxed text-text/90">
           I sit on the board of two technology companies —{' '}
           <strong>Elevate.Cloud</strong> and <strong>Arcflare.ai</strong> —
           alongside people who build complex enterprise systems for a living.
           AI platforms, cloud infrastructure, data pipelines that Fortune 500
-          companies depend on. So I called them. And I said: help me build
+          companies depend on. So I called them and said: help me build
           something that gives every parent what we had to build from scratch.
         </p>
         <p className="text-lg sm:text-xl text-accent font-semibold leading-snug">
@@ -32,11 +32,10 @@ export default function WhatsNext() {
         </h3>
         <div className="text-[15px] leading-relaxed text-text/90 space-y-5">
           <p>
-            We — not me, <em>we</em> — are turning the Case Command Center
-            into a platform that any parent can use. The same people who
-            architect enterprise AI systems are now pointing that firepower at
-            the bureaucracies that count on you not having it. You tell it what
-            happened. It goes to work.
+            The Case Command Center is becoming a platform any parent can use.
+            The same people who architect enterprise AI systems are pointing
+            that firepower at the bureaucracies that count on you not having
+            it. You tell it what happened. It goes to work.
           </p>
           <p>
             It uses <strong>semantic search</strong> to comb through public
@@ -62,12 +61,8 @@ export default function WhatsNext() {
       {/* The ask */}
       <section className="border-t border-border pt-10 space-y-4">
         <p className="text-[15px] leading-relaxed text-text/90">
-          We're building this in Liam's name. He's six. He doesn't understand
-          why the adults who were supposed to protect him didn't. He doesn't
-          understand why the people responsible won't say they're sorry. But
-          he told me he wants to make sure it doesn't happen to other kids.
-          So that's what we're doing — a father, a team of engineers, and two
-          companies that decided this matters more than the next SaaS dashboard.
+          A father, a team of engineers, and two companies that decided this
+          matters more than the next SaaS dashboard. That's who's building this.
         </p>
         <p className="text-[15px] leading-relaxed text-text/90">
           This tool will be free. Not freemium. Not "free with a catch." Free —
