@@ -148,10 +148,50 @@ const SECTIONS = [
         rule: 'K.S.A. 72-1421(c) binds the district to the entire KDHE child care licensing chapter',
         source: 'K.S.A. 72-1421(c)',
         sourceId: 'AUTH-51',
-        requires:
-          'K.S.A. 72-1421(c): "Every school district which establishes, operates and maintains a child care facility shall be subject to the provisions contained in article 5 of chapter 65." This imports the full KDHE licensing framework: duty of care (65-508), mandatory inspections (65-512), record-keeping (65-507), license revocation (65-504), emergency suspension (65-524), civil fines up to $500/day (65-526), and criminal penalties (65-514).\n\nSTATUTORY CONSTRUCTION — WHY THIS APPLIES:\n\n1. IDENTICAL LANGUAGE: 72-1421(a)(3) authorizes the board to "contract with... any public or private agency... for the establishment, operation and maintenance of a child care facility." Subsection (c) applies to districts that "establish, operate and maintain." The legislature used the same operative words in both provisions — contracting for "establishment, operation and maintenance" IS establishing, operating, and maintaining through a contractual vehicle.\n\n2. SUBSECTION (d) CONFIRMS IT: The definition section says "child" includes children of districts that "establishes, operates and maintains, or cooperates in the establishment, operation and maintenance of" a facility. The "or cooperates in" language explicitly broadens the statute beyond direct operation to cover cooperative/contracted arrangements.\n\n3. 72-3215 COMPARISON: The parallel preschool statute has the exact same (a)(1-4) structure but deliberately OMITS a subsection (c). The legislature intentionally added KDHE binding for child care and omitted it for preschool — proving subsection (c) was purposeful, not accidental.\n\n4. ARTICLE 14 PLACEMENT: The statute sits in "Provisions Relating To The Use Of School District Property." It was designed for arrangements where school property is used for child care — lease-based arrangements are the primary use case.\n\n5. PURPOSIVE CONSTRUCTION: If outsourcing under (a)(3) defeats the KDHE obligation in (c), then the provision is nullified by the very mechanism the statute authorizes. The legislature did not write (c) to be defeated by (a)(3).\n\n6. DISTRICT\'S OWN CHARACTERIZATION: USD 232 says it "offers" this programming (website), calls it "invaluable childcare" (Schwanz memo), titled the consent agenda "School Age Childcare Programs," and Cater wrote it "operates as a licensed childcare provider." A district that "offers" childcare has "established" it.',
-        actual:
-          'USD 232 disclaimed any oversight role. Balthazor called JCPRD a "separate entity." Cater stated JCPRD "operates independently."\n\nDEFENSE ARGUMENTS AND REBUTTALS:\n\nDefense will argue "establishes, operates and maintains" is conjunctive — the district doesn\'t directly "operate" the program. Rebuttal: Subsection (d) already broadens this to include cooperative arrangements. The district\'s own website says it "offers" the programming.\n\nDefense will argue JCPRD holds its own KDHE license — the district is just a landlord. Rebuttal: A landlord doesn\'t title its board agenda "School Age Childcare Programs," call the arrangement "invaluable childcare," or present it on its website under "Family and Student Services" as a service it "offers."\n\nDefense will argue the lease is under 72-1150 (general leasing), not 72-1421. Rebuttal: The statutory authority under which the lease was drafted doesn\'t change the characterization of the arrangement. If the arrangement IS a child care facility on school property, 72-1421(c) applies by its own terms.\n\nNo Kansas court has ruled on this specific question. But the statutory text, structure, and the district\'s own admissions all favor the parent.',
+        requiresIntro:
+          'K.S.A. 72-1421(c): "Every school district which establishes, operates and maintains a child care facility shall be subject to the provisions contained in article 5 of chapter 65." This imports the full KDHE licensing framework: duty of care (65-508), mandatory inspections (65-512), record-keeping (65-507), license revocation (65-504), emergency suspension (65-524), civil fines up to $500/day (65-526), and criminal penalties (65-514).',
+        requiresPoints: [
+          {
+            label: 'Identical Language',
+            text: '72-1421(a)(3) authorizes contracting for "establishment, operation and maintenance" of child care. Subsection (c) applies to districts that "establish, operate and maintain." The legislature used the same operative words — contracting for it IS establishing it through a contractual vehicle.',
+          },
+          {
+            label: 'Subsection (d) Broadens It',
+            text: '"Child" includes children of districts that "establishes, operates and maintains, or cooperates in the establishment, operation and maintenance of" a facility. The "or cooperates in" language explicitly covers cooperative and contracted arrangements.',
+          },
+          {
+            label: '72-3215 Comparison',
+            text: 'The parallel preschool statute has the same (a)(1-4) structure but deliberately omits a subsection (c). The legislature intentionally added KDHE binding for child care and omitted it for preschool — proving (c) was purposeful.',
+          },
+          {
+            label: 'Article 14 Placement',
+            text: 'The statute sits in "Provisions Relating To The Use Of School District Property." It was designed for lease-based child care arrangements — exactly this situation.',
+          },
+          {
+            label: 'Purposive Construction',
+            text: 'If outsourcing under (a)(3) defeats the KDHE obligation in (c), the provision is nullified by the very mechanism the statute authorizes. The legislature did not write (c) to be defeated by (a)(3).',
+          },
+          {
+            label: "District's Own Characterization",
+            text: 'USD 232 "offers" this programming (website), calls it "invaluable childcare" (Schwanz memo), titled the consent agenda "School Age Childcare Programs," and Cater wrote it "operates as a licensed childcare provider." A district that "offers" childcare has "established" it.',
+          },
+        ],
+        actualIntro:
+          'USD 232 disclaimed any oversight role. Balthazor called JCPRD a "separate entity." Cater stated JCPRD "operates independently." No Kansas court has ruled on this specific question, but the statutory text, structure, and the district\'s own admissions all favor the parent.',
+        actualPoints: [
+          {
+            label: '"Establishes, operates and maintains" is conjunctive',
+            text: 'Defense will argue the district doesn\'t directly "operate" the program. Rebuttal: Subsection (d) already broadens this to include cooperative arrangements. The district\'s website says it "offers" the programming.',
+          },
+          {
+            label: 'JCPRD holds its own KDHE license',
+            text: 'Defense will argue the district is just a landlord. Rebuttal: A landlord doesn\'t title its board agenda "School Age Childcare Programs," call the arrangement "invaluable childcare," or present it on its website as a service it "offers."',
+          },
+          {
+            label: 'Lease is under 72-1150, not 72-1421',
+            text: 'Defense will argue the leasing statute controls. Rebuttal: The statutory authority under which the lease was drafted doesn\'t change the characterization of the arrangement. If the arrangement IS a child care facility on school property, 72-1421(c) applies by its own terms.',
+          },
+        ],
         evidenceIds: [
           'AUTH-51',
           'AUTH-43',
@@ -162,14 +202,14 @@ const SECTIONS = [
         status: 'violated',
       },
       {
-        rule: 'Neither entity filed a KDHE complaint or informed the parent of the right to do so',
+        rule: 'USD 232 never filed a KDHE complaint; JCPRD filed only reactively; neither informed the parent of the right to trigger an inspection',
         source: 'K.S.A. 65-512',
         sourceId: 'AUTH-59',
         requires:
-          'K.S.A. 65-512 mandates that KDHE "shall conduct an inspection of any child care facility upon receiving a complaint." The parent of a child assaulted in a KDHE-licensed facility has the right to trigger a complaint-based inspection. This right exists regardless of 72-1421 — it applies to any KDHE-licensed program.',
+          'K.S.A. 65-512 mandates that KDHE "shall conduct an inspection of any child care facility upon receiving a complaint." Any person — including a parent, a school district, or the facility itself — can trigger this inspection. Under 72-1421(c), the district is subject to this inspection regime. The parent of a child assaulted in a KDHE-licensed facility has the right to file a complaint and trigger a state inspection of supervision practices, incident reporting, and compliance with K.S.A. 65-508.',
         actual:
-          'After the April 2026 assault, no KDHE complaint was filed by JCPRD or USD 232. The parent was not informed of the complaint mechanism. Instead, both entities redirected the parent between each other. Alvie Cater\'s email references KDHE but only as a deflection ("concerns regarding their actions or compliance would need to be addressed directly with JCPRD and, if necessary, KDHE") — not as actionable guidance about the parent\'s right to trigger an inspection.',
-        evidenceIds: ['AUTH-59', 'DOC-012', 'DOC-014'],
+          'JCPRD did file a KDHE Critical Incident Report — but only after the parent mentioned seeking medical care (DOC-017: "Our report to KDHE and local licensing was made when you notified us that you sought medical care"). This raises the question of whether JCPRD would have filed at all without the parent\'s disclosure. USD 232 never filed its own KDHE complaint despite its obligations under 72-1421(c). Most critically, neither entity informed the parent of their right to trigger a complaint-based inspection. Alvie Cater referenced KDHE only as a deflection — "concerns regarding their actions or compliance would need to be addressed directly with JCPRD and, if necessary, KDHE" — not as actionable guidance about the parent\'s statutory right under 65-512.',
+        evidenceIds: ['AUTH-59', 'DOC-017', 'DOC-012', 'DOC-014'],
         status: 'violated',
       },
       {
@@ -264,8 +304,27 @@ export default function NonCompliance() {
   );
 }
 
+function StructuredContent({ intro, points }) {
+  return (
+    <div className="space-y-3">
+      <p className="text-xs leading-relaxed">{intro}</p>
+      {points?.length > 0 && (
+        <dl className="space-y-2 mt-2">
+          {points.map((pt, i) => (
+            <div key={i} className="pl-3 border-l-2 border-border">
+              <dt className="text-[11px] font-semibold text-text">{pt.label}</dt>
+              <dd className="text-xs leading-relaxed text-text-dim mt-0.5">{pt.text}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </div>
+  );
+}
+
 function RuleCard({ rule, color }) {
   const [expanded, setExpanded] = useState(false);
+  const hasStructured = rule.requiresIntro || rule.actualIntro;
 
   return (
     <div
@@ -298,13 +357,27 @@ function RuleCard({ rule, color }) {
               <p className="text-[10px] font-bold uppercase tracking-wider text-text-dim mb-1.5">
                 What the rule requires
               </p>
-              <p className="text-xs leading-relaxed">{rule.requires}</p>
+              {hasStructured ? (
+                <StructuredContent
+                  intro={rule.requiresIntro}
+                  points={rule.requiresPoints}
+                />
+              ) : (
+                <p className="text-xs leading-relaxed">{rule.requires}</p>
+              )}
             </div>
             <div>
               <p className="text-[10px] font-bold uppercase tracking-wider text-danger mb-1.5">
                 What actually happened
               </p>
-              <p className="text-xs leading-relaxed">{rule.actual}</p>
+              {hasStructured ? (
+                <StructuredContent
+                  intro={rule.actualIntro}
+                  points={rule.actualPoints}
+                />
+              ) : (
+                <p className="text-xs leading-relaxed">{rule.actual}</p>
+              )}
             </div>
           </div>
           {rule.evidenceIds?.length > 0 && (

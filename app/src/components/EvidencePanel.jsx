@@ -1,8 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useCase } from '../data/useCase';
-import { contradictionReferencesDoc, normalizeContradiction } from '../lib/contradictionUtils';
-import DocLink from './DocLink';
-import RelevanceBadge from './RelevanceBadge';
 
 const PanelContext = createContext(null);
 
@@ -45,16 +42,21 @@ export function usePanel() {
 
 function Panel() {
   const { activeDocId, activeThreadId, close } = usePanel();
-  const data = useCase();
+  const { lookup } = useCase();
+
+  const isSource = activeDocId && !lookup.evidence[activeDocId] && lookup.sources[activeDocId];
+  const headerLabel = activeThreadId
+    ? 'Thread View'
+    : isSource
+    ? `Source: ${activeDocId}`
+    : `Evidence: ${activeDocId}`;
 
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-50" onClick={close} />
       <div className="fixed inset-y-0 right-0 w-full max-w-2xl bg-surface border-l border-border z-50 overflow-y-auto shadow-2xl animate-slide-in">
         <div className="sticky top-0 bg-surface border-b border-border px-6 py-4 flex items-center justify-between z-10">
-          <h2 className="text-sm font-bold text-accent">
-            {activeDocId ? `Evidence: ${activeDocId}` : `Thread View`}
-          </h2>
+          <h2 className="text-sm font-bold text-accent">{headerLabel}</h2>
           <button onClick={close} className="text-text-dim hover:text-text text-lg leading-none">&times;</button>
         </div>
         <div className="p-6">
@@ -67,15 +69,13 @@ function Panel() {
 }
 
 function DocDetail({ docId }) {
-  const { evidence, contradictions, lookup } = useCase();
-  const { openThread } = usePanel();
+  const { lookup } = useCase();
   const doc = lookup.evidence[docId];
-  if (!doc) return <p className="text-text-dim">Document not found.</p>;
-
-  const thread = doc.threadId ? lookup.threads[doc.threadId] : null;
-  const relatedContradictions = (contradictions || [])
-    .filter(c => contradictionReferencesDoc(c, docId))
-    .map(normalizeContradiction);
+  if (!doc) {
+    const source = lookup.sources[docId];
+    if (source) return <SourceDetail source={source} />;
+    return <p className="text-text-dim">Document not found.</p>;
+  }
 
   return (
     <div className="space-y-6">
@@ -85,11 +85,16 @@ function DocDetail({ docId }) {
             doc.type === 'email' ? 'bg-blue-500/20 text-blue-300' :
             doc.type === 'form' ? 'bg-amber-500/20 text-amber-300' :
             doc.type === 'document' ? 'bg-emerald-500/20 text-emerald-300' :
+            doc.type === 'pdf' ? 'bg-violet-500/20 text-violet-300' :
             'bg-gray-500/20 text-gray-300'
           }`}>
             {doc.type}
           </span>
-          {doc.relevanceScore && <RelevanceBadge score={doc.relevanceScore} expandable />}
+          {doc.important && (
+            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300">
+              Important
+            </span>
+          )}
         </div>
         <h3 className="mt-2 text-lg font-semibold">{doc.title || doc.id}</h3>
         <div className="mt-1 flex flex-wrap gap-3 text-xs text-text-dim">
@@ -98,6 +103,36 @@ function DocDetail({ docId }) {
           {doc.source && <span>From: {lookup.actors[doc.source]?.name || doc.source}</span>}
         </div>
       </div>
+
+      {doc.pdfFile && (
+        <a
+          href={`./docs/${doc.pdfFile}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 w-full bg-accent/10 hover:bg-accent/20 border border-accent/30 rounded-lg px-4 py-3 transition-colors"
+        >
+          <span className="text-accent text-lg">&#128196;</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-accent">View Document</p>
+            <p className="text-xs text-text-dim truncate">{doc.pdfFile}</p>
+          </div>
+          <span className="text-accent text-xs shrink-0">Open PDF ↗</span>
+        </a>
+      )}
+
+      {doc.url && (
+        <div>
+          <h4 className="text-xs font-bold uppercase text-text-dim mb-2">Source Link</h4>
+          <a
+            href={doc.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-accent hover:text-accent-hover underline break-all"
+          >
+            {doc.url}
+          </a>
+        </div>
+      )}
 
       {doc.summary && (
         <div>
@@ -123,38 +158,6 @@ function DocDetail({ docId }) {
               <li key={i} className="text-sm pl-3 border-l-2 border-accent/40">{claim}</li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {thread && (
-        <div>
-          <h4 className="text-xs font-bold uppercase text-text-dim mb-2">Thread</h4>
-          <button
-            onClick={() => openThread(thread.id)}
-            className="w-full text-left bg-surface-alt rounded-lg p-3 hover:bg-border/30 transition-colors"
-          >
-            <p className="text-sm font-medium text-accent">{thread.title}</p>
-            <p className="text-xs text-text-dim mt-1">{thread.abstract}</p>
-            <p className="text-xs text-text-dim mt-1">{thread.docIds.length} messages in thread</p>
-          </button>
-        </div>
-      )}
-
-      {relatedContradictions.length > 0 && (
-        <div>
-          <h4 className="text-xs font-bold uppercase text-text-dim mb-2">Related Contradictions</h4>
-          <div className="space-y-2">
-            {relatedContradictions.map(c => (
-              <div key={c.id} className="bg-danger/10 border border-danger/20 rounded-lg p-3">
-                <p className="text-xs font-bold text-danger">{c.id}: {c.label}</p>
-                <p className="text-xs mt-1 text-text-dim">{c.summary}</p>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  {c.docIdA && <DocLink id={c.docIdA} />}
-                  {c.docIdB && <DocLink id={c.docIdB} />}
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
       )}
     </div>
@@ -198,6 +201,101 @@ function ThreadDetail({ threadId }) {
             )}
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+const SOURCE_TYPE_LABELS = {
+  statute: 'Statute',
+  regulation: 'Regulation',
+  case: 'Case Law',
+  caselaw: 'Case Law',
+  'case-law': 'Case Law',
+  'case-persuasive': 'Case Law',
+  documentary: 'Document',
+  'web-evidence': 'Document',
+  'board-policy': 'Board Policy',
+};
+
+const VERIFICATION_COLORS = {
+  verified: 'bg-success/20 text-success',
+  'partially-verified': 'bg-warning/20 text-warning',
+  unverified: 'bg-text-dim/20 text-text-dim',
+  'needs-verification': 'bg-danger/20 text-danger',
+};
+
+function getAccessHint(source) {
+  if (source.url) return null;
+  if (['case', 'caselaw', 'case-law', 'case-persuasive'].includes(source.type))
+    return 'Available via Westlaw, LexisNexis, or Justia (if published). Request attorney access for full opinion text.';
+  if (['statute', 'regulation'].includes(source.type))
+    return 'Available via Kansas Revisor of Statutes website (ksrevisor.gov) or Cornell LII.';
+  return 'Contact attorney for access or submit KORA request to the issuing entity.';
+}
+
+function SourceDetail({ source }) {
+  const accessHint = getAccessHint(source);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center gap-2 flex-wrap mb-2">
+          <span className="text-xs font-mono text-text-dim">{source.id}</span>
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-surface-alt text-text-dim">
+            {SOURCE_TYPE_LABELS[source.type] || source.type}
+          </span>
+          {source.important && (
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/20 text-amber-300">
+              Important
+            </span>
+          )}
+          {source.verification && (
+            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+              VERIFICATION_COLORS[source.verification?.toLowerCase().replace(/\s+/g, '-')] || 'bg-surface-alt text-text-dim'
+            }`}>
+              {source.verification}
+            </span>
+          )}
+        </div>
+        <h3 className="text-lg font-semibold">{source.citation}</h3>
+      </div>
+
+      {source.holding && (
+        <div>
+          <h4 className="text-xs font-bold uppercase text-text-dim mb-2">Summary</h4>
+          <p className="text-sm leading-relaxed">{source.holding}</p>
+        </div>
+      )}
+
+      {source.keyQuote && (
+        <div className="border-l-2 border-accent pl-3">
+          <h4 className="text-[10px] font-bold uppercase text-accent mb-1">Key Quote</h4>
+          <p className="text-sm italic text-text leading-relaxed">{source.keyQuote}</p>
+        </div>
+      )}
+
+      {source.relevance && (
+        <div>
+          <h4 className="text-xs font-bold uppercase text-text-dim mb-2">What This Means for the Case</h4>
+          <p className="text-sm leading-relaxed">{source.relevance}</p>
+        </div>
+      )}
+
+      <div>
+        <h4 className="text-xs font-bold uppercase text-text-dim mb-2">How to Access</h4>
+        {source.url ? (
+          <a
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-accent hover:text-accent-hover underline break-all"
+          >
+            {source.url}
+          </a>
+        ) : (
+          <p className="text-sm text-text-dim">{accessHint}</p>
+        )}
       </div>
     </div>
   );

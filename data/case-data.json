@@ -5,7 +5,8 @@
     "version": "1.0.0",
     "disclaimer": "Litigation strategy and research synthesis, not legal advice.",
     "studentAgeYears": 6,
-    "studentAgeLabel": "six-year-old"
+    "studentAgeLabel": "six-year-old",
+    "videoUrl": "https://player.vimeo.com/video/1182243381"
   },
   "actors": [
     {
@@ -622,6 +623,7 @@
     },
     {
       "id": "DOC-004",
+      "important": true,
       "date": "2026-04-07",
       "time": "13:31",
       "source": "gerri-balthazor",
@@ -755,6 +757,7 @@
     },
     {
       "id": "DOC-009",
+      "important": true,
       "date": "2026-04-03",
       "time": "17:44",
       "source": "leigh-white",
@@ -835,6 +838,7 @@
     },
     {
       "id": "DOC-012",
+      "important": true,
       "date": "2026-04-09",
       "time": "16:28",
       "source": "alvie-cater",
@@ -970,10 +974,12 @@
     },
     {
       "id": "DOC-017",
+      "important": true,
       "date": "2026-04-06",
       "time": "15:31",
       "source": "jennifer-anderson",
       "type": "email",
+      "pdfFile": "20260406140743992.pdf",
       "summary": "Report written day of incident; KDHE/local licensing report when parent notified medical care; offers meeting",
       "emlFile": "JCPRD Incident Report.eml",
       "keyClaims": [
@@ -1052,7 +1058,8 @@
       "date": "2026-04-02",
       "time": null,
       "source": "JCPRD",
-      "type": "incident-report",
+      "type": "pdf",
+      "pdfFile": "20260406140743992.pdf",
       "summary": "JCPRD incident report form for 4/2 event. Full text not extracted from PDF.",
       "emlFile": "JCPRD Incident Report.eml",
       "keyClaims": [
@@ -1077,10 +1084,12 @@
     },
     {
       "id": "DOC-021",
+      "important": true,
       "date": "2025-07-07",
       "time": null,
       "source": "USD 232 / JCPRD",
       "type": "pdf",
+      "pdfFile": "JCPRD lease agreement 2025-26.pdf",
       "summary": "JCPRD lease agreement 2025-26. Section 8(d) requires compliance with all Board policies. Section 7(c) provides enforcement authority for the district to remedy material breaches. Page 1 is the Schwanz cover memo (readable). Pages 2-11 are the lease body (scanned images — not yet OCR'd).",
       "emlFile": "JCPRD Incident Report.eml",
       "keyClaims": [
@@ -1255,6 +1264,7 @@
     },
     {
       "id": "DOC-028",
+      "important": true,
       "date": "2025-09-18",
       "time": "13:03",
       "source": "breanna-burks",
@@ -1314,7 +1324,9 @@
       "date": "2024-06-26",
       "time": null,
       "source": "brian-schwanz",
-      "type": "board-memo",
+      "type": "pdf",
+      "pdfFile": "JCPRD rental fees for before-after school care.pdf",
+      "url": "https://usd232.diligent.community/document/4c7ee92c-6017-426b-8fea-c87c2e2dc16f/",
       "summary": "Memo to Board of Education re JCPRD rental fees: describes JCPRD as providing 'elementary before and after school care' that is 'invaluable to our families'; Board asked to approve contract on consent agenda",
       "emlFile": null,
       "keyClaims": [
@@ -2084,6 +2096,7 @@
   "sources": [
     {
       "id": "AUTH-01",
+      "important": true,
       "citation": "K.S.A. 72-6114",
       "type": "statute",
       "holding": "Grounds for suspension/expulsion: conduct endangering safety 'at school, on school property, or at a school supervised activity' — no time-of-day limit",
@@ -2308,7 +2321,7 @@
     {
       "id": "AUTH-12",
       "citation": "Restatement (Second) of Torts § 344",
-      "type": "secondary",
+      "type": "case",
       "holding": "Possessor of land duty to invitees regarding third-party conduct",
       "verification": "VERIFY WITH COUNSEL",
       "relevance": "Legal framework for when a property owner has a duty to protect visitors from harm caused by other people on the property. Referenced in the key Kansas case (Nero) about government landlord responsibility.",
@@ -2327,6 +2340,7 @@
     },
     {
       "id": "AUTH-13",
+      "important": true,
       "citation": "Nero v. Kansas State University, 253 Kan. 567, 861 P.2d 768 (1993)",
       "type": "case",
       "holding": "Governmental landowner owes reasonable care; foreseeable third-party harm; foreseeability often a fact question",
@@ -2891,6 +2905,7 @@
     },
     {
       "id": "AUTH-41",
+      "important": true,
       "citation": "JCPRD Olathe Program Handbook (jcprd.com/2075)",
       "type": "documentary",
       "holding": "Policy 1: 'programs function independently in both policy and procedure'; educational mission/vision throughout",
@@ -2932,6 +2947,7 @@
     },
     {
       "id": "AUTH-43",
+      "important": true,
       "citation": "Schwanz Memo to USD 232 Board (June 26, 2024)",
       "type": "documentary",
       "holding": "JCPRD provides 'invaluable' before/after school care; Board approves contract on consent agenda",
@@ -2963,6 +2979,7 @@
     },
     {
       "id": "AUTH-45",
+      "important": true,
       "citation": "K.S.A. 65-508",
       "type": "statute",
       "holding": "Licensed child care facilities must operate 'with strict regard to the health, comfort, safety, and social welfare of children'",
@@ -3023,6 +3040,7 @@
     },
     {
       "id": "AUTH-51",
+      "important": true,
       "citation": "K.S.A. 72-1421",
       "type": "statute",
       "holding": "Authorizes school boards to establish, operate, and maintain child care facilities — including by contracting with public or private agencies — and subjects all such facilities to KDHE licensing (article 5 of chapter 65)",
@@ -3103,6 +3121,7 @@
     },
     {
       "id": "AUTH-59",
+      "important": true,
       "citation": "K.S.A. 65-512",
       "type": "statute",
       "holding": "KDHE must inspect every child care facility at least once every 12 months. Critically, KDHE \"shall conduct an inspection of any child care facility upon receiving a complaint.\" The licensee must give all reasonable information and afford every reasonable facility for viewing the premises.",
@@ -3173,6 +3192,7 @@
     },
     {
       "id": "BP-01",
+      "important": true,
       "citation": "USD 232 Board Policy KG — Use of School Facilities by Community Groups",
       "type": "board-policy",
       "holding": "Requires a school employee to be on duty whenever non-school groups use school facilities. Board must approve all lease arrangements.",
@@ -3193,6 +3213,7 @@
     },
     {
       "id": "BP-02",
+      "important": true,
       "citation": "USD 232 Board Policy JGFB — Supervision of Students",
       "type": "board-policy",
       "holding": "Students under school jurisdiction must be supervised by school personnel. All school-sponsored activities must be supervised by an administration-approved adult.",
@@ -3213,6 +3234,7 @@
     },
     {
       "id": "BP-03",
+      "important": true,
       "citation": "USD 232 Board Policy JDDC — Student Bullying",
       "type": "board-policy",
       "holding": "Expressly prohibits bullying on school property and at all school-sponsored activities, programs, or events. Requires administration to implement a bullying prevention plan.",
@@ -3333,6 +3355,7 @@
     },
     {
       "id": "BP-09",
+      "important": true,
       "citation": "USD 232 \"Before/After School Services\" Webpage",
       "type": "web-evidence",
       "holding": "USD 232's own website presents JCPRD's Out of School Time program as a district service, stating the district \"partners with JCPRD to offer\" before/after school programming.",
