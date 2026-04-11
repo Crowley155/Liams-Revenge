@@ -226,14 +226,14 @@ export default function Overview() {
 }
 
 function VideoModal({ url, onClose }) {
-  const embedUrl = url + (url.includes('?') ? '&' : '?') + 'autoplay=1';
+  const embedUrl = url + (url.includes('?') ? '&' : '?') + 'autoplay=1&badge=0&autopause=0&player_id=0&app_id=58479';
 
   return (
     <>
       <div className="fixed inset-0 bg-black/90 z-50" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-3 sm:p-6">
-        <div className="w-full max-w-5xl flex flex-col max-h-full">
-          <div className="flex justify-end mb-2 shrink-0">
+        <div className="flex flex-col max-h-full items-center">
+          <div className="flex justify-end w-full max-w-md mb-2 shrink-0">
             <button
               onClick={onClose}
               className="text-white/70 hover:text-white text-sm font-medium px-3 py-2 relative z-10"
@@ -241,14 +241,13 @@ function VideoModal({ url, onClose }) {
               Close &times;
             </button>
           </div>
-          <div className="relative w-full flex-1 min-h-0" style={{ aspectRatio: '16 / 9', maxHeight: 'calc(100vh - 80px)' }}>
+          <div className="relative shrink min-h-0" style={{ aspectRatio: '9 / 16', maxHeight: 'calc(100vh - 80px)', width: 'min(100%, 420px)' }}>
             <iframe
               src={embedUrl}
-              title="Why you should care"
-              width="1920"
-              height="1080"
+              title="Why You Care"
               className="absolute inset-0 w-full h-full rounded-lg"
-              allow="autoplay; fullscreen; picture-in-picture"
+              allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
               allowFullScreen
               frameBorder="0"
             />
