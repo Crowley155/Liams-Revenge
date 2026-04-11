@@ -6,6 +6,7 @@ import Overview from './pages/Overview';
 import People from './pages/People';
 import NonCompliance from './pages/NonCompliance';
 import Sources from './pages/Sources';
+import WhatsNext from './pages/WhatsNext';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
               <Route path="people" element={<People />} />
               <Route path="non-compliance" element={<NonCompliance />} />
               <Route path="sources" element={<Sources />} />
+              <Route path="whats-next" element={<WhatsNext />} />
             </Route>
           </Routes>
         </EvidencePanelProvider>

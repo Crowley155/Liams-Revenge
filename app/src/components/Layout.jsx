@@ -6,6 +6,7 @@ const NAV = [
   { to: '/people', label: 'People' },
   { to: '/non-compliance', label: 'Non-Compliance' },
   { to: '/sources', label: 'Evidence Catalog' },
+  { to: '/whats-next', label: "What's Next" },
 ];
 
 export default function Layout() {
