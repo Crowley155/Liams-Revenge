@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchProfile, fetchEntities } from '../api/client';
+import { fetchProfile, fetchEntities, startResearch } from '../api/client';
+import useResearchJob from '../hooks/useResearchJob';
 import DocLink from '../components/DocLink';
 
 const CAT_LABELS = {
@@ -119,8 +120,37 @@ export default function ProfileDetail() {
     );
   }
 
+  const reload = useCallback(() => {
+    fetchProfile(id).then(setProfile).catch(() => {});
+  }, [id]);
+
+  const { job, isRunning, isDone, error: jobError, start: startJob } = useResearchJob({
+    onComplete: reload,
+  });
+
+  const [launching, setLaunching] = useState(false);
+
+  async function handleResearch() {
+    setLaunching(true);
+    try {
+      const j = await startResearch({
+        name: profile.name,
+        role: profile.role,
+        organization: profile.organization,
+        state: profile.state || 'KS',
+        person_id: profile.id,
+      });
+      startJob(j.id);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLaunching(false);
+    }
+  }
+
   const { battle_card: bc, facts = [], contact, curated_bio, curated_quotes = [], entity_ids = [] } = profile;
   const badge = SOURCE_BADGE[profile.source] || SOURCE_BADGE.manual;
+  const hasResearch = facts.length > 0 || !!bc;
 
   const affiliatedEntities = entities.filter((e) => entity_ids.includes(e.id));
 
@@ -170,6 +200,30 @@ export default function ProfileDetail() {
                 ))}
               </div>
             )}
+
+            {/* Research trigger */}
+            <div className="mt-3 flex items-center gap-3 flex-wrap">
+              <button
+                onClick={handleResearch}
+                disabled={launching || isRunning}
+                className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {launching ? 'Starting...' : isRunning ? 'Researching...' : hasResearch ? 'Re-research' : 'Research this person'}
+              </button>
+              {isRunning && job && (
+                <span className="text-xs text-text-dim flex items-center gap-2">
+                  <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                  {job.status} {job.facts_found > 0 && `\u2014 ${job.facts_found} facts`}
+                </span>
+              )}
+              {isDone && job?.status === 'complete' && (
+                <span className="text-xs text-success">Done — {job.facts_found} facts found</span>
+              )}
+              {isDone && job?.status === 'failed' && (
+                <span className="text-xs text-danger">Failed: {job.error || 'unknown error'}</span>
+              )}
+              {jobError && <span className="text-xs text-danger">{jobError}</span>}
+            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchEntity, fetchEntityMembers } from '../api/client';
+import { fetchEntity, fetchEntityMembers, discoverMembers } from '../api/client';
+import useResearchJob from '../hooks/useResearchJob';
 
 const TYPE_LABELS = {
   district: 'School District',
@@ -63,6 +64,30 @@ export default function EntityDetail() {
     );
   }
 
+  const reload = useCallback(() => {
+    Promise.all([fetchEntity(id), fetchEntityMembers(id)])
+      .then(([e, m]) => { setEntity(e); setMembers(m); })
+      .catch(() => {});
+  }, [id]);
+
+  const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover } = useResearchJob({
+    onComplete: reload,
+  });
+
+  const [launchingDiscover, setLaunchingDiscover] = useState(false);
+
+  async function handleDiscover() {
+    setLaunchingDiscover(true);
+    try {
+      const j = await discoverMembers(id);
+      startDiscover(j.id);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLaunchingDiscover(false);
+    }
+  }
+
   const memberMap = {};
   for (const em of entity.members || []) {
     memberMap[em.person_id] = em;
@@ -108,15 +133,39 @@ export default function EntityDetail() {
 
       {/* Members */}
       <section>
-        <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-          Members
-          <span className="text-xs font-normal text-text-dim bg-surface-alt px-2 py-0.5 rounded-full">
-            {members.length}
-          </span>
-        </h2>
+        <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            Members
+            <span className="text-xs font-normal text-text-dim bg-surface-alt px-2 py-0.5 rounded-full">
+              {members.length}
+            </span>
+          </h2>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleDiscover}
+              disabled={launchingDiscover || discovering}
+              className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {launchingDiscover ? 'Starting...' : discovering ? 'Discovering...' : members.length > 0 ? 'Refresh Members' : 'Discover Members'}
+            </button>
+            {discovering && discoverJob && (
+              <span className="text-xs text-text-dim flex items-center gap-2">
+                <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                {discoverJob.status}
+              </span>
+            )}
+            {discoverDone && discoverJob?.status === 'complete' && (
+              <span className="text-xs text-success">Discovery complete</span>
+            )}
+            {discoverDone && discoverJob?.status === 'failed' && (
+              <span className="text-xs text-danger">Failed: {discoverJob.error || 'unknown'}</span>
+            )}
+            {discoverError && <span className="text-xs text-danger">{discoverError}</span>}
+          </div>
+        </div>
 
         {members.length === 0 ? (
-          <p className="text-sm text-text-dim italic">No members discovered yet.</p>
+          <p className="text-sm text-text-dim italic">No members discovered yet. Click "Discover Members" to search.</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {members.map((person) => {

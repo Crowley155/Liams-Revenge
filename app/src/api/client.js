@@ -35,3 +35,27 @@ export async function seedData() {
   if (!res.ok) throw new Error(`Seed failed: ${res.status}`);
   return res.json();
 }
+
+export async function startResearch(personCreate) {
+  const res = await fetch(`${API_BASE}/api/research`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(personCreate),
+  });
+  if (!res.ok) throw new Error(`Research failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getJobStatus(jobId) {
+  const res = await fetch(`${API_BASE}/api/research/${jobId}`);
+  if (!res.ok) throw new Error(`Job not found: ${res.status}`);
+  return res.json();
+}
+
+export async function discoverMembers(entityId) {
+  const res = await fetch(`${API_BASE}/api/entities/${entityId}/discover`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Discovery failed: ${res.status}`);
+  return res.json();
+}

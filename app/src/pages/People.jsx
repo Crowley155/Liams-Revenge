@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchProfiles, fetchEntities, seedData } from '../api/client';
+import { fetchProfiles, fetchEntities, seedData, startResearch } from '../api/client';
+import useResearchJob from '../hooks/useResearchJob';
 import DocLink from '../components/DocLink';
 import OrgDiagram from '../components/OrgDiagram';
 
@@ -32,14 +33,39 @@ function Initials({ name, color }) {
   );
 }
 
-function PersonCard({ person }) {
+function PersonCard({ person, onResearchDone }) {
   const [quotesOpen, setQuotesOpen] = useState(false);
+  const [launching, setLaunching] = useState(false);
   const orgColor = ORG_COLORS[person.organization] || '#6c8aff';
   const factCount = person.facts?.length || 0;
   const badge = SOURCE_BADGE[person.source] || SOURCE_BADGE.manual;
   const hasResearch = person.source === 'pipeline' || person.source === 'both'
     || (person.facts?.length > 0) || !!person.battle_card;
   const quotes = person.curated_quotes || [];
+
+  const { job, isRunning, isDone, start: startJob } = useResearchJob({
+    onComplete: onResearchDone,
+  });
+
+  async function handleResearch(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setLaunching(true);
+    try {
+      const j = await startResearch({
+        name: person.name,
+        role: person.role,
+        organization: person.organization,
+        state: person.state || 'KS',
+        person_id: person.id,
+      });
+      startJob(j.id);
+    } catch (err) {
+      console.error('Research failed', err);
+    } finally {
+      setLaunching(false);
+    }
+  }
 
   return (
     <div className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-3 card-hover" style={{ boxShadow: 'var(--shadow-card)' }}>
@@ -93,16 +119,33 @@ function PersonCard({ person }) {
         </div>
       )}
 
-      <div className="flex items-center gap-2 mt-auto pt-1">
-        {hasResearch ? (
-          <Link
-            to={`/people/${person.id}`}
-            className="text-[11px] text-accent hover:text-accent-hover transition-colors"
+      <div className="flex items-center gap-2 mt-auto pt-1 flex-wrap">
+        <Link
+          to={`/people/${person.id}`}
+          className="text-[11px] text-accent hover:text-accent-hover transition-colors"
+        >
+          View profile &rarr;
+        </Link>
+        {!isRunning && !isDone && (
+          <button
+            onClick={handleResearch}
+            disabled={launching}
+            className="text-[11px] text-text-dim hover:text-accent transition-colors disabled:opacity-50 ml-auto"
           >
-            View full profile &rarr;
-          </Link>
-        ) : (
-          <span className="text-[11px] text-text-dim/50 italic">Not yet researched</span>
+            {launching ? 'Starting...' : hasResearch ? 'Re-research' : 'Research'}
+          </button>
+        )}
+        {isRunning && job && (
+          <span className="text-[11px] text-text-dim flex items-center gap-1 ml-auto">
+            <span className="w-2.5 h-2.5 border-[1.5px] border-accent border-t-transparent rounded-full animate-spin" />
+            {job.status}
+          </span>
+        )}
+        {isDone && job?.status === 'complete' && (
+          <span className="text-[11px] text-success ml-auto">{job.facts_found} facts found</span>
+        )}
+        {isDone && job?.status === 'failed' && (
+          <span className="text-[11px] text-danger ml-auto">Failed</span>
         )}
       </div>
     </div>
@@ -200,7 +243,7 @@ export default function People() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {members.map((p) => (
-                <PersonCard key={p.id} person={p} />
+                <PersonCard key={p.id} person={p} onResearchDone={load} />
               ))}
             </div>
           </section>
@@ -218,7 +261,7 @@ export default function People() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {unaffiliated.map((p) => (
-              <PersonCard key={p.id} person={p} />
+              <PersonCard key={p.id} person={p} onResearchDone={load} />
             ))}
           </div>
         </section>
