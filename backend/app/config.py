@@ -15,7 +15,7 @@ class Settings:
     collect_model: str = field(
         default_factory=lambda: os.getenv(
             "COLLECT_MODEL",
-            os.getenv("PIPELINE_MODEL", "gemini/gemini-2.0-flash"),
+            os.getenv("PIPELINE_MODEL", "gemini/gemini-2.5-flash-lite"),
         )
     )
     disambiguate_model: str = field(
