@@ -50,6 +50,27 @@ class Settings:
     qdrant_api_key: str | None = field(
         default_factory=lambda: os.getenv("QDRANT_API_KEY")
     )
+    qdrant_collection: str = field(
+        default_factory=lambda: os.getenv("QDRANT_COLLECTION", "documents")
+    )
+
+    redis_url: str = field(
+        default_factory=lambda: os.getenv("REDIS_URL", "redis://localhost:6379")
+    )
+
+    pdl_api_key: str | None = field(
+        default_factory=lambda: os.getenv("PDL_API_KEY")
+    )
+
+    clay_api_key: str | None = field(
+        default_factory=lambda: os.getenv("CLAY_API_KEY")
+    )
+    clay_webhook_url: str | None = field(
+        default_factory=lambda: os.getenv("CLAY_WEBHOOK_URL")
+    )
+    backend_public_url: str | None = field(
+        default_factory=lambda: os.getenv("BACKEND_PUBLIC_URL")
+    )
 
     langfuse_public_key: str | None = field(
         default_factory=lambda: os.getenv("LANGFUSE_PUBLIC_KEY")
@@ -59,6 +80,10 @@ class Settings:
     )
     langfuse_host: str = field(
         default_factory=lambda: os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+    )
+
+    data_dir: str = field(
+        default_factory=lambda: os.getenv("DATA_DIR", "/app/data")
     )
 
     host: str = field(default_factory=lambda: os.getenv("HOST", "0.0.0.0"))
@@ -71,6 +96,18 @@ class Settings:
     @property
     def has_langfuse(self) -> bool:
         return bool(self.langfuse_public_key and self.langfuse_secret_key)
+
+    @property
+    def has_pdl(self) -> bool:
+        return bool(self.pdl_api_key)
+
+    @property
+    def has_clay(self) -> bool:
+        return bool(self.clay_webhook_url)
+
+    @property
+    def has_qdrant(self) -> bool:
+        return bool(self.qdrant_url)
 
 
 settings = Settings()

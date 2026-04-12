@@ -9,6 +9,7 @@ import Sources from './pages/Sources';
 import WhatsNext from './pages/WhatsNext';
 import ProfileDetail from './pages/ProfileDetail';
 import EntityDetail from './pages/EntityDetail';
+import IdentityEditor from './pages/IdentityEditor';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
               <Route index element={<Overview />} />
               <Route path="people" element={<People />} />
               <Route path="people/:id" element={<ProfileDetail />} />
+              <Route path="people/:id/identity" element={<IdentityEditor />} />
               <Route path="entities/:id" element={<EntityDetail />} />
               <Route path="non-compliance" element={<NonCompliance />} />
               <Route path="sources" element={<Sources />} />

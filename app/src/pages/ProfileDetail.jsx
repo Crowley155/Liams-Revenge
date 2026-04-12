@@ -200,8 +200,14 @@ export default function ProfileDetail() {
               </div>
             )}
 
-            {/* Research trigger */}
+            {/* Identity + Research triggers */}
             <div className="mt-3 flex items-center gap-3 flex-wrap">
+              <Link
+                to={`/people/${profile.id}/identity`}
+                className="text-xs font-medium px-4 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors"
+              >
+                {profile.identity_confidence >= 1.0 ? 'Identity (Confirmed)' : profile.enriched_at ? 'View Identity' : 'Build Identity'}
+              </Link>
               <button
                 onClick={handleResearch}
                 disabled={launching || isRunning}
@@ -294,6 +300,122 @@ export default function ProfileDetail() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Identity Confidence */}
+      {profile.identity_confidence > 0 && (
+        <div className="bg-surface border border-border rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim">Identity Confidence</h2>
+            <span className="text-sm font-bold" style={{
+              color: profile.identity_confidence >= 0.7 ? 'var(--color-success)' :
+                     profile.identity_confidence >= 0.4 ? 'var(--color-warning)' : 'var(--color-danger)'
+            }}>
+              {Math.round(profile.identity_confidence * 100)}%
+            </span>
+          </div>
+          <div className="w-full h-2 bg-surface-alt rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{
+                width: `${Math.round(profile.identity_confidence * 100)}%`,
+                backgroundColor: profile.identity_confidence >= 0.7 ? 'var(--color-success)' :
+                                  profile.identity_confidence >= 0.4 ? 'var(--color-warning)' : 'var(--color-danger)',
+              }}
+            />
+          </div>
+          {profile.enrichment_sources?.length > 0 && (
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {profile.enrichment_sources.map((src, i) => (
+                <span key={i} className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full">
+                  {src}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Social Profiles */}
+      {profile.social_profiles?.length > 0 && (
+        <Section title="Social Profiles" count={profile.social_profiles.length}>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {profile.social_profiles.map((sp, i) => (
+              <a
+                key={i}
+                href={sp.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 bg-surface border border-border rounded-lg p-3 hover:border-accent/40 transition-colors"
+              >
+                <span className="text-xs font-bold uppercase tracking-wider text-accent w-20 shrink-0">
+                  {sp.platform}
+                </span>
+                <span className="text-sm text-text truncate">{sp.username || sp.url}</span>
+                {sp.verified && <span className="text-[10px] text-success ml-auto shrink-0">Verified</span>}
+              </a>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Employment History */}
+      {profile.employer_history?.length > 0 && (
+        <Section title="Employment History" count={profile.employer_history.length}>
+          <div className="space-y-2">
+            {profile.employer_history.map((emp, i) => (
+              <div key={i} className="flex items-start gap-3 bg-surface border border-border rounded-lg p-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text">{emp.title || 'Unknown title'}</p>
+                  <p className="text-xs text-text-dim">{emp.organization}</p>
+                </div>
+                <div className="text-right shrink-0">
+                  {emp.current && <span className="text-[10px] text-success font-medium">Current</span>}
+                  {(emp.start_date || emp.end_date) && (
+                    <p className="text-[11px] text-text-dim">
+                      {emp.start_date || '?'} — {emp.current ? 'Present' : (emp.end_date || '?')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Education */}
+      {profile.education?.length > 0 && (
+        <Section title="Education" count={profile.education.length}>
+          <div className="space-y-2">
+            {profile.education.map((edu, i) => (
+              <div key={i} className="flex items-start gap-3 bg-surface border border-border rounded-lg p-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text">{edu.institution}</p>
+                  {(edu.degree || edu.field) && (
+                    <p className="text-xs text-text-dim">
+                      {[edu.degree, edu.field].filter(Boolean).join(' — ')}
+                    </p>
+                  )}
+                </div>
+                {edu.year && <span className="text-[11px] text-text-dim shrink-0">{edu.year}</span>}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Addresses */}
+      {profile.addresses?.length > 0 && (
+        <Section title="Known Locations" count={profile.addresses.length}>
+          <div className="flex flex-wrap gap-2">
+            {profile.addresses.map((addr, i) => (
+              <span key={i} className="text-xs bg-surface border border-border rounded-full px-3 py-1.5 text-text-dim">
+                {[addr.street, addr.city, addr.state, addr.zip_code].filter(Boolean).join(', ')}
+                {addr.current && <span className="ml-1 text-success">&#x2022;</span>}
+              </span>
+            ))}
+          </div>
+        </Section>
       )}
 
       {/* Battle Card Summary */}

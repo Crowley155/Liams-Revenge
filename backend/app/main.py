@@ -5,9 +5,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import research, profiles, entities
+from app.db import init_db, migrate_json_to_sqlite
+from app.api import research, profiles, entities, enrichment
 
 logger = logging.getLogger(__name__)
+
+init_db()
+migrate_json_to_sqlite()
 
 app = FastAPI(
     title="USDWatch Research Pipeline",
@@ -53,15 +57,22 @@ app.add_middleware(
 app.include_router(research.router, prefix="/api")
 app.include_router(profiles.router, prefix="/api")
 app.include_router(entities.router, prefix="/api")
+app.include_router(enrichment.router, prefix="/api")
 
 
 @app.get("/health")
 async def health():
+    from app.services.redis_client import is_available as redis_ok
     return {
         "status": "ok",
         "model": settings.pipeline_model,
         "search_api": settings.has_search_api,
         "langfuse": settings.has_langfuse,
+        "redis": redis_ok(),
+        "clay": settings.has_clay,
+        "pdl": settings.has_pdl,
+        "qdrant": settings.has_qdrant,
+        "db": "sqlite",
     }
 
 

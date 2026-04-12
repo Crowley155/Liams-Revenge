@@ -98,13 +98,17 @@ def _extract_date_hint(title: str, url: str, text_start: str) -> str:
 
 HIGH_IMPACT_CATEGORIES = {"bio", "relationship", "contact", "position"}
 
+HARD_REJECT_THRESHOLD = 0.5
+AMBIGUOUS_PENALTY = 0.3
+LOW_CONFIDENCE_ACCEPT = 0.6
+
 
 def _assign_tier(fact: Fact) -> Fact:
-    if fact.confidence >= 0.8 and fact.identity_verified:
+    if fact.confidence >= 0.75 and fact.identity_verified:
         fact.tier = ConfidenceTier.A_CONFIRMED
-    elif fact.confidence >= 0.5 and fact.identity_verified:
+    elif fact.confidence >= 0.45 and fact.identity_verified:
         fact.tier = ConfidenceTier.B_PROBABLE
-    elif fact.confidence >= 0.5:
+    elif fact.confidence >= 0.45:
         fact.tier = ConfidenceTier.C_UNCERTAIN
     else:
         fact.tier = ConfidenceTier.D_REJECTED
@@ -281,9 +285,19 @@ def _pass1_collect(request: PersonCreate, anchor: IdentityAnchor) -> list[dict]:
 
     if anchor.city:
         search_queries.append(f'"{request.name}" "{anchor.city}" {request.state}')
+    if anchor.county:
+        search_queries.append(f'"{request.name}" "{anchor.county} County" {request.state}')
+    if request.city:
+        search_queries.append(f'"{request.name}" "{request.city}" {request.organization}')
+
+    for addr in anchor.addresses[:2]:
+        if addr not in [f"{anchor.city}, {request.state}"]:
+            search_queries.append(f'"{request.name}" {addr}')
 
     documents: list[dict] = []
     seen_urls: set[str] = set()
+
+    from app.services.qdrant_client import check_duplicate, store_document
 
     for query in search_queries:
         logger.info("  Search: %s", query)
@@ -298,11 +312,18 @@ def _pass1_collect(request: PersonCreate, anchor: IdentityAnchor) -> list[dict]:
                 try:
                     page_text = fetch_page(url)
                     if page_text and not page_text.startswith("Error") and len(page_text) > 100:
+                        dup = check_duplicate(url, page_text)
+                        if dup:
+                            logger.info("  Qdrant dedup: skipping %s (already processed)", url[:60])
+                            continue
+
                         documents.append({
                             "title": r.get("title", ""),
                             "url": url,
                             "text": page_text,
                         })
+
+                        store_document(url, page_text, request.name, {"title": r.get("title", "")})
                 except Exception as e:
                     logger.warning("  Fetch failed: %s", e)
         except Exception as e:
@@ -353,18 +374,18 @@ def _pass2_disambiguate(
             source_url=url,
         )
 
-        if not is_same and doc_confidence >= 0.6:
+        if not is_same and doc_confidence >= HARD_REJECT_THRESHOLD:
             logger.info("  REJECTED doc: %s — %s", title, reasoning[:100])
             rejected_docs.append({**doc, "rejection_reason": reasoning, "confidence": doc_confidence})
             continue
 
         confidence_penalty = 1.0
-        if not is_same and doc_confidence < 0.6:
+        if not is_same and doc_confidence < HARD_REJECT_THRESHOLD:
             logger.info("  AMBIGUOUS doc (low-confidence reject): %s — keeping with penalty", title)
-            confidence_penalty = 0.5
-        elif is_same and doc_confidence < 0.7:
+            confidence_penalty = AMBIGUOUS_PENALTY
+        elif is_same and doc_confidence < LOW_CONFIDENCE_ACCEPT:
             logger.info("  AMBIGUOUS doc (low-confidence accept): %s — keeping with penalty", title)
-            confidence_penalty = 0.5
+            confidence_penalty = AMBIGUOUS_PENALTY
 
         accepted_docs.append(doc)
         raw_texts.append(text[:2000])

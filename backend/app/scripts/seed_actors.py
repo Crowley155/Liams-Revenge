@@ -52,6 +52,24 @@ FEATURED_IDS = {
     "jennifer-anderson",
 }
 
+# Pre-populated negative anchors for disambiguation of common names
+NEGATIVE_ANCHORS: dict[str, list[str]] = {
+    "will-crowley": [
+        "Will Crowley, Denver-area business owner / entrepreneur",
+        "Will Crowley, registered sex offender in Tallahassee, Florida",
+        "William Crowley, attorney in New York City",
+        "Will Crowley, musician / band member",
+    ],
+}
+
+PERSON_CITY: dict[str, str] = {
+    "will-crowley": "Lenexa",
+}
+
+PERSON_COUNTY: dict[str, str] = {
+    "will-crowley": "Johnson",
+}
+
 
 def _get_or_create_entity(org_name: str) -> Entity:
     """Find an existing entity by name or create one."""
@@ -152,11 +170,14 @@ def seed():
                 role=actor.get("role", ""),
                 organization=org_name,
                 state="KS",
+                city=PERSON_CITY.get(actor_id, ""),
+                county=PERSON_COUNTY.get(actor_id, ""),
                 source=PersonSource.MANUAL,
                 featured=actor_id in FEATURED_IDS,
                 curated_bio=actor.get("bio"),
                 curated_quotes=quotes,
                 entity_ids=[entity.id] if entity else [],
+                negative_anchors=NEGATIVE_ANCHORS.get(actor_id, []),
             )
             profiles[actor_id] = person
             created += 1

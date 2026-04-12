@@ -59,3 +59,29 @@ export async function discoverMembers(entityId) {
   if (!res.ok) throw new Error(`Discovery failed: ${res.status}`);
   return res.json();
 }
+
+export async function startEnrichment(personId) {
+  const res = await fetch(`${API_BASE}/api/enrich/${personId}`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Enrichment failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateIdentity(personId, data) {
+  const res = await fetch(`${API_BASE}/api/profiles/${personId}/identity`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Identity update failed: ${res.status}`);
+  return res.json();
+}
+
+export async function confirmIdentity(personId) {
+  const res = await fetch(`${API_BASE}/api/profiles/${personId}/confirm-identity`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Confirm failed: ${res.status}`);
+  return res.json();
+}

@@ -33,6 +33,13 @@ def search_web(query: str) -> list[dict]:
 
 
 def _search_serpapi(query: str) -> list[dict]:
+    from app.services.redis_client import get_cached_search, set_cached_search
+
+    cached = get_cached_search(query)
+    if cached:
+        logger.info("SerpAPI cache hit for: %s", query[:60])
+        return cached.get("results", cached) if isinstance(cached, dict) else cached
+
     resp = _client.get(
         "https://serpapi.com/search",
         params={
@@ -52,6 +59,8 @@ def _search_serpapi(query: str) -> list[dict]:
             "snippet": item.get("snippet", ""),
             "url": item.get("link", ""),
         })
+
+    set_cached_search(query, {"results": results})
     return results
 
 

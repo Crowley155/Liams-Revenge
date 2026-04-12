@@ -206,7 +206,24 @@ def build_anchor_from_request(
             anchor.negative_anchors = list(existing_person.negative_anchors)
         if hasattr(existing_person, "curated_bio") and existing_person.curated_bio:
             anchor.known_events.append(existing_person.curated_bio[:200])
-        if hasattr(existing_person, "entity_ids"):
-            pass
+        if hasattr(existing_person, "city") and existing_person.city:
+            anchor.city = existing_person.city
+        if hasattr(existing_person, "county") and existing_person.county:
+            anchor.county = existing_person.county
+        if hasattr(existing_person, "known_associates"):
+            anchor.known_associates = list(existing_person.known_associates)
+        if hasattr(existing_person, "social_profiles"):
+            anchor.social_urls = [
+                sp.url for sp in existing_person.social_profiles
+                if sp.verified or sp.confidence >= 0.6
+            ]
+        if hasattr(existing_person, "addresses"):
+            anchor.addresses = [
+                f"{a.city}, {a.state}" for a in existing_person.addresses if a.city
+            ]
+        if hasattr(existing_person, "employer_history"):
+            for emp in existing_person.employer_history:
+                if emp.organization and emp.organization != organization:
+                    anchor.known_events.append(f"Employed at {emp.organization}")
 
     return anchor

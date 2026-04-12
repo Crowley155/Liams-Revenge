@@ -1,4 +1,8 @@
 from app.models.schemas import (
+    Address,
+    SocialProfile,
+    Employment,
+    Education,
     Person,
     PersonCreate,
     PersonSource,
@@ -8,6 +12,7 @@ from app.models.schemas import (
     ConfidenceTier,
     IdentityAnchor,
     BattleCard,
+    ElectionInfo,
     Entity,
     EntityCreate,
     EntityMember,
@@ -16,6 +21,10 @@ from app.models.schemas import (
 )
 
 __all__ = [
+    "Address",
+    "SocialProfile",
+    "Employment",
+    "Education",
     "Person",
     "PersonCreate",
     "PersonSource",
@@ -25,6 +34,7 @@ __all__ = [
     "ConfidenceTier",
     "IdentityAnchor",
     "BattleCard",
+    "ElectionInfo",
     "Entity",
     "EntityCreate",
     "EntityMember",

@@ -8,9 +8,14 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
 class JobStatus(str, Enum):
     PENDING = "pending"
     SEARCHING = "searching"
+    ENRICHING = "enriching"
     DISAMBIGUATING = "disambiguating"
     EXTRACTING = "extracting"
     BUILDING_PROFILE = "building_profile"
@@ -24,6 +29,54 @@ class PersonSource(str, Enum):
     PIPELINE = "pipeline"
     BOTH = "both"
 
+
+class ConfidenceTier(str, Enum):
+    A_CONFIRMED = "confirmed"
+    B_PROBABLE = "probable"
+    C_UNCERTAIN = "uncertain"
+    D_REJECTED = "rejected"
+
+
+# ---------------------------------------------------------------------------
+# Identity enrichment models
+# ---------------------------------------------------------------------------
+
+class Address(BaseModel):
+    street: str = ""
+    city: str = ""
+    state: str = ""
+    zip_code: str = ""
+    type: str = "home"
+    current: bool = True
+    source: str = ""
+
+class SocialProfile(BaseModel):
+    platform: str
+    url: str
+    username: str = ""
+    verified: bool = False
+    confidence: float = 0.0
+    source: str = ""
+
+class Employment(BaseModel):
+    organization: str
+    title: str = ""
+    start_date: str | None = None
+    end_date: str | None = None
+    current: bool = False
+    source: str = ""
+
+class Education(BaseModel):
+    institution: str
+    degree: str = ""
+    field: str = ""
+    year: str | None = None
+    source: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Identity anchor
+# ---------------------------------------------------------------------------
 
 class IdentityAnchor(BaseModel):
     """Known facts about a target person used to disambiguate search results
@@ -41,6 +94,8 @@ class IdentityAnchor(BaseModel):
         default_factory=list,
         description="Distinguishing traits of DIFFERENT people with the same name, e.g. 'Will Crowley, attorney in NYC'",
     )
+    social_urls: list[str] = Field(default_factory=list)
+    addresses: list[str] = Field(default_factory=list, description="Known city+state combos")
 
     @classmethod
     def from_person(cls, person: "Person", entities: list["Entity"] | None = None) -> "IdentityAnchor":
@@ -53,14 +108,22 @@ class IdentityAnchor(BaseModel):
                         associates.append(m.person_id)
         if person.curated_bio:
             events.append(person.curated_bio[:200])
+
+        social_urls = [sp.url for sp in person.social_profiles if sp.verified]
+        addr_strs = [f"{a.city}, {a.state}" for a in person.addresses if a.city]
+
         return cls(
             name=person.name,
             organization=person.organization,
             role=person.role,
             state=person.state,
-            known_associates=associates,
+            city=person.city,
+            county=person.county,
+            known_associates=associates + person.known_associates,
             known_events=events,
             negative_anchors=person.negative_anchors,
+            social_urls=social_urls,
+            addresses=addr_strs,
         )
 
 
@@ -70,6 +133,8 @@ class PersonCreate(BaseModel):
     role: str
     organization: str
     state: str = "KS"
+    city: str = ""
+    county: str = ""
     context: str = Field(
         default="",
         description="Freeform context about this person's involvement in the case",
@@ -85,13 +150,6 @@ class CuratedQuote(BaseModel):
     text: str
     doc_id: Optional[str] = None
     date: Optional[str] = None
-
-
-class ConfidenceTier(str, Enum):
-    A_CONFIRMED = "confirmed"
-    B_PROBABLE = "probable"
-    C_UNCERTAIN = "uncertain"
-    D_REJECTED = "rejected"
 
 
 class Fact(BaseModel):
@@ -191,6 +249,8 @@ class Person(BaseModel):
     role: str
     organization: str
     state: str = "KS"
+    city: str = ""
+    county: str = ""
     source: PersonSource = PersonSource.MANUAL
     featured: bool = False
     photo_url: Optional[str] = None
@@ -199,9 +259,22 @@ class Person(BaseModel):
     curated_quotes: list[CuratedQuote] = Field(default_factory=list)
     entity_ids: list[str] = Field(default_factory=list)
     facts: list[Fact] = Field(default_factory=list)
-    rejected_facts: list[Fact] = Field(default_factory=list, description="Facts removed by identity check or user rejection")
-    negative_anchors: list[str] = Field(default_factory=list, description="Traits of different people with the same name")
+    rejected_facts: list[Fact] = Field(default_factory=list)
+    negative_anchors: list[str] = Field(default_factory=list)
     battle_card: Optional[BattleCard] = None
+
+    # Identity enrichment fields
+    addresses: list[Address] = Field(default_factory=list)
+    social_profiles: list[SocialProfile] = Field(default_factory=list)
+    employer_history: list[Employment] = Field(default_factory=list)
+    education: list[Education] = Field(default_factory=list)
+    known_associates: list[str] = Field(default_factory=list)
+    date_of_birth: Optional[str] = None
+    gender: Optional[str] = None
+    identity_confidence: float = Field(default=0.0, description="0-1 how sure we are this profile is unified correctly")
+    enrichment_sources: list[str] = Field(default_factory=list)
+    enriched_at: Optional[datetime] = None
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
