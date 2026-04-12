@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "qdrant-client>=1.13",
     "langfuse>=2.0",
+    "openinference-instrumentation-dspy>=0.1",
 ]
 
 [project.optional-dependencies]

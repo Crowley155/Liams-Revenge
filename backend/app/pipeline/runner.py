@@ -13,6 +13,10 @@ Pass 2: DISAMBIGUATE (reasoning model)
 Pass 3: SYNTHESIZE (reasoning model)
   Build battle card from only identity-verified facts.
   Validate key claims against source material.
+
+Tracing: Langfuse + OpenInference DSPy instrumentation is initialized once
+at app startup (main.py). This module uses @observe() and propagate_attributes
+to group all LLM calls under a single trace per research job.
 """
 from __future__ import annotations
 
@@ -38,18 +42,28 @@ from app.pipeline.tools.web_search import fetch_page
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+try:
+    from langfuse import observe, propagate_attributes
+    _HAS_OBSERVE = True
+except ImportError:
+    _HAS_OBSERVE = False
+
+    def observe(**kwargs):
+        """No-op fallback when langfuse is not installed."""
+        def decorator(fn):
+            return fn
+        return decorator
+
+    from contextlib import contextmanager
+
+    @contextmanager
+    def propagate_attributes(**kwargs):
+        yield
+
 
 # ---------------------------------------------------------------------------
 # DSPy configuration — model tiering
 # ---------------------------------------------------------------------------
-
-def _configure_langfuse():
-    if settings.has_langfuse:
-        import litellm
-        litellm.success_callback = ["langfuse"]
-        litellm.failure_callback = ["langfuse"]
-        logger.info("Langfuse tracing enabled via LiteLLM callbacks")
-
 
 def _lm(model: str) -> dspy.LM:
     return dspy.LM(model, max_tokens=4096)
@@ -101,6 +115,7 @@ def _assign_tier(fact: Fact) -> Fact:
 # Main pipeline
 # ---------------------------------------------------------------------------
 
+@observe(name="research-pipeline")
 def run_research_pipeline(
     request: PersonCreate,
     job: ResearchJob,
@@ -110,8 +125,6 @@ def run_research_pipeline(
     Execute the three-pass research pipeline for a single person.
     Updates job.status as it progresses. Returns a fully populated Person.
     """
-    _configure_langfuse()
-
     person = Person(
         id=job.person_id,
         name=request.name,
@@ -131,6 +144,30 @@ def run_research_pipeline(
 
     logger.info("Identity anchor: %s", anchor.model_dump_json()[:300])
 
+    with propagate_attributes(
+        user_id=request.name,
+        session_id=job.id,
+        tags=["research-pipeline"],
+        metadata={
+            "person_name": request.name,
+            "organization": request.organization,
+            "job_id": job.id,
+            "person_id": job.person_id,
+            "collect_model": settings.collect_model,
+            "disambiguate_model": settings.disambiguate_model,
+            "synthesize_model": settings.synthesize_model,
+        },
+    ):
+        return _run_pipeline_phases(request, job, person, anchor, existing_person)
+
+
+def _run_pipeline_phases(
+    request: PersonCreate,
+    job: ResearchJob,
+    person: Person,
+    anchor: IdentityAnchor,
+    existing_person: Person | None,
+) -> Person:
     # =======================================================================
     # PASS 1: COLLECT (cheap model)
     # =======================================================================
@@ -217,6 +254,7 @@ def run_research_pipeline(
 # Pass 1: Collect
 # ---------------------------------------------------------------------------
 
+@observe(name="pass1-collect")
 def _pass1_collect(request: PersonCreate, anchor: IdentityAnchor) -> list[dict]:
     """Search broadly and fetch pages. Returns raw documents."""
     searcher = PersonSearcher()
@@ -283,6 +321,7 @@ def _pass1_collect(request: PersonCreate, anchor: IdentityAnchor) -> list[dict]:
 # Pass 2: Disambiguate + Extract
 # ---------------------------------------------------------------------------
 
+@observe(name="pass2-disambiguate")
 def _pass2_disambiguate(
     documents: list[dict],
     request: PersonCreate,
@@ -406,6 +445,7 @@ def _pass2_disambiguate(
 # Pass 3: Synthesize + Validate
 # ---------------------------------------------------------------------------
 
+@observe(name="pass3-synthesize")
 def _pass3_synthesize(
     profile_facts: list[Fact],
     raw_texts: list[str],
@@ -437,6 +477,7 @@ def _pass3_synthesize(
     )
 
 
+@observe(name="pass3-validate")
 def _pass3_validate(facts: list[Fact]):
     """Cross-check high-confidence facts against source text."""
     validator = FactValidator()

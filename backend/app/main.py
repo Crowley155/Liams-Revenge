@@ -1,3 +1,4 @@
+import logging
 import os
 
 from fastapi import FastAPI
@@ -6,11 +7,37 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api import research, profiles, entities
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title="USDWatch Research Pipeline",
     version="0.1.0",
     description="Agentic research pipeline for public accountability",
 )
+
+
+def _init_langfuse_tracing():
+    """Initialize Langfuse + DSPy instrumentation once at startup."""
+    if not settings.has_langfuse:
+        logger.info("Langfuse not configured — tracing disabled")
+        return
+
+    try:
+        from langfuse import get_client
+        langfuse = get_client()
+        if langfuse.auth_check():
+            logger.info("Langfuse client authenticated")
+        else:
+            logger.warning("Langfuse auth check failed — traces may not appear")
+
+        from openinference.instrumentation.dspy import DSPyInstrumentor
+        DSPyInstrumentor().instrument()
+        logger.info("DSPy OpenInference instrumentation enabled")
+    except Exception as e:
+        logger.warning("Langfuse/OpenInference init failed (non-fatal): %s", e)
+
+
+_init_langfuse_tracing()
 
 _cors_origins = os.getenv("CORS_ORIGINS", "")
 allowed_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()] if _cors_origins else ["*"]

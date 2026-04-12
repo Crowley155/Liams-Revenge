@@ -128,16 +128,21 @@ def _discover(extractor, entity: Entity) -> list[dict]:
 
 
 def discover_entity_members(entity: Entity) -> list[dict]:
-    """Entry point called by the entities API. Configures DSPy and runs discovery."""
+    """Entry point called by the entities API. Configures DSPy and runs discovery.
+    Langfuse tracing is initialized globally in main.py via DSPyInstrumentor."""
     from app.config import settings
 
-    if settings.has_langfuse:
-        import litellm
-        litellm.success_callback = ["langfuse"]
-        litellm.failure_callback = ["langfuse"]
-
-    lm = dspy.LM(settings.pipeline_model, max_tokens=4096)
+    lm = dspy.LM(settings.collect_model, max_tokens=4096)
     dspy.configure(lm=lm)
 
-    discoverer = EntityDiscoverer()
-    return discoverer(entity)
+    try:
+        from langfuse import observe, propagate_attributes
+        with propagate_attributes(
+            tags=["entity-discovery"],
+            metadata={"entity_id": entity.id, "entity_name": entity.name},
+        ):
+            discoverer = EntityDiscoverer()
+            return discoverer(entity)
+    except ImportError:
+        discoverer = EntityDiscoverer()
+        return discoverer(entity)
