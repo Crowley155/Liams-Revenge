@@ -18,7 +18,7 @@ allowed_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()] if 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials="*" not in allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -26,17 +26,6 @@ app.add_middleware(
 app.include_router(research.router, prefix="/api")
 app.include_router(profiles.router, prefix="/api")
 app.include_router(entities.router, prefix="/api")
-
-
-@app.on_event("startup")
-async def _auto_seed():
-    """Seed case-data actors on startup if the store is empty."""
-    from app.api._store import profiles as p
-    if len(p) == 0:
-        import logging
-        logging.getLogger(__name__).info("Empty store detected — auto-seeding case data")
-        from app.scripts.seed_actors import seed
-        seed()
 
 
 @app.get("/health")

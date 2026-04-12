@@ -11,6 +11,8 @@ export default function useResearchJob({ onComplete } = {}) {
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
+  const timerRef = useRef(null);
+
   useEffect(() => {
     if (!jobId) return;
     let cancelled = false;
@@ -24,14 +26,17 @@ export default function useResearchJob({ onComplete } = {}) {
           onCompleteRef.current?.(data);
           return;
         }
-        setTimeout(poll, POLL_MS);
+        timerRef.current = setTimeout(poll, POLL_MS);
       } catch (err) {
         if (!cancelled) setError(err.message);
       }
     }
 
     poll();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      clearTimeout(timerRef.current);
+    };
   }, [jobId]);
 
   const start = useCallback((id) => {

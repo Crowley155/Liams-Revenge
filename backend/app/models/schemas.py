@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 class JobStatus(str, Enum):
     PENDING = "pending"
     SEARCHING = "searching"
+    DISAMBIGUATING = "disambiguating"
     EXTRACTING = "extracting"
     BUILDING_PROFILE = "building_profile"
     VALIDATING = "validating"
@@ -22,6 +23,45 @@ class PersonSource(str, Enum):
     MANUAL = "manual"
     PIPELINE = "pipeline"
     BOTH = "both"
+
+
+class IdentityAnchor(BaseModel):
+    """Known facts about a target person used to disambiguate search results
+    from other people who share the same name."""
+    name: str
+    known_aliases: list[str] = Field(default_factory=list)
+    organization: str = ""
+    role: str = ""
+    state: str = "KS"
+    city: str = ""
+    county: str = ""
+    known_associates: list[str] = Field(default_factory=list)
+    known_events: list[str] = Field(default_factory=list)
+    negative_anchors: list[str] = Field(
+        default_factory=list,
+        description="Distinguishing traits of DIFFERENT people with the same name, e.g. 'Will Crowley, attorney in NYC'",
+    )
+
+    @classmethod
+    def from_person(cls, person: "Person", entities: list["Entity"] | None = None) -> "IdentityAnchor":
+        associates = []
+        events = []
+        if entities:
+            for ent in entities:
+                for m in ent.members:
+                    if m.person_id != person.id:
+                        associates.append(m.person_id)
+        if person.curated_bio:
+            events.append(person.curated_bio[:200])
+        return cls(
+            name=person.name,
+            organization=person.organization,
+            role=person.role,
+            state=person.state,
+            known_associates=associates,
+            known_events=events,
+            negative_anchors=person.negative_anchors,
+        )
 
 
 class PersonCreate(BaseModel):
@@ -47,6 +87,13 @@ class CuratedQuote(BaseModel):
     date: Optional[str] = None
 
 
+class ConfidenceTier(str, Enum):
+    A_CONFIRMED = "confirmed"
+    B_PROBABLE = "probable"
+    C_UNCERTAIN = "uncertain"
+    D_REJECTED = "rejected"
+
+
 class Fact(BaseModel):
     """A single verified or candidate fact about a person."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
@@ -59,6 +106,8 @@ class Fact(BaseModel):
     source_title: Optional[str] = None
     confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     verified: bool = False
+    identity_verified: bool = Field(default=False, description="Passed document/fact-level identity check")
+    tier: ConfidenceTier = Field(default=ConfidenceTier.C_UNCERTAIN)
 
 
 class ElectionInfo(BaseModel):
@@ -150,6 +199,8 @@ class Person(BaseModel):
     curated_quotes: list[CuratedQuote] = Field(default_factory=list)
     entity_ids: list[str] = Field(default_factory=list)
     facts: list[Fact] = Field(default_factory=list)
+    rejected_facts: list[Fact] = Field(default_factory=list, description="Facts removed by identity check or user rejection")
+    negative_anchors: list[str] = Field(default_factory=list, description="Traits of different people with the same name")
     battle_card: Optional[BattleCard] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)

@@ -32,7 +32,7 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
     """Background task that runs the full pipeline and merges results."""
     try:
         from app.pipeline import run_research_pipeline
-        person = run_research_pipeline(request, job)
+        person = run_research_pipeline(request, job, existing_person=existing)
 
         if existing:
             existing.facts.extend(person.facts)
@@ -57,6 +57,13 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
                     ))
                 else:
                     existing.contact = person.contact
+
+            if person.negative_anchors:
+                existing.negative_anchors = list(set(
+                    existing.negative_anchors + person.negative_anchors
+                ))
+            if person.rejected_facts:
+                existing.rejected_facts.extend(person.rejected_facts)
 
             existing.source = PersonSource.BOTH
             existing.updated_at = datetime.utcnow()

@@ -12,6 +12,24 @@ class Settings:
     pipeline_model: str = field(
         default_factory=lambda: os.getenv("PIPELINE_MODEL", "openai/gpt-4o-mini")
     )
+    collect_model: str = field(
+        default_factory=lambda: os.getenv(
+            "COLLECT_MODEL",
+            os.getenv("PIPELINE_MODEL", "gemini/gemini-2.0-flash"),
+        )
+    )
+    disambiguate_model: str = field(
+        default_factory=lambda: os.getenv(
+            "DISAMBIGUATE_MODEL",
+            os.getenv("PIPELINE_MODEL", "gemini/gemini-2.5-flash"),
+        )
+    )
+    synthesize_model: str = field(
+        default_factory=lambda: os.getenv(
+            "SYNTHESIZE_MODEL",
+            os.getenv("PIPELINE_MODEL", "gemini/gemini-2.5-flash"),
+        )
+    )
     embedding_model: str = field(
         default_factory=lambda: os.getenv("EMBEDDING_MODEL", "openai/text-embedding-3-small")
     )

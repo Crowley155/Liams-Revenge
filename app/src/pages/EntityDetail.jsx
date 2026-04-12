@@ -36,6 +36,17 @@ export default function EntityDetail() {
   const [members, setMembers] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [launchingDiscover, setLaunchingDiscover] = useState(false);
+
+  const reload = useCallback(() => {
+    Promise.all([fetchEntity(id), fetchEntityMembers(id)])
+      .then(([e, m]) => { setEntity(e); setMembers(m); })
+      .catch(() => {});
+  }, [id]);
+
+  const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover } = useResearchJob({
+    onComplete: reload,
+  });
 
   useEffect(() => {
     setLoading(true);
@@ -63,18 +74,6 @@ export default function EntityDetail() {
       </div>
     );
   }
-
-  const reload = useCallback(() => {
-    Promise.all([fetchEntity(id), fetchEntityMembers(id)])
-      .then(([e, m]) => { setEntity(e); setMembers(m); })
-      .catch(() => {});
-  }, [id]);
-
-  const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover } = useResearchJob({
-    onComplete: reload,
-  });
-
-  const [launchingDiscover, setLaunchingDiscover] = useState(false);
 
   async function handleDiscover() {
     setLaunchingDiscover(true);
