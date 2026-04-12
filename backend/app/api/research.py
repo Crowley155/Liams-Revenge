@@ -13,7 +13,6 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 
 from app.models import PersonCreate, Person, PersonSource, ResearchJob, JobStatus
-from app.pipeline import run_research_pipeline
 from app.api._store import jobs, profiles
 
 logger = logging.getLogger(__name__)
@@ -32,6 +31,7 @@ def _find_person_by_name_org(name: str, org: str) -> Person | None:
 def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
     """Background task that runs the full pipeline and merges results."""
     try:
+        from app.pipeline import run_research_pipeline
         person = run_research_pipeline(request, job)
 
         if existing:
