@@ -1,15 +1,20 @@
-import { useState } from 'react';
-import { useCase } from '../data/useCase';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { fetchProfiles, fetchEntities, seedData } from '../api/client';
 import DocLink from '../components/DocLink';
 import OrgDiagram from '../components/OrgDiagram';
 
-const ORG_META = {
-  'USD 232': { color: '#6c8aff', label: 'USD 232 — School District' },
-  JCPRD: { color: '#ff6b6b', label: 'JCPRD — Johnson County Parks & Rec' },
-  Family: { color: '#69db7c', label: 'Family' },
+const ORG_COLORS = {
+  'USD 232': '#6c8aff',
+  'JCPRD': '#ff6b6b',
+  'Family': '#69db7c',
 };
 
-const ORG_ORDER = ['USD 232', 'JCPRD', 'Family'];
+const SOURCE_BADGE = {
+  manual: { label: 'Curated', className: 'bg-info/15 text-info' },
+  pipeline: { label: 'Researched', className: 'bg-accent/15 text-accent' },
+  both: { label: 'Curated + Researched', className: 'bg-success/15 text-success' },
+};
 
 function Initials({ name, color }) {
   const initials = name
@@ -27,48 +32,59 @@ function Initials({ name, color }) {
   );
 }
 
-function ActorCard({ actor }) {
-  const [open, setOpen] = useState(false);
-  const orgColor = ORG_META[actor.org]?.color || '#6c8aff';
+function PersonCard({ person }) {
+  const [quotesOpen, setQuotesOpen] = useState(false);
+  const orgColor = ORG_COLORS[person.organization] || '#6c8aff';
+  const factCount = person.facts?.length || 0;
+  const badge = SOURCE_BADGE[person.source] || SOURCE_BADGE.manual;
+  const hasResearch = person.source === 'pipeline' || person.source === 'both'
+    || (person.facts?.length > 0) || !!person.battle_card;
+  const quotes = person.curated_quotes || [];
 
   return (
-    <div className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-3">
+    <div className="bg-surface border border-border rounded-lg p-4 flex flex-col gap-3 card-hover" style={{ boxShadow: 'var(--shadow-card)' }}>
       <div className="flex items-start gap-3">
-        <Initials name={actor.name} color={orgColor} />
-        <div className="min-w-0">
-          <h3 className="font-semibold text-text text-sm">{actor.name}</h3>
-          <p className="text-xs text-text-dim">{actor.role}</p>
+        <Initials name={person.name} color={orgColor} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="font-semibold text-text text-sm">{person.name}</h3>
+            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${badge.className}`}>
+              {badge.label}
+            </span>
+          </div>
+          <p className="text-xs text-text-dim">{person.role}</p>
         </div>
+        {factCount > 0 && (
+          <span className="text-xs font-medium text-accent shrink-0">{factCount} facts</span>
+        )}
       </div>
 
-      {actor.bio && (
-        <p className="text-sm text-text-dim leading-relaxed">{actor.bio}</p>
+      {person.curated_bio && (
+        <p className="text-sm text-text-dim leading-relaxed">{person.curated_bio}</p>
       )}
 
-      {actor.keyQuotes?.length > 0 && (
+      {!person.curated_bio && person.battle_card?.summary && (
+        <p className="text-sm text-text-dim leading-relaxed line-clamp-3">{person.battle_card.summary}</p>
+      )}
+
+      {quotes.length > 0 && (
         <div>
           <button
-            onClick={() => setOpen(!open)}
+            onClick={() => setQuotesOpen(!quotesOpen)}
             className="text-xs font-medium text-accent hover:text-accent-hover flex items-center gap-1"
           >
-            <span className="inline-block transition-transform" style={{ transform: open ? 'rotate(90deg)' : '' }}>▸</span>
-            {actor.keyQuotes.length} key quote{actor.keyQuotes.length > 1 ? 's' : ''}
+            <span className="inline-block transition-transform" style={{ transform: quotesOpen ? 'rotate(90deg)' : '' }}>▸</span>
+            {quotes.length} key quote{quotes.length > 1 ? 's' : ''}
           </button>
 
-          {open && (
+          {quotesOpen && (
             <div className="mt-2 space-y-2">
-              {actor.keyQuotes.map((q, i) => (
+              {quotes.map((q, i) => (
                 <div key={i} className="pl-3 border-l-2 border-border">
-                  <p className="text-xs italic text-text leading-relaxed">
-                    "{q.text}"
-                  </p>
+                  <p className="text-xs italic text-text leading-relaxed">"{q.text}"</p>
                   <div className="flex items-center gap-2 mt-1 text-xs text-text-dim">
-                    <span>{q.date}</span>
-                    {q.docId && (
-                      <DocLink id={q.docId}>
-                        {q.docId}
-                      </DocLink>
-                    )}
+                    {q.date && <span>{q.date}</span>}
+                    {q.doc_id && <DocLink id={q.doc_id}>{q.doc_id}</DocLink>}
                   </div>
                 </div>
               ))}
@@ -76,50 +92,137 @@ function ActorCard({ actor }) {
           )}
         </div>
       )}
+
+      <div className="flex items-center gap-2 mt-auto pt-1">
+        {hasResearch ? (
+          <Link
+            to={`/people/${person.id}`}
+            className="text-[11px] text-accent hover:text-accent-hover transition-colors"
+          >
+            View full profile &rarr;
+          </Link>
+        ) : (
+          <span className="text-[11px] text-text-dim/50 italic">Not yet researched</span>
+        )}
+      </div>
     </div>
   );
 }
 
 export default function People() {
-  const { actors } = useCase();
+  const [people, setPeople] = useState([]);
+  const [entities, setEntities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
 
-  const grouped = ORG_ORDER.map((org) => ({
-    org,
-    meta: ORG_META[org],
-    members: actors.filter((a) => a.org === org),
-  })).filter((g) => g.members.length > 0);
+  const load = () => {
+    setLoading(true);
+    Promise.all([fetchProfiles(), fetchEntities()])
+      .then(([p, e]) => { setPeople(p); setEntities(e); })
+      .catch(() => { setPeople([]); setEntities([]); })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const handleSeed = async () => {
+    setSeeding(true);
+    try {
+      await seedData();
+      load();
+    } catch (e) {
+      console.error('Seed failed', e);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const entityGroups = entities.map((ent) => {
+    const memberIds = new Set(ent.members?.map((m) => m.person_id) || []);
+    const matched = people.filter((p) =>
+      memberIds.has(p.id)
+      || p.entity_ids?.includes(ent.id)
+      || p.organization?.toLowerCase() === ent.name.toLowerCase()
+    );
+    return { entity: ent, members: matched };
+  });
+
+  const assignedIds = new Set(entityGroups.flatMap((g) => g.members.map((m) => m.id)));
+  const unaffiliated = people.filter((p) => !assignedIds.has(p.id));
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold mb-1">Who's Who</h1>
-        <p className="text-text-dim text-sm">
-          Every person involved in this case, their role, and what they said on
-          the record.
-        </p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold mb-1">Who's Who</h1>
+          <p className="text-text-dim text-sm">
+            Every person involved — curated case evidence and pipeline-researched profiles in one place.
+          </p>
+        </div>
+        {people.length === 0 && (
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="px-4 py-2 bg-accent text-white text-sm rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
+          >
+            {seeding ? 'Importing…' : 'Import Case Data'}
+          </button>
+        )}
       </div>
 
       <OrgDiagram />
 
-      {grouped.map(({ org, meta, members }) => (
-        <section key={org}>
-          <h2
-            className="text-sm font-bold uppercase tracking-wide mb-3 flex items-center gap-2"
-            style={{ color: meta.color }}
-          >
-            <span
-              className="w-2 h-2 rounded-full inline-block"
-              style={{ backgroundColor: meta.color }}
-            />
-            {meta.label}
+      {entityGroups.map(({ entity, members }) => {
+        if (members.length === 0) return null;
+        const color = ORG_COLORS[entity.name] || '#6c8aff';
+        return (
+          <section key={entity.id} className="animate-fade-up">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: color }} />
+              <Link
+                to={`/entities/${entity.id}`}
+                className="text-sm font-bold uppercase tracking-wide hover:text-accent transition-colors"
+                style={{ color }}
+              >
+                {entity.name}
+              </Link>
+              <span className="text-xs font-normal text-text-dim bg-surface-alt px-2 py-0.5 rounded-full">
+                {members.length}
+              </span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {members.map((p) => (
+                <PersonCard key={p.id} person={p} />
+              ))}
+            </div>
+          </section>
+        );
+      })}
+
+      {unaffiliated.length > 0 && (
+        <section className="animate-fade-up">
+          <h2 className="text-sm font-bold uppercase tracking-wide mb-3 flex items-center gap-2 text-text-dim">
+            <span className="w-2 h-2 rounded-full inline-block bg-text-dim" />
+            Other Profiles
+            <span className="text-xs font-normal text-text-dim bg-surface-alt px-2 py-0.5 rounded-full">
+              {unaffiliated.length}
+            </span>
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {members.map((a) => (
-              <ActorCard key={a.id} actor={a} />
+            {unaffiliated.map((p) => (
+              <PersonCard key={p.id} person={p} />
             ))}
           </div>
         </section>
-      ))}
+      )}
     </div>
   );
 }

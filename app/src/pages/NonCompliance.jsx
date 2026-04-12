@@ -6,7 +6,7 @@ const SECTIONS = [
     id: 'lease',
     title: 'Lease Obligations',
     subtitle: 'What the USD 232-JCPRD lease requires — and what JCPRD actually does',
-    color: '#ffb347',
+    color: 'var(--color-warning)',
     rules: [
       {
         rule: 'Follow all Board of Education rules, regulations, and policies',
@@ -100,7 +100,7 @@ const SECTIONS = [
     id: 'kdhe',
     title: 'KDHE Licensing Obligations',
     subtitle: 'What Kansas law requires of JCPRD as a licensed child care facility',
-    color: '#ff6b6b',
+    color: 'var(--color-danger)',
     rules: [
       {
         rule: 'Operate with strict regard to health, comfort, safety, and social welfare',
@@ -131,7 +131,7 @@ const SECTIONS = [
     title: 'District Obligations',
     subtitle:
       'What USD 232 owes — through the lease it created, the statutes it operates under, and the authority it chose not to use',
-    color: '#6c8aff',
+    color: 'var(--color-accent)',
     rules: [
       {
         rule: 'Lease §8(d) creates the obligation and §7(c) gives the district the remedy — neither was used',
@@ -289,7 +289,7 @@ export default function NonCompliance() {
 
       {/* Summary */}
       <div className="border-t border-border pt-6 mt-8">
-        <div className="bg-surface-alt border border-border rounded-lg p-5">
+        <div className="bg-surface-alt border border-border rounded-lg p-5" style={{ boxShadow: 'var(--shadow-card)' }}>
           <h4 className="text-sm font-bold mb-2">The Pattern</h4>
           <p className="text-sm leading-relaxed text-text-dim">
             Across every category — the lease, KDHE licensing, and district statutes — the pattern
@@ -328,8 +328,8 @@ function RuleCard({ rule, color }) {
 
   return (
     <div
-      className="bg-surface border border-border rounded-lg overflow-hidden"
-      style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+      className="bg-surface border border-border rounded-lg overflow-hidden card-hover"
+      style={{ borderLeftColor: color, borderLeftWidth: 3, boxShadow: 'var(--shadow-card)' }}
     >
       <button
         onClick={() => setExpanded(!expanded)}

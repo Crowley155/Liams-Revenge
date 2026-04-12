@@ -1,6 +1,6 @@
 export default function WhatsNext() {
   return (
-    <div className="max-w-3xl mx-auto py-8 sm:py-14 px-2 space-y-12">
+    <div className="max-w-3xl mx-auto py-8 sm:py-14 px-2 space-y-12 animate-fade-up">
 
       {/* Headline */}
       <section className="space-y-5">

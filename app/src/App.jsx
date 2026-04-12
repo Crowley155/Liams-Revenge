@@ -7,6 +7,8 @@ import People from './pages/People';
 import NonCompliance from './pages/NonCompliance';
 import Sources from './pages/Sources';
 import WhatsNext from './pages/WhatsNext';
+import ProfileDetail from './pages/ProfileDetail';
+import EntityDetail from './pages/EntityDetail';
 
 export default function App() {
   return (
@@ -17,6 +19,8 @@ export default function App() {
             <Route element={<Layout />}>
               <Route index element={<Overview />} />
               <Route path="people" element={<People />} />
+              <Route path="people/:id" element={<ProfileDetail />} />
+              <Route path="entities/:id" element={<EntityDetail />} />
               <Route path="non-compliance" element={<NonCompliance />} />
               <Route path="sources" element={<Sources />} />
               <Route path="whats-next" element={<WhatsNext />} />

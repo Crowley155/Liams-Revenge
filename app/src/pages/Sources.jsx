@@ -171,7 +171,8 @@ function SourceRow({ source }) {
   return (
     <div
       id={source.id}
-      className="bg-surface-alt border border-border rounded-xl overflow-hidden"
+      className="bg-surface-alt border border-border rounded-xl overflow-hidden card-hover"
+      style={{ boxShadow: 'var(--shadow-card)' }}
     >
       <button
         onClick={() => setExpanded(!expanded)}
@@ -268,7 +269,7 @@ function EvidenceRow({ item }) {
     <button
       id={item.id}
       onClick={() => openDoc(item.id)}
-      className="w-full text-left bg-surface-alt border border-border rounded-xl p-4 hover:border-accent/40 transition-colors"
+      className="w-full text-left bg-surface-alt border border-border rounded-xl p-4 card-hover"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">

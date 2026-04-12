@@ -32,9 +32,9 @@ export default function Layout() {
                   to={to}
                   end={to === '/'}
                   className={({ isActive }) =>
-                    `px-3 py-2 text-xs font-medium rounded-md transition-colors whitespace-nowrap ${
+                    `px-3 py-2 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
                       isActive
-                        ? 'bg-accent/15 text-accent'
+                        ? 'bg-accent/15 text-accent shadow-[0_0_8px_var(--color-accent-glow)]'
                         : 'text-text-dim hover:text-text hover:bg-surface-alt'
                     }`
                   }
@@ -94,8 +94,15 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <footer className="border-t border-border py-3 text-center text-xs text-text-dim">
-        Crowley v. USD 232 / JCPRD — Privileged & Confidential Work Product
+      <footer className="border-t border-border py-5 text-center space-y-1">
+        <p className="text-xs font-medium text-text-dim tracking-wide">
+          <a href="https://usdwatch.com" className="text-accent hover:text-accent-hover transition-colors">
+            usdwatch.com
+          </a>
+        </p>
+        <p className="text-[11px] text-text-dim/60">
+          Crowley v. USD 232 / JCPRD — Public Advocacy Resource
+        </p>
       </footer>
     </div>
   );

@@ -54,7 +54,7 @@ function Panel() {
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-50" onClick={close} />
-      <div className="fixed inset-y-0 right-0 w-full max-w-2xl bg-surface border-l border-border z-50 overflow-y-auto shadow-2xl animate-slide-in">
+      <div className="fixed inset-y-0 right-0 w-full max-w-2xl bg-surface border-l border-border z-50 overflow-y-auto animate-slide-in" style={{ boxShadow: 'var(--shadow-elevated)' }}>
         <div className="sticky top-0 bg-surface border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between gap-3 z-10">
           <h2 className="text-sm font-bold text-accent min-w-0 truncate">{headerLabel}</h2>
           <button onClick={close} className="text-text-dim hover:text-text text-lg leading-none shrink-0 p-1">&times;</button>

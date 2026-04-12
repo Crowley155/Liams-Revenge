@@ -5,29 +5,40 @@ const R = 28;
 const HEIGHT = 560;
 const PAD = { top: 50, bottom: 40, x: 30 };
 
+const C = {
+  info:     '#74c0fc',
+  accent:   '#6c8aff',
+  purple:   '#e599f7',
+  warning:  '#ffa94d',
+  danger:   '#ff6b6b',
+  dangerLt: '#ff8787',
+  success:  '#69db7c',
+  textDim:  '#8b8fa4',
+  link:     '#4a4f6a',
+  linkText: '#9094ad',
+  bgStroke: '#1a1b2e',
+};
+
 const TIER_Y = [0.10, 0.48, 0.90];
 
 const NODES = [
-  // Tier 0 — State
-  { id: 'ksbe', label: 'KSBE', tier: 0, color: '#74c0fc', group: 'governance',
+  { id: 'ksbe', label: 'KSBE', tier: 0, color: C.info, group: 'governance',
     tooltip: 'Kansas State Board of Education. Accredits USD 232 under K.S.A. 72-5170. District 4 member Connie O\'Brien represents USD 232\'s area.' },
-  { id: 'kdhe', label: 'KDHE', tier: 0, color: '#e599f7', group: 'regulatory',
+  { id: 'kdhe', label: 'KDHE', tier: 0, color: C.purple, group: 'regulatory',
     tooltip: 'Kansas Dept. of Health and Environment. Licenses JCPRD\'s childcare program. Can inspect on complaint (65-512), suspend licenses (65-524), and fine $500/day/violation (65-526). Also binds USD 232 via 72-1421(c).' },
-  { id: 'dcf', label: 'Kansas DCF', tier: 0, color: '#ffa94d', group: 'regulatory',
+  { id: 'dcf', label: 'Kansas DCF', tier: 0, color: C.warning, group: 'regulatory',
     tooltip: 'Kansas Dept. for Children and Families. Received mandatory reporter filing from pediatrician after the assault. Investigates child abuse/neglect under K.S.A. 38-2226.' },
-  // Tier 1 — Local
-  { id: 'usd232', label: 'USD 232', tier: 1, color: '#6c8aff', group: 'org',
+  { id: 'usd232', label: 'USD 232', tier: 1, color: C.accent, group: 'org',
     tooltip: 'De Soto Unified School District 232. Owns Mize Elementary. Landlord in the JCPRD lease. Lease §8(d) requires JCPRD to follow all board policies. §7(c) gives the district enforcement authority.' },
-  { id: 'jcprd', label: 'JCPRD', tier: 1, color: '#ff6b6b', group: 'org',
+  { id: 'jcprd', label: 'JCPRD', tier: 1, color: C.danger, group: 'org',
     tooltip: 'Johnson County Park and Recreation District. Operates the Out-of-School-Time program at Mize. KDHE-licensed childcare facility. Five staff were outside during the assault; none witnessed it.' },
-  { id: 'jccl', label: 'JCCL', tier: 1, color: '#e599f7', group: 'regulatory',
+  { id: 'jccl', label: 'JCCL', tier: 1, color: C.purple, group: 'regulatory',
     tooltip: 'Johnson County Child Care Licensing. KDHE\'s local surveyor — conducts inspections in Johnson County under an "Aid to Local" contract. JCPRD\'s own staff told the parent "making a report to JCCL is always an option."' },
-  { id: 'jcda', label: 'JC Dist. Atty', tier: 1, color: '#ff8787', group: 'enforcement',
+  { id: 'jcda', label: 'JC Dist. Atty', tier: 1, color: C.dangerLt, group: 'enforcement',
     tooltip: 'Johnson County District Attorney. K.S.A. 65-515 makes the county attorney "authorized and required" to prosecute Article 5 childcare violations upon KDHE complaint. Not discretionary.' },
-  // Tier 2 — Ground
-  { id: 'mize', label: 'Mize Elem.', tier: 2, color: '#74c0fc', group: 'place',
+  { id: 'mize', label: 'Mize Elem.', tier: 2, color: C.info, group: 'place',
     tooltip: 'Mize Elementary School, Shawnee, KS. USD 232 property where JCPRD operates its OST program. Site of the April 2, 2026 assault.' },
-  { id: 'family', label: 'Crowley Family', tier: 2, color: '#69db7c', group: 'person',
+  { id: 'family', label: 'Crowley Family', tier: 2, color: C.success, group: 'person',
     tooltip: 'The affected family. Filed police report (Shawnee PD #2601522), DCF complaint, JCCL complaint, and formal grievances with both USD 232 and JCPRD.' },
 ];
 
@@ -129,25 +140,25 @@ export default function OrgDiagram() {
         .attr('refX', 8).attr('refY', 0)
         .attr('markerWidth', 7).attr('markerHeight', 7)
         .attr('orient', 'auto')
-        .append('path').attr('d', 'M0,-4L10,0L0,4Z').attr('fill', '#8b8fa4');
+        .append('path').attr('d', 'M0,-4L10,0L0,4Z').attr('fill', C.textDim);
 
       // Links group
       const linkG = svg.append('g').selectAll('g').data(links).join('g');
 
       const linkPath = linkG.append('path')
         .attr('fill', 'none')
-        .attr('stroke', '#4a4f6a')
+        .attr('stroke', C.link)
         .attr('stroke-width', 1.2)
         .attr('marker-end', 'url(#org-arrow)');
 
       const linkLabel = linkG.append('text')
         .text((d) => d.label)
-        .attr('fill', '#9094ad')
+        .attr('fill', C.linkText)
         .attr('font-size', 8)
         .attr('font-weight', 500)
         .attr('text-anchor', 'middle')
         .attr('dy', -4)
-        .attr('stroke', '#1a1b2e')
+        .attr('stroke', C.bgStroke)
         .attr('stroke-width', 3)
         .attr('paint-order', 'stroke');
 
@@ -223,6 +234,7 @@ export default function OrgDiagram() {
     <div
       ref={containerRef}
       className="bg-surface border border-border rounded-lg p-4 relative"
+      style={{ boxShadow: 'var(--shadow-card)' }}
       onMouseMove={onMouseMove}
     >
       <h3 className="text-xs font-bold uppercase tracking-wide text-text-dim mb-2">
@@ -232,12 +244,12 @@ export default function OrgDiagram() {
         Hover over any entity for details. Drag nodes to rearrange.
       </p>
       <div className="flex gap-3 flex-wrap mb-3">
-        <Legend color="#74c0fc" label="Governance" />
-        <Legend color="#6c8aff" label="Parties" />
-        <Legend color="#e599f7" label="Regulatory" />
-        <Legend color="#ffa94d" label="Child protection" />
-        <Legend color="#ff8787" label="Enforcement" />
-        <Legend color="#69db7c" label="Family" />
+        <Legend color={C.info} label="Governance" />
+        <Legend color={C.accent} label="Parties" />
+        <Legend color={C.purple} label="Regulatory" />
+        <Legend color={C.warning} label="Child protection" />
+        <Legend color={C.dangerLt} label="Enforcement" />
+        <Legend color={C.success} label="Family" />
       </div>
       <svg ref={svgRef} className="w-full" style={{ height: HEIGHT }} />
 

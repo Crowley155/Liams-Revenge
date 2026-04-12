@@ -10,7 +10,7 @@ export default function Overview() {
   const [showVideo, setShowVideo] = useState(false);
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-10 animate-fade-up">
       {/* Section 1: The Incident + Core Problem */}
       <section>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
@@ -23,7 +23,7 @@ export default function Overview() {
           {videoUrl && (
             <button
               onClick={() => setShowVideo(true)}
-              className="w-full sm:w-auto shrink-0 px-4 py-3 sm:py-2 rounded-lg text-sm font-semibold bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 transition-colors animate-pulse-subtle text-center"
+              className="w-full sm:w-auto shrink-0 px-5 py-3 sm:py-2.5 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all animate-pulse-subtle text-center shadow-[0_0_20px_var(--color-accent-glow)]"
             >
               ▶ Tell me why I care
             </button>
@@ -72,7 +72,7 @@ export default function Overview() {
       </section>
 
       {/* Section 2: Key Players */}
-      <section>
+      <section className="animate-fade-up delay-1">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold">Key Players</h3>
           <Link to="/people" className="text-xs text-accent hover:text-accent-hover">
@@ -85,18 +85,17 @@ export default function Overview() {
               ['will-crowley', 'alvie-cater', 'leigh-white', 'brian-schwanz', 'gerri-balthazor', 'jennifer-anderson'].includes(a.id)
             )
             .map((a) => {
-              const orgColor =
-                a.org === 'USD 232' ? '#6c8aff' : a.org === 'JCPRD' ? '#ff6b6b' : '#69db7c';
+              const orgClass =
+                a.org === 'USD 232' ? 'bg-accent/15 text-accent' : a.org === 'JCPRD' ? 'bg-danger/15 text-danger' : 'bg-success/15 text-success';
               const initials = a.name.split(' ').map((w) => w[0]).join('').slice(0, 2);
               return (
                 <Link
                   key={a.id}
-                  to="/people"
-                  className="flex items-center gap-3 bg-surface border border-border rounded-lg px-4 py-3 hover:border-accent/40 transition-colors"
+                  to={`/people/${a.id}`}
+                  className="flex items-center gap-3 bg-surface border border-border rounded-lg px-4 py-3 card-hover"
                 >
                   <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
-                    style={{ backgroundColor: orgColor + '22', color: orgColor }}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${orgClass}`}
                   >
                     {initials}
                   </div>
@@ -111,7 +110,7 @@ export default function Overview() {
       </section>
 
       {/* Section 3: The Manufactured Trust */}
-      <section>
+      <section className="animate-fade-up delay-2">
         <h3 className="text-lg font-bold mb-2">The Manufactured Trust</h3>
         <p className="text-xs text-text-dim mb-6">
           Three layers of institutional messaging told parents this was a district-supervised
@@ -260,7 +259,7 @@ function VideoModal({ url, onClose }) {
 
 function EvidenceCluster({ title, intro, items }) {
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden">
+    <div className="bg-surface border border-border rounded-xl overflow-hidden" style={{ boxShadow: 'var(--shadow-card)' }}>
       <div className="px-5 pt-5 pb-3">
         <h4 className="text-sm font-bold mb-1">{title}</h4>
         <p className="text-xs text-text-dim leading-relaxed">{intro}</p>

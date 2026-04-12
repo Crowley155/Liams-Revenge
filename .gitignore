@@ -4,3 +4,4 @@ sources/
 lease-extracted.pdf
 *.local
 .DS_Store
+backend/data/
