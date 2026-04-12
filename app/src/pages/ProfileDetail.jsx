@@ -89,6 +89,15 @@ export default function ProfileDetail() {
   const [entities, setEntities] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [launching, setLaunching] = useState(false);
+
+  const reload = useCallback(() => {
+    fetchProfile(id).then(setProfile).catch(() => {});
+  }, [id]);
+
+  const { job, isRunning, isDone, error: jobError, start: startJob } = useResearchJob({
+    onComplete: reload,
+  });
 
   useEffect(() => {
     setLoading(true);
@@ -119,16 +128,6 @@ export default function ProfileDetail() {
       </div>
     );
   }
-
-  const reload = useCallback(() => {
-    fetchProfile(id).then(setProfile).catch(() => {});
-  }, [id]);
-
-  const { job, isRunning, isDone, error: jobError, start: startJob } = useResearchJob({
-    onComplete: reload,
-  });
-
-  const [launching, setLaunching] = useState(false);
 
   async function handleResearch() {
     setLaunching(true);
