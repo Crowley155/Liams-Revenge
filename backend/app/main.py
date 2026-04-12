@@ -28,6 +28,17 @@ app.include_router(profiles.router, prefix="/api")
 app.include_router(entities.router, prefix="/api")
 
 
+@app.on_event("startup")
+async def _auto_seed():
+    """Seed case-data actors on startup if the store is empty."""
+    from app.api._store import profiles as p
+    if len(p) == 0:
+        import logging
+        logging.getLogger(__name__).info("Empty store detected — auto-seeding case data")
+        from app.scripts.seed_actors import seed
+        seed()
+
+
 @app.get("/health")
 async def health():
     return {

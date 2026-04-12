@@ -84,8 +84,8 @@ def _find_existing_by_name(name: str, org: str) -> tuple[str, Person] | None:
 
 def seed():
     if not CASE_DATA_PATH.exists():
-        logger.error("case-data.json not found at %s", CASE_DATA_PATH)
-        sys.exit(1)
+        logger.warning("case-data.json not found at %s — skipping seed", CASE_DATA_PATH)
+        return
 
     data = json.loads(CASE_DATA_PATH.read_text())
     actors = data.get("actors", [])
