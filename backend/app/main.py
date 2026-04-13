@@ -1,6 +1,8 @@
 import logging
 import os
 
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,29 +21,53 @@ app = FastAPI(
     description="Agentic research pipeline for public accountability",
 )
 
+_langfuse_client = None
+
 
 def _init_langfuse_tracing():
     """Initialize Langfuse + DSPy instrumentation once at startup."""
+    global _langfuse_client
+
     if not settings.has_langfuse:
-        logger.info("Langfuse not configured — tracing disabled")
+        logger.warning("Langfuse keys not found — tracing disabled")
         return
 
+    # Step 1: init the SDK (registers the OTEL TracerProvider globally)
     try:
         from langfuse import get_client
-        langfuse = get_client()
-        if langfuse.auth_check():
-            logger.info("Langfuse client authenticated")
-        else:
-            logger.warning("Langfuse auth check failed — traces may not appear")
+        _langfuse_client = get_client()
+        logger.warning("Langfuse SDK initialized (pk=%s…, host=%s)",
+                        settings.langfuse_public_key[:12], settings.langfuse_host)
+    except Exception as e:
+        logger.warning("Langfuse get_client() failed — tracing disabled: %s", e)
+        return
 
+    # Step 2: auth check (diagnostic only — never block instrumentation)
+    try:
+        if _langfuse_client.auth_check():
+            logger.warning("Langfuse auth check OK")
+        else:
+            logger.warning("Langfuse auth check returned False — check keys/host")
+    except Exception as e:
+        logger.warning("Langfuse auth check threw (credentials may be wrong): %s", e)
+
+    # Step 3: instrument DSPy (always attempt, even if auth is questionable)
+    try:
         from openinference.instrumentation.dspy import DSPyInstrumentor
         DSPyInstrumentor().instrument()
-        logger.info("DSPy OpenInference instrumentation enabled")
+        logger.warning("DSPy OpenInference instrumentation enabled")
     except Exception as e:
-        logger.warning("Langfuse/OpenInference init failed (non-fatal): %s", e)
+        logger.warning("DSPyInstrumentor unavailable: %s", e)
 
 
 _init_langfuse_tracing()
+
+
+@app.on_event("shutdown")
+async def _shutdown_flush_langfuse():
+    if _langfuse_client:
+        logger.info("Flushing Langfuse traces before shutdown…")
+        _langfuse_client.flush()
 
 _cors_origins = os.getenv("CORS_ORIGINS", "")
 allowed_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()] if _cors_origins else ["*"]

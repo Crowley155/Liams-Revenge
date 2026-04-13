@@ -79,6 +79,12 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
         job.error = str(e)
         job.completed_at = datetime.utcnow()
         jobs[job.id] = job
+    finally:
+        try:
+            from langfuse import get_client
+            get_client().flush()
+        except Exception:
+            pass
 
 
 @router.post("/research", response_model=ResearchJob)

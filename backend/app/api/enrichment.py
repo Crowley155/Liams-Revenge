@@ -62,6 +62,12 @@ def _run_enrichment(person_id: str, job: ResearchJob):
         job.error = str(e)
         job.completed_at = datetime.utcnow()
         jobs[job.id] = job
+    finally:
+        try:
+            from langfuse import get_client
+            get_client().flush()
+        except Exception:
+            pass
 
 
 @router.post("/enrich/{person_id}", response_model=ResearchJob)

@@ -119,6 +119,12 @@ def _run_discovery(entity_id: str, job: ResearchJob):
         job.error = str(e)
         job.completed_at = datetime.utcnow()
         jobs[job.id] = job
+    finally:
+        try:
+            from langfuse import get_client
+            get_client().flush()
+        except Exception:
+            pass
 
 
 def _find_person_by_name_org(name: str, org: str) -> Person | None:
