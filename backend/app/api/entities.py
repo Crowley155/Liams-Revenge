@@ -79,15 +79,20 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
         discovered = discover_entity_members(ent, prompt=prompt)
         logger.info("Discovered %d candidates for %s", len(discovered), ent.name)
 
-        existing_names = {
-            _normalize_name(m.discovered_name or "")
-            for m in ent.members if m.discovered_name
-        }
-        for m in ent.members:
-            if m.person_id:
-                p = profiles.get(m.person_id)
-                if p:
-                    existing_names.add(_normalize_name(p.name))
+        active_names = set()
+        rejected_by_name: dict[str, int] = {}
+        for i, m in enumerate(ent.members):
+            norm = _normalize_name(m.discovered_name or "")
+            if m.status == "rejected":
+                if norm:
+                    rejected_by_name[norm] = i
+            else:
+                if norm:
+                    active_names.add(norm)
+                if m.person_id:
+                    p = profiles.get(m.person_id)
+                    if p:
+                        active_names.add(_normalize_name(p.name))
 
         added = 0
         for member_info in discovered:
@@ -98,10 +103,22 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
                 continue
 
             norm = _normalize_name(name)
-            if norm in existing_names:
+            if norm in active_names:
                 logger.info("  Skipping %s — already known on entity", name)
                 continue
-            existing_names.add(norm)
+
+            if norm in rejected_by_name:
+                idx = rejected_by_name.pop(norm)
+                ent.members[idx].status = "pending"
+                ent.members[idx].role = role
+                ent.members[idx].title = role
+                ent.members[idx].preview_data = preview
+                active_names.add(norm)
+                added += 1
+                logger.info("  Re-presenting %s — previously rejected, updated with fresh data", name)
+                continue
+
+            active_names.add(norm)
 
             existing_person = _find_person_by_name_org(name, ent.name)
             if existing_person:
