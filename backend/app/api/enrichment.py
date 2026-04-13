@@ -216,6 +216,38 @@ async def clay_callback(person_id: str, request: Request):
 
     profiles[person.id] = person
 
+    # Store Clay enrichment data in Qdrant for future cross-person queries
+    try:
+        from app.services.qdrant_client import store_enrichment_doc
+
+        text_parts = []
+        for sp in parsed.get("social_profiles", []):
+            text_parts.append(f"{sp.platform}: {sp.url}")
+        for emp in parsed.get("employer_history", []):
+            text_parts.append(f"Employment: {emp.title} at {emp.organization}")
+        for edu in parsed.get("education", []):
+            text_parts.append(f"Education: {edu.degree} at {edu.institution}")
+        for addr in parsed.get("addresses", []):
+            text_parts.append(f"Location: {addr.city}, {addr.state}")
+        if parsed.get("date_of_birth"):
+            text_parts.append(f"DOB: {parsed['date_of_birth']}")
+        if parsed.get("email"):
+            text_parts.append(f"Email: {parsed['email']}")
+
+        if text_parts:
+            enrichment_text = f"{person.name} ({person.organization}). " + " | ".join(text_parts)
+            store_enrichment_doc(
+                person_id=person_id,
+                source="clay",
+                text=enrichment_text,
+                metadata={
+                    "type": "enrichment_callback",
+                    "date": datetime.utcnow().isoformat(),
+                },
+            )
+    except Exception as e:
+        logger.warning("Failed to store Clay callback in Qdrant (non-fatal): %s", e)
+
     logger.info(
         "Clay callback merged for %s: +%d socials, +%d jobs, +%d edu, confidence=%.2f",
         person.name,

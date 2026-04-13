@@ -76,10 +76,48 @@ async def health():
     }
 
 
+def _ingest_evidence_to_qdrant():
+    """Load case-data.json evidence into Qdrant at startup (idempotent)."""
+    import json
+    from pathlib import Path
+
+    case_path = Path("/app/case-data/case-data.json")
+    if not case_path.exists():
+        logger.info("case-data.json not found at %s — skipping evidence ingestion", case_path)
+        return
+
+    try:
+        data = json.loads(case_path.read_text())
+        evidence = data.get("evidence", [])
+        actors = data.get("actors", [])
+        if not evidence:
+            logger.info("No evidence docs in case-data.json — nothing to ingest")
+            return
+
+        from app.services.qdrant_client import ingest_evidence
+        result = ingest_evidence(evidence, actors)
+        logger.info(
+            "Evidence ingestion complete: %d ingested, %d skipped",
+            result.get("ingested", 0),
+            result.get("skipped", 0),
+        )
+    except Exception as e:
+        logger.warning("Evidence ingestion failed (non-fatal): %s", e)
+
+
+@app.on_event("startup")
+async def startup_ingest():
+    """Run seed + evidence ingestion on app startup."""
+    from app.scripts.seed_actors import seed
+    seed()
+    _ingest_evidence_to_qdrant()
+
+
 @app.post("/api/seed")
 async def seed_actors():
     """One-shot: import case-data.json actors into the backend store."""
     from app.scripts.seed_actors import seed
     seed()
+    _ingest_evidence_to_qdrant()
     from app.api._store import profiles as p, entities as e
     return {"profiles": len(p), "entities": len(e)}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { fetchProfile, fetchEntities, startResearch } from '../api/client';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { fetchProfile, fetchEntities, startResearch, resetResearch, deleteProfile } from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
 import DocLink from '../components/DocLink';
 
@@ -85,11 +85,15 @@ function Section({ title, children, count }) {
 
 export default function ProfileDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [entities, setEntities] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [launching, setLaunching] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const reload = useCallback(() => {
     fetchProfile(id).then(setProfile).catch(() => {});
@@ -144,6 +148,29 @@ export default function ProfileDetail() {
       setError(e.message);
     } finally {
       setLaunching(false);
+    }
+  }
+
+  async function handleResetResearch() {
+    setResetting(true);
+    try {
+      const updated = await resetResearch(profile.id);
+      setProfile(updated);
+      setConfirmReset(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setResetting(false);
+    }
+  }
+
+  async function handleDeleteProfile() {
+    try {
+      await deleteProfile(profile.id);
+      navigate('/people');
+    } catch (e) {
+      setError(e.message);
+      setConfirmDelete(false);
     }
   }
 
@@ -229,6 +256,61 @@ export default function ProfileDetail() {
               )}
               {jobError && <span className="text-xs text-danger">{jobError}</span>}
             </div>
+
+            {/* Reset / Delete actions */}
+            {hasResearch && (
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                {!confirmReset ? (
+                  <button
+                    onClick={() => setConfirmReset(true)}
+                    className="text-[11px] font-medium px-3 py-1 rounded-lg bg-warning/15 text-warning hover:bg-warning/25 transition-colors"
+                  >
+                    Reset Research
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <span className="text-[11px] text-warning">Clear all facts &amp; battle card?</span>
+                    <button
+                      onClick={handleResetResearch}
+                      disabled={resetting}
+                      className="text-[11px] font-bold px-3 py-1 rounded-lg bg-warning text-white hover:bg-warning/80 disabled:opacity-50 transition-colors"
+                    >
+                      {resetting ? 'Clearing...' : 'Yes, reset'}
+                    </button>
+                    <button
+                      onClick={() => setConfirmReset(false)}
+                      className="text-[11px] px-2 py-1 text-text-dim hover:text-text transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                )}
+                {!confirmDelete ? (
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="text-[11px] font-medium px-3 py-1 rounded-lg bg-danger/15 text-danger hover:bg-danger/25 transition-colors"
+                  >
+                    Delete Profile
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <span className="text-[11px] text-danger">Permanently delete? Re-seed to restore.</span>
+                    <button
+                      onClick={handleDeleteProfile}
+                      className="text-[11px] font-bold px-3 py-1 rounded-lg bg-danger text-white hover:bg-danger/80 transition-colors"
+                    >
+                      Yes, delete
+                    </button>
+                    <button
+                      onClick={() => setConfirmDelete(false)}
+                      className="text-[11px] px-2 py-1 text-text-dim hover:text-text transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

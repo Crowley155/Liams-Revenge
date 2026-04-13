@@ -1,16 +1,22 @@
 """
-Profiles API — read completed research profiles.
+Profiles API — read, reset, and delete research profiles.
 
-GET /api/profiles         — list all researched profiles
-GET /api/profiles/{id}    — get a single profile with battle card
+GET    /api/profiles                        — list all profiles
+GET    /api/profiles/{id}                   — single profile
+DELETE /api/profiles/{id}/research          — clear research data only
+DELETE /api/profiles/{id}                   — full delete
 """
 from __future__ import annotations
 
+import logging
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException
 
-from app.models import Person
+from app.models import Person, PersonSource
 from app.api._store import profiles
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["profiles"])
 
 
@@ -27,3 +33,44 @@ async def get_profile(person_id: str):
     if not person:
         raise HTTPException(status_code=404, detail="Profile not found")
     return person
+
+
+@router.delete("/profiles/{person_id}/research", response_model=Person)
+async def reset_research(person_id: str):
+    """
+    Clear research-derived fields (facts, battle_card, rejected_facts)
+    while preserving identity, enrichment, and curated data.
+    """
+    person = profiles.get(person_id)
+    if not person:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    person.facts = []
+    person.rejected_facts = []
+    person.battle_card = None
+
+    if person.source == PersonSource.BOTH:
+        person.source = PersonSource.MANUAL
+    elif person.source == PersonSource.PIPELINE:
+        person.source = PersonSource.MANUAL
+
+    person.updated_at = datetime.utcnow()
+    profiles[person.id] = person
+
+    logger.info("Research reset for %s (%s) — facts/battle_card cleared", person.name, person.id)
+    return person
+
+
+@router.delete("/profiles/{person_id}")
+async def delete_profile(person_id: str):
+    """
+    Fully delete a person from the store.
+    Re-run /api/seed to recreate seeded actors.
+    """
+    person = profiles.get(person_id)
+    if not person:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    profiles.pop(person_id, None)
+    logger.info("Profile DELETED: %s (%s)", person.name, person_id)
+    return {"status": "deleted", "person_id": person_id, "name": person.name}

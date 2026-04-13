@@ -1,12 +1,13 @@
 """
 Enrichment orchestrator — Phase 0: IDENTIFY.
 
-Runs all enrichment workers in sequence (SerpAPI first so PDL/Maigret have
-social links to work with), then unifies the results into a single Person.
+Runs all enrichment workers in sequence, starting with our own internal
+evidence before hitting external APIs.
 
 Flow:
+  0. Internal evidence search → contact info + bio from our own data (free)
   1. SerpAPI Knowledge Graph → social links + bio
-  2. People Data Labs → structured identity data
+  2. Clay webhook (async) or PDL (fallback) → structured identity data
   3. Maigret OSINT → extra social profiles from discovered usernames
   4. Social profile scraping → extract data from confirmed profiles
   5. Unify → merge, deduplicate, score confidence
@@ -57,6 +58,41 @@ def run_enrichment_pipeline(person: Person, job: ResearchJob) -> Person:
     jobs[job.id] = job
 
     worker_results: list[dict] = []
+
+    # --- Worker 0: Internal evidence search (free, instant) ---
+    logger.info("Enrichment Phase 0.0: Internal evidence search for %s", person.name)
+    try:
+        from app.pipeline.enrichment.internal_search import enrich_from_internal
+        internal_result = enrich_from_internal(person)
+        worker_results.append(internal_result)
+
+        if internal_result.get("email") and not (person.contact and person.contact.email):
+            from app.models import ContactInfo
+            if not person.contact:
+                person.contact = ContactInfo()
+            person.contact.email = internal_result["email"]
+            logger.info("  Internal: found email %s", internal_result["email"])
+
+        if internal_result.get("phone") and not (person.contact and person.contact.phone):
+            from app.models import ContactInfo
+            if not person.contact:
+                person.contact = ContactInfo()
+            person.contact.phone = internal_result["phone"]
+            logger.info("  Internal: found phone %s", internal_result["phone"])
+
+        if "internal_evidence" not in person.enrichment_sources:
+            person.enrichment_sources.append("internal_evidence")
+
+        logger.info(
+            "  Internal: %d docs found, email=%s, phone=%s",
+            internal_result.get("doc_count", 0),
+            internal_result.get("email"),
+            internal_result.get("phone"),
+        )
+    except Exception as e:
+        logger.warning("Internal evidence search failed: %s", e)
+
+    profiles[person.id] = person
 
     # --- Worker 1: SerpAPI ---
     logger.info("Enrichment Phase 0.1: SerpAPI KG for %s", person.name)

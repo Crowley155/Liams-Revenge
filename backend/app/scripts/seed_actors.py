@@ -11,8 +11,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
-import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -72,22 +70,13 @@ PERSON_COUNTY: dict[str, str] = {
 }
 
 
-_EMAIL_RE = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
-_PHONE_RE = re.compile(r'\b(?:\d{3}[-.]?\d{3}[-.]?\d{4})\b')
-_PHONE_EXT_RE = re.compile(r'\b(\d{3}[-.]?\d{3}[-.]?\d{4}),?\s*(?:ext\.?\s*(\d+))?\b', re.IGNORECASE)
-
-# Name-to-email patterns extracted from case evidence headers
-_NAME_PATTERNS: dict[str, list[str]] = {
-    "gerri-balthazor": ["gerri balthazor", "gbalthazor"],
-    "alvie-cater": ["alvie cater", "acater"],
-    "janine-winters": ["janine winters", "janine.winters"],
-    "breanna-burks": ["breanna burks", "bre burks", "bburks"],
-    "jennifer-anderson": ["jennifer anderson", "jennifer.ander"],
-    "amy-branson": ["amy branson", "amy.branson"],
-    "leigh-white": ["leigh white"],
-    "brian-schwanz": ["brian schwanz"],
-    "will-crowley": ["william crowley", "will crowley", "william.crowley"],
-}
+from app.pipeline.enrichment.contact_extractor import (
+    PHONE_EXT_RE,
+    build_actor_name_map,
+    match_name_to_actor,
+    extract_name_email_pairs,
+    extract_signature_phones,
+)
 
 
 def _mine_evidence_contacts(evidence: list[dict], actors: list[dict]) -> dict[str, ContactInfo]:
@@ -96,18 +85,7 @@ def _mine_evidence_contacts(evidence: list[dict], actors: list[dict]) -> dict[st
     Match them to actor IDs by name patterns in email headers.
     Returns {actor_id: ContactInfo}.
     """
-    actor_name_map: dict[str, str] = {}
-    for actor in actors:
-        actor_id = actor["id"]
-        name_lower = actor["name"].lower()
-        actor_name_map[name_lower] = actor_id
-        first = name_lower.split()[0]
-        last = name_lower.split()[-1] if len(name_lower.split()) > 1 else ""
-        if last:
-            actor_name_map[last] = actor_id
-        for pattern in _NAME_PATTERNS.get(actor_id, []):
-            actor_name_map[pattern] = actor_id
-
+    actor_name_map = build_actor_name_map(actors)
     contacts: dict[str, ContactInfo] = {}
 
     for doc in evidence:
@@ -115,27 +93,19 @@ def _mine_evidence_contacts(evidence: list[dict], actors: list[dict]) -> dict[st
         if not body:
             continue
 
-        # Extract "Name <email>" patterns from From/To/Cc lines
-        name_email_pairs = re.findall(
-            r'([A-Za-z][A-Za-z .,\'"]+?)\s*<\s*([\w.+-]+@[\w-]+\.[\w.-]+)\s*>',
-            body,
-        )
-        for raw_name, email in name_email_pairs:
+        for raw_name, email in extract_name_email_pairs(body):
             clean_name = raw_name.strip().strip('*"\'').lower()
-            actor_id = _match_name_to_actor(clean_name, actor_name_map)
+            actor_id = match_name_to_actor(clean_name, actor_name_map)
             if actor_id:
                 if actor_id not in contacts:
                     contacts[actor_id] = ContactInfo()
                 if not contacts[actor_id].email:
                     contacts[actor_id].email = email.lower()
 
-        # Extract phone numbers near actor signatures
-        phone_blocks = _PHONE_EXT_RE.findall(body)
-        for phone, ext in phone_blocks:
+        for phone, ext in PHONE_EXT_RE.findall(body):
             phone_str = phone.strip()
             if ext:
                 phone_str = f"{phone_str} ext {ext}"
-
             source_id = doc.get("source", "")
             if source_id and source_id in contacts:
                 if not contacts[source_id].phone:
@@ -143,13 +113,8 @@ def _mine_evidence_contacts(evidence: list[dict], actors: list[dict]) -> dict[st
             elif source_id and source_id not in contacts:
                 contacts[source_id] = ContactInfo(phone=phone_str)
 
-        # Try matching signature blocks: "*Name*\n*Title*\n*Org*\nPhone"
-        sig_pattern = re.compile(
-            r'\*([A-Z][a-z]+ [A-Z][a-z]+)\*.*?(\d{3}[-.]?\d{3}[-.]?\d{4})',
-            re.DOTALL,
-        )
-        for name_match, phone_match in sig_pattern.findall(body):
-            actor_id = _match_name_to_actor(name_match.lower(), actor_name_map)
+        for name_match, phone_match in extract_signature_phones(body):
+            actor_id = match_name_to_actor(name_match.lower(), actor_name_map)
             if actor_id:
                 if actor_id not in contacts:
                     contacts[actor_id] = ContactInfo()
@@ -157,17 +122,6 @@ def _mine_evidence_contacts(evidence: list[dict], actors: list[dict]) -> dict[st
                     contacts[actor_id].phone = phone_match
 
     return contacts
-
-
-def _match_name_to_actor(name: str, actor_name_map: dict[str, str]) -> str | None:
-    """Fuzzy match a name string to an actor ID."""
-    name = name.lower().strip()
-    if name in actor_name_map:
-        return actor_name_map[name]
-    for pattern, actor_id in actor_name_map.items():
-        if pattern in name or name in pattern:
-            return actor_id
-    return None
 
 
 def _get_or_create_entity(org_name: str) -> Entity:

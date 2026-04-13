@@ -85,3 +85,19 @@ export async function confirmIdentity(personId) {
   if (!res.ok) throw new Error(`Confirm failed: ${res.status}`);
   return res.json();
 }
+
+export async function resetResearch(personId) {
+  const res = await fetch(`${API_BASE}/api/profiles/${personId}/research`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Reset failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteProfile(personId) {
+  const res = await fetch(`${API_BASE}/api/profiles/${personId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+  return res.json();
+}

@@ -62,6 +62,11 @@ def unify_enrichment(person: Person, worker_results: list[dict]) -> Person:
         if result.get("date_of_birth") and not person.date_of_birth:
             person.date_of_birth = result["date_of_birth"]
 
+    # Wire bio_snippet to curated_bio as a fallback (seed data takes priority)
+    if bio_snippets and not person.curated_bio:
+        person.curated_bio = bio_snippets[0]
+        logger.info("Set curated_bio from enrichment bio_snippet for %s", person.name)
+
     person.identity_confidence = _score_confidence(person)
 
     contradictions = _detect_contradictions(person, worker_results)
