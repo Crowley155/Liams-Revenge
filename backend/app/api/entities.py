@@ -93,6 +93,7 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
         for member_info in discovered:
             name = member_info.get("name", "").strip()
             role = member_info.get("role") or "Member"
+            preview = member_info.get("preview_data")
             if not name:
                 continue
 
@@ -112,6 +113,7 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
                     role=role, title=role,
                     status="accepted",
                     discovered_name=name,
+                    preview_data=preview,
                 ))
                 logger.info("  Auto-accepted %s — matched existing person %s", name, existing_person.id)
             else:
@@ -120,6 +122,7 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
                     role=role, title=role,
                     status="pending",
                     discovered_name=name,
+                    preview_data=preview,
                 ))
                 added += 1
                 logger.info("  Pending: %s (%s)", name, role)

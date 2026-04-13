@@ -223,6 +223,7 @@ class EntityMember(BaseModel):
     discovered_name: str = ""
     start_date: Optional[str] = None
     end_date: Optional[str] = None
+    preview_data: Optional[dict] = None
 
 
 class Entity(BaseModel):

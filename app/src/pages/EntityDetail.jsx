@@ -171,32 +171,33 @@ export default function EntityDetail() {
           </h2>
           <div className="space-y-2">
             {pendingMembers.map((m, i) => (
-              <div
+              <Link
                 key={i}
-                className="flex items-center gap-3 bg-surface border border-warning/30 rounded-lg p-3"
+                to={`/entities/${id}/members/${encodeURIComponent(m.discovered_name)}`}
+                className="flex items-center gap-3 bg-surface border border-warning/30 rounded-lg p-3 card-hover group"
               >
                 <Initials name={m.discovered_name} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text">{m.discovered_name}</p>
+                  <p className="text-sm font-medium text-text group-hover:text-accent transition-colors">{m.discovered_name}</p>
                   <p className="text-xs text-text-dim">{m.role || m.title}</p>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
-                    onClick={() => handleAccept(m.discovered_name)}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleAccept(m.discovered_name); }}
                     className="text-[10px] font-medium px-2.5 py-1 rounded bg-success/15 text-success hover:bg-success/30 transition-colors"
                     title="Accept this person as a member of this entity"
                   >
                     Accept
                   </button>
                   <button
-                    onClick={() => handleReject(m.discovered_name)}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleReject(m.discovered_name); }}
                     className="text-[10px] font-medium px-2.5 py-1 rounded bg-text-dim/10 text-text-dim hover:bg-danger/15 hover:text-danger transition-colors"
                     title="Not relevant — hide from list but remember to avoid re-suggesting"
                   >
                     Reject
                   </button>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
