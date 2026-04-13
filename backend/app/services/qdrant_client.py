@@ -397,3 +397,64 @@ def store_enrichment_doc(person_id: str, source: str, text: str, metadata: dict 
         logger.info("Stored enrichment doc for %s from %s", person_id, source)
     except Exception as e:
         logger.warning("Failed to store enrichment doc: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# Document chunk storage (for uploaded files)
+# ---------------------------------------------------------------------------
+
+def store_document_chunks(
+    chunks: list[dict],
+    document_id: str,
+    entity_ids: list[str] | None = None,
+    person_ids: list[str] | None = None,
+    source: str = "uploaded_document",
+    metadata: dict | None = None,
+) -> list[str]:
+    """Store chunked document text. Each chunk gets its own Qdrant point.
+
+    Returns list of point IDs that were stored.
+    """
+    client = _get_client()
+    if not client:
+        return []
+
+    from qdrant_client.models import PointStruct
+
+    point_ids: list[str] = []
+    extra = metadata or {}
+
+    for chunk in chunks:
+        chunk_text = chunk["text"]
+        embedding = _embed_text(chunk_text)
+        if not embedding:
+            continue
+
+        pid = hashlib.sha256(
+            f"doc:{document_id}:chunk:{chunk['chunk_index']}".encode()
+        ).hexdigest()[:32]
+
+        payload = {
+            "origin": source,
+            "document_id": document_id,
+            "chunk_index": chunk["chunk_index"],
+            "total_chunks": chunk["total_chunks"],
+            "entity_ids": entity_ids or [],
+            "person_ids": person_ids or [],
+            "text_preview": chunk_text[:500],
+            "full_text": chunk_text[:4000],
+            **extra,
+        }
+
+        try:
+            client.upsert(
+                collection_name=COLLECTION_NAME,
+                points=[PointStruct(id=pid, vector=embedding, payload=payload)],
+            )
+            point_ids.append(pid)
+        except Exception as e:
+            logger.warning("Failed to store chunk %d of doc %s: %s",
+                           chunk["chunk_index"], document_id, e)
+
+    logger.info("Stored %d/%d chunks for document %s", len(point_ids), len(chunks), document_id)
+    return point_ids

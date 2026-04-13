@@ -7,7 +7,7 @@ Drop-in replacement for the old JSON file store. Same API:
   list(profiles.values())
   etc.
 """
-from app.models import ResearchJob, Person, Entity
+from app.models import ResearchJob, Person, Entity, KoraRequest, CaseDocument
 from app.db import _SqliteStore
 
 profiles = _SqliteStore(
@@ -26,4 +26,16 @@ entities = _SqliteStore(
     "entities",
     Entity,
     indexed_cols={"name": "name", "type": "type"},
+)
+
+kora_requests = _SqliteStore(
+    "kora_requests",
+    KoraRequest,
+    indexed_cols={"case_id": "case_id", "status": "status", "record_category": "record_category"},
+)
+
+case_documents = _SqliteStore(
+    "case_documents",
+    CaseDocument,
+    indexed_cols={"case_id": "case_id", "filename": "filename", "status": "status"},
 )

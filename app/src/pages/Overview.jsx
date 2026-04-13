@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useCase } from '../data/useCase';
 import DocLink from '../components/DocLink';
 import { Link } from 'react-router-dom';
+import {
+  generateKoraRequests, fetchKoraRequests, markKoraSent, updateKoraRequest,
+  uploadDocument, fetchDocuments, fetchEntities, getJobStatus,
+} from '../api/client';
 
 export default function Overview() {
   const data = useCase();
@@ -221,7 +225,311 @@ export default function Overview() {
         </div>
       </section>
 
+      {/* Section 4: KORA Requests + Document Upload */}
+      <KoraSection />
+
     </div>
+  );
+}
+
+function KoraSection() {
+  const [entities, setEntities] = useState([]);
+  const [koraRequests, setKoraRequests] = useState([]);
+  const [documents, setDocuments] = useState([]);
+  const [generating, setGenerating] = useState(false);
+  const [genJobId, setGenJobId] = useState(null);
+  const [filterEntity, setFilterEntity] = useState('');
+  const [expandedId, setExpandedId] = useState(null);
+  const [copied, setCopied] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+  const pollRef = useRef(null);
+
+  const loadData = useCallback(() => {
+    fetchEntities().then(setEntities).catch(() => {});
+    fetchKoraRequests().then(setKoraRequests).catch(() => {});
+    fetchDocuments().then(setDocuments).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (!genJobId) return;
+    let cancelled = false;
+    async function poll() {
+      try {
+        const job = await getJobStatus(genJobId);
+        if (cancelled) return;
+        if (job.status === 'complete' || job.status === 'failed') {
+          setGenerating(false);
+          setGenJobId(null);
+          if (job.status === 'complete') loadData();
+          return;
+        }
+        pollRef.current = setTimeout(poll, 2000);
+      } catch {
+        if (!cancelled) { setGenerating(false); setGenJobId(null); }
+      }
+    }
+    poll();
+    return () => { cancelled = true; clearTimeout(pollRef.current); };
+  }, [genJobId, loadData]);
+
+  async function handleGenerate() {
+    setGenerating(true);
+    try {
+      const job = await generateKoraRequests();
+      setGenJobId(job.id);
+    } catch (err) {
+      console.error(err);
+      setGenerating(false);
+    }
+  }
+
+  async function handleCopy(req) {
+    await navigator.clipboard.writeText(req.letter_text);
+    setCopied(req.id);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  async function handleMarkSent(req) {
+    try {
+      const updated = await markKoraSent(req.id);
+      setKoraRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleFileUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      await uploadDocument(file, { entityIds: filterEntity ? [filterEntity] : [] });
+      loadData();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  const filtered = filterEntity
+    ? koraRequests.filter((r) => r.entity_ids.includes(filterEntity))
+    : koraRequests;
+
+  const CATEGORY_LABELS = {
+    incident_reports: 'Incident Reports',
+    communications: 'Communications',
+    training: 'Training',
+    policy: 'Policy',
+    meeting_minutes: 'Meeting Minutes',
+    inspection: 'Inspection',
+    personnel: 'Personnel',
+    financial: 'Financial',
+  };
+
+  const STATUS_COLORS = {
+    draft: 'bg-text-dim/10 text-text-dim',
+    sent: 'bg-accent/15 text-accent',
+    fulfilled: 'bg-success/15 text-success',
+    denied: 'bg-danger/15 text-danger',
+    partial: 'bg-warning/15 text-warning',
+  };
+
+  return (
+    <section className="animate-fade-up delay-3 space-y-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h3 className="text-lg font-bold">Records Requests</h3>
+          <p className="text-xs text-text-dim">
+            KORA requests generated from case evidence gaps and LLM analysis. Copy the letter, send it yourself.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+          >
+            {generating ? 'Generating...' : koraRequests.length > 0 ? 'Regenerate KORA Requests' : 'Generate KORA Requests'}
+          </button>
+          {generating && (
+            <span className="text-xs text-text-dim flex items-center gap-1.5">
+              <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+              Running LLM analysis...
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Entity filter chips */}
+      {entities.length > 0 && koraRequests.length > 0 && (
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setFilterEntity('')}
+            className={`text-[11px] px-3 py-1 rounded-full border transition-colors ${
+              !filterEntity ? 'bg-accent/15 text-accent border-accent/30' : 'text-text-dim border-border hover:border-accent/30'
+            }`}
+          >
+            All ({koraRequests.length})
+          </button>
+          {entities.map((ent) => {
+            const count = koraRequests.filter((r) => r.entity_ids.includes(ent.id)).length;
+            if (count === 0) return null;
+            return (
+              <button
+                key={ent.id}
+                onClick={() => setFilterEntity(ent.id === filterEntity ? '' : ent.id)}
+                className={`text-[11px] px-3 py-1 rounded-full border transition-colors ${
+                  filterEntity === ent.id ? 'bg-accent/15 text-accent border-accent/30' : 'text-text-dim border-border hover:border-accent/30'
+                }`}
+              >
+                {ent.name} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Request cards */}
+      {filtered.length > 0 && (
+        <div className="space-y-3">
+          {filtered.map((req) => {
+            const isExpanded = expandedId === req.id;
+            const entityNames = req.entity_ids
+              .map((eid) => entities.find((e) => e.id === eid)?.name)
+              .filter(Boolean);
+            return (
+              <div
+                key={req.id}
+                className="bg-surface border border-border rounded-lg overflow-hidden"
+                style={{ boxShadow: 'var(--shadow-card)' }}
+              >
+                <button
+                  onClick={() => setExpandedId(isExpanded ? null : req.id)}
+                  className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-surface-alt/50 transition-colors"
+                >
+                  <span className="text-xs mt-0.5 shrink-0" style={{ transform: isExpanded ? 'rotate(90deg)' : '', transition: 'transform 0.15s' }}>
+                    ▸
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text">{req.subject || 'Untitled Request'}</p>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {entityNames.map((n) => (
+                        <span key={n} className="text-[10px] bg-accent/10 text-accent px-1.5 py-0.5 rounded">
+                          {n}
+                        </span>
+                      ))}
+                      {req.record_category && (
+                        <span className="text-[10px] text-text-dim">
+                          {CATEGORY_LABELS[req.record_category] || req.record_category}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${STATUS_COLORS[req.status] || STATUS_COLORS.draft}`}>
+                    {req.status}
+                  </span>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 border-t border-border/50 space-y-3">
+                    {req.relevance && (
+                      <p className="text-xs text-text-dim leading-relaxed mt-3">{req.relevance}</p>
+                    )}
+                    <div className="bg-bg rounded-lg p-4 text-xs font-mono leading-relaxed whitespace-pre-wrap text-text-dim max-h-80 overflow-y-auto">
+                      {req.letter_text || req.records_description}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => handleCopy(req)}
+                        className="text-[11px] font-medium px-3 py-1 rounded bg-accent/15 text-accent hover:bg-accent/30 transition-colors"
+                      >
+                        {copied === req.id ? 'Copied!' : 'Copy Letter'}
+                      </button>
+                      {req.status === 'draft' && (
+                        <button
+                          onClick={() => handleMarkSent(req)}
+                          className="text-[11px] font-medium px-3 py-1 rounded bg-success/15 text-success hover:bg-success/30 transition-colors"
+                        >
+                          Mark as Sent
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {koraRequests.length === 0 && !generating && (
+        <div className="text-center py-8 bg-surface border border-border rounded-lg">
+          <p className="text-sm text-text-dim">No KORA requests generated yet.</p>
+          <p className="text-xs text-text-dim/60 mt-1">
+            Click "Generate KORA Requests" to analyze the case and produce records request letters.
+          </p>
+        </div>
+      )}
+
+      {/* Document Upload */}
+      <div className="border-t border-border pt-6">
+        <div className="flex items-center justify-between gap-4 mb-3">
+          <div>
+            <h4 className="text-sm font-bold">Uploaded Documents</h4>
+            <p className="text-xs text-text-dim">
+              Upload KORA responses, evidence files, or any document to index in the case intelligence system.
+            </p>
+          </div>
+          <label className="text-xs font-medium px-4 py-1.5 rounded-lg bg-surface border border-border hover:border-accent/30 text-text-dim hover:text-accent transition-colors cursor-pointer">
+            {uploading ? 'Uploading...' : 'Upload File'}
+            <input
+              ref={fileRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileUpload}
+              disabled={uploading}
+              accept=".pdf,.jpg,.jpeg,.png,.tiff,.docx,.eml,.txt,.md"
+            />
+          </label>
+        </div>
+
+        {documents.length > 0 && (
+          <div className="space-y-2">
+            {documents.slice(0, 10).map((doc) => (
+              <div
+                key={doc.id}
+                className="flex items-center gap-3 bg-surface border border-border rounded-lg px-4 py-2.5"
+              >
+                <span className="text-xs font-mono text-accent shrink-0">
+                  {doc.file_type?.toUpperCase() || 'FILE'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-text truncate">{doc.filename}</p>
+                  <p className="text-[11px] text-text-dim">
+                    {doc.chunk_count > 0 ? `${doc.chunk_count} chunks indexed` : doc.status}
+                    {doc.file_size > 0 && ` · ${(doc.file_size / 1024).toFixed(0)} KB`}
+                  </p>
+                </div>
+                <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 ${
+                  doc.status === 'indexed' ? 'bg-success/15 text-success'
+                    : doc.status === 'failed' ? 'bg-danger/15 text-danger'
+                    : 'bg-text-dim/10 text-text-dim'
+                }`}>
+                  {doc.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import init_db, migrate_json_to_sqlite
-from app.api import research, profiles, entities, enrichment
+from app.api import research, profiles, entities, enrichment, kora, documents
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +84,8 @@ app.include_router(research.router, prefix="/api")
 app.include_router(profiles.router, prefix="/api")
 app.include_router(entities.router, prefix="/api")
 app.include_router(enrichment.router, prefix="/api")
+app.include_router(kora.router, prefix="/api")
+app.include_router(documents.router, prefix="/api")
 
 
 @app.get("/health")

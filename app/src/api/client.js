@@ -143,3 +143,53 @@ export async function dismissSocialProfile(personId, url) {
   if (!res.ok) throw new Error(`Dismiss failed: ${res.status}`);
   return res.json();
 }
+
+// KORA requests
+export async function generateKoraRequests() {
+  const res = await fetch(`${API_BASE}/api/kora/generate`, { method: 'POST' });
+  if (!res.ok) throw new Error(`KORA generation failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchKoraRequests(entityId = '') {
+  const params = entityId ? `?entity_id=${entityId}` : '';
+  const res = await fetch(`${API_BASE}/api/kora/requests${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch KORA requests: ${res.status}`);
+  return res.json();
+}
+
+export async function updateKoraRequest(id, data) {
+  const res = await fetch(`${API_BASE}/api/kora/requests/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Update failed: ${res.status}`);
+  return res.json();
+}
+
+export async function markKoraSent(id) {
+  const res = await fetch(`${API_BASE}/api/kora/requests/${id}/mark-sent`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Mark sent failed: ${res.status}`);
+  return res.json();
+}
+
+// Document upload
+export async function uploadDocument(file, { entityIds = [], personIds = [], koraRequestId = '', source = 'manual_upload' } = {}) {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('entity_ids', entityIds.join(','));
+  form.append('person_ids', personIds.join(','));
+  form.append('kora_request_id', koraRequestId);
+  form.append('source', source);
+  const res = await fetch(`${API_BASE}/api/documents/upload`, { method: 'POST', body: form });
+  if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchDocuments(entityId = '') {
+  const params = entityId ? `?entity_id=${entityId}` : '';
+  const res = await fetch(`${API_BASE}/api/documents${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch documents: ${res.status}`);
+  return res.json();
+}

@@ -17,8 +17,11 @@ from app.models.schemas import (
     Entity,
     EntityCreate,
     EntityMember,
+    RecordsCustodian,
     ResearchJob,
     JobStatus,
+    KoraRequest,
+    CaseDocument,
 )
 
 __all__ = [
@@ -40,6 +43,9 @@ __all__ = [
     "Entity",
     "EntityCreate",
     "EntityMember",
+    "RecordsCustodian",
     "ResearchJob",
     "JobStatus",
+    "KoraRequest",
+    "CaseDocument",
 ]

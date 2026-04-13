@@ -62,6 +62,26 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_jobs_person ON jobs(person_id);
         CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+
+        CREATE TABLE IF NOT EXISTS kora_requests (
+            id        TEXT PRIMARY KEY,
+            case_id   TEXT NOT NULL DEFAULT 'crowley-v-usd232',
+            status    TEXT NOT NULL DEFAULT 'draft',
+            record_category TEXT NOT NULL DEFAULT '',
+            data      TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_kora_case ON kora_requests(case_id);
+        CREATE INDEX IF NOT EXISTS idx_kora_status ON kora_requests(status);
+
+        CREATE TABLE IF NOT EXISTS case_documents (
+            id        TEXT PRIMARY KEY,
+            case_id   TEXT NOT NULL DEFAULT 'crowley-v-usd232',
+            filename  TEXT NOT NULL DEFAULT '',
+            status    TEXT NOT NULL DEFAULT 'processing',
+            data      TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_docs_case ON case_documents(case_id);
+        CREATE INDEX IF NOT EXISTS idx_docs_status ON case_documents(status);
     """)
     conn.commit()
     conn.close()

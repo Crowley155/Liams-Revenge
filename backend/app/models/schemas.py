@@ -226,6 +226,17 @@ class EntityMember(BaseModel):
     preview_data: Optional[dict] = None
 
 
+class RecordsCustodian(BaseModel):
+    """Contact info for an agency's KORA records custodian."""
+    name: str = ""
+    title: str = ""
+    email: str = ""
+    phone: str = ""
+    address: str = ""
+    submission_url: str = ""
+    notes: str = ""
+
+
 class Entity(BaseModel):
     """An organization/board/agency — like a CRM Account record."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
@@ -239,6 +250,7 @@ class Entity(BaseModel):
     description: str = ""
     members: list[EntityMember] = Field(default_factory=list)
     key_policies: list[str] = Field(default_factory=list)
+    records_custodian: Optional[RecordsCustodian] = None
     metadata: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -304,3 +316,57 @@ class ResearchJob(BaseModel):
     trace_url: Optional[str] = Field(
         default=None, description="Langfuse trace URL for debugging"
     )
+
+
+# ---------------------------------------------------------------------------
+# KORA requests
+# ---------------------------------------------------------------------------
+
+class KoraRequest(BaseModel):
+    """A generated KORA (Kansas Open Records Act) request."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    case_id: str = "crowley-v-usd232"
+    entity_ids: list[str] = Field(default_factory=list, description="Target agencies — plural, e.g. lease involves both USD 232 + JCPRD")
+    custodian: Optional[RecordsCustodian] = None
+    subject: str = ""
+    records_description: str = ""
+    legal_basis: str = ""
+    relevance: str = ""
+    evidence_gap_ids: list[str] = Field(default_factory=list)
+    person_ids: list[str] = Field(default_factory=list)
+    record_category: str = Field(
+        default="",
+        description="incident_reports | communications | training | policy | meeting_minutes | inspection | personnel | financial",
+    )
+    status: str = Field(default="draft", description="draft | sent | fulfilled | denied | partial")
+    letter_text: str = ""
+    sent_at: Optional[datetime] = None
+    response_notes: str = ""
+    response_doc_ids: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+# ---------------------------------------------------------------------------
+# Document intake
+# ---------------------------------------------------------------------------
+
+class CaseDocument(BaseModel):
+    """An uploaded document (PDF, image, Word, email, etc.) ingested into Qdrant."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    case_id: str = "crowley-v-usd232"
+    filename: str = ""
+    file_type: str = Field(default="", description="pdf | image | docx | eml | txt")
+    file_size: int = 0
+    entity_ids: list[str] = Field(default_factory=list)
+    person_ids: list[str] = Field(default_factory=list)
+    kora_request_id: str = ""
+    source: str = Field(default="manual_upload", description="kora_response | manual_upload | email_export")
+    extracted_text: str = ""
+    chunk_count: int = 0
+    qdrant_point_ids: list[str] = Field(default_factory=list)
+    facts_extracted: int = 0
+    status: str = Field(default="processing", description="processing | indexed | failed")
+    error: Optional[str] = None
+    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    processed_at: Optional[datetime] = None
