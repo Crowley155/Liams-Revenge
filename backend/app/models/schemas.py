@@ -49,6 +49,7 @@ class Address(BaseModel):
     type: str = "home"
     current: bool = True
     source: str = ""
+    source_url: str = ""
 
 class SocialProfile(BaseModel):
     platform: str
@@ -57,6 +58,7 @@ class SocialProfile(BaseModel):
     verified: bool = False
     confidence: float = 0.0
     source: str = ""
+    status: str = "pending"
 
 class Employment(BaseModel):
     organization: str
@@ -65,6 +67,7 @@ class Employment(BaseModel):
     end_date: str | None = None
     current: bool = False
     source: str = ""
+    source_url: str = ""
 
 class Education(BaseModel):
     institution: str
@@ -72,6 +75,11 @@ class Education(BaseModel):
     field: str = ""
     year: str | None = None
     source: str = ""
+    source_url: str = ""
+
+class ProfileIntelItem(BaseModel):
+    text: str
+    source_url: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -207,10 +215,12 @@ class ContactInfo(BaseModel):
 
 class EntityMember(BaseModel):
     """A person's membership in an entity."""
-    person_id: str
+    person_id: str = ""
     role: str = ""
     title: str = ""
     active: bool = True
+    status: str = "accepted"
+    discovered_name: str = ""
     start_date: Optional[str] = None
     end_date: Optional[str] = None
 
@@ -269,7 +279,7 @@ class Person(BaseModel):
     employer_history: list[Employment] = Field(default_factory=list)
     education: list[Education] = Field(default_factory=list)
     known_associates: list[str] = Field(default_factory=list)
-    profile_intel: list[str] = Field(default_factory=list, description="LLM-extracted intelligence bullets from social profiles")
+    profile_intel: list[ProfileIntelItem] = Field(default_factory=list, description="LLM-extracted intelligence bullets from social profiles")
     date_of_birth: Optional[str] = None
     gender: Optional[str] = None
     identity_confidence: float = Field(default=0.0, description="0-1 how sure we are this profile is unified correctly")

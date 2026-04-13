@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 import dspy
 
 from app.config import settings
-from app.models import Person, SocialProfile, Employment, Education, Address
+from app.models import Person, SocialProfile, Employment, Education, Address, ProfileIntelItem
 from app.pipeline.tools.web_search import fetch_page
 
 logger = logging.getLogger(__name__)
@@ -102,6 +102,43 @@ def enrich_from_social_profiles(person: Person) -> dict:
     return result
 
 
+def scrape_single_profile(person: Person, sp: SocialProfile) -> dict:
+    """
+    Scrape and extract data from a single confirmed social profile.
+    Tags all extracted data with source_url = sp.url for cascade tracking.
+
+    Returns dict with keys:
+      employer_history, education, addresses, bio_snippet, profile_intel
+    """
+    result: dict = {
+        "employer_history": [],
+        "education": [],
+        "addresses": [],
+        "bio_snippet": None,
+        "profile_intel": [],
+    }
+
+    text = fetch_page(sp.url)
+    if not text or text.startswith("Error"):
+        logger.warning("scrape_single_profile: no content from %s", sp.url)
+        return result
+
+    regex_data = _scrape_profile_regex(sp, text, person.name)
+    _merge_into(result, regex_data)
+
+    intel_data = _llm_extract_profile_intel(text, person.name, sp.platform)
+    _merge_intel(result, intel_data, source_url=sp.url)
+
+    for emp in result["employer_history"]:
+        emp.source_url = sp.url
+    for edu in result["education"]:
+        edu.source_url = sp.url
+    for addr in result["addresses"]:
+        addr.source_url = sp.url
+
+    return result
+
+
 def _scrape_profile_regex(sp: SocialProfile, text: str, person_name: str) -> dict:
     """Regex-based extraction from a single social profile page."""
     if sp.platform == "linkedin":
@@ -149,7 +186,7 @@ def _llm_extract_profile_intel(text: str, person_name: str, platform: str) -> di
         return {}
 
 
-def _merge_intel(target: dict, llm_data: dict):
+def _merge_intel(target: dict, llm_data: dict, source_url: str = ""):
     """Merge LLM extraction results into the worker result dict."""
     if not llm_data:
         return
@@ -163,6 +200,7 @@ def _merge_intel(target: dict, llm_data: dict):
             title=llm_data.get("title", ""),
             current=True,
             source="llm_profile_intel",
+            source_url=source_url,
         ))
 
     if llm_data.get("location"):
@@ -172,6 +210,7 @@ def _merge_intel(target: dict, llm_data: dict):
                 city=parts[0].strip(),
                 state=parts[-1].strip(),
                 source="llm_profile_intel",
+                source_url=source_url,
             ))
 
     for inst in llm_data.get("education", []):
@@ -179,11 +218,14 @@ def _merge_intel(target: dict, llm_data: dict):
             target.setdefault("education", []).append(Education(
                 institution=inst.strip()[:100],
                 source="llm_profile_intel",
+                source_url=source_url,
             ))
 
     for bullet in llm_data.get("intel", [])[:10]:
         if isinstance(bullet, str) and bullet.strip():
-            target.setdefault("profile_intel", []).append(bullet.strip())
+            target.setdefault("profile_intel", []).append(
+                ProfileIntelItem(text=bullet.strip(), source_url=source_url)
+            )
 
 
 def _parse_linkedin_text(text: str, name: str) -> dict:

@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from collections import Counter
 
-from app.models import Person, Address, SocialProfile, Employment, Education
+from app.models import Person, Address, SocialProfile, Employment, Education, ProfileIntelItem
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def unify_enrichment(person: Person, worker_results: list[dict]) -> Person:
     all_employers: list[Employment] = []
     all_education: list[Education] = []
     all_associates: list[str] = list(person.known_associates)
-    all_intel: list[str] = list(person.profile_intel)
+    all_intel: list[ProfileIntelItem] = list(person.profile_intel)
     sources_used: set[str] = set(person.enrichment_sources)
     bio_snippets: list[str] = []
 
@@ -57,13 +57,17 @@ def unify_enrichment(person: Person, worker_results: list[dict]) -> Person:
     person.employer_history = _dedup_employers(person.employer_history + all_employers)
     person.education = _dedup_education(person.education + all_education)
     person.known_associates = list(set(all_associates))
-    seen_intel = set()
-    deduped_intel = []
-    for bullet in all_intel:
-        normalized = bullet.strip().lower()
+    seen_intel: set[str] = set()
+    deduped_intel: list[ProfileIntelItem] = []
+    for item in all_intel:
+        txt = item.text if isinstance(item, ProfileIntelItem) else str(item)
+        normalized = txt.strip().lower()
         if normalized not in seen_intel:
             seen_intel.add(normalized)
-            deduped_intel.append(bullet.strip())
+            if isinstance(item, ProfileIntelItem):
+                deduped_intel.append(item)
+            else:
+                deduped_intel.append(ProfileIntelItem(text=txt.strip()))
     person.profile_intel = deduped_intel
     person.enrichment_sources = sorted(sources_used)
 

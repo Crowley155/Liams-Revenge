@@ -1,9 +1,9 @@
 """
-EntityDiscoverer — finds active board members / leadership for an entity.
+EntityDiscoverer — finds members / leadership for an entity.
 
-Uses targeted web search + page scraping to discover who currently serves
-on a school board, agency, or organization. Returns structured member data
-that the entities API turns into Person stubs.
+Uses a user-provided prompt (e.g. "all active board members") to build
+targeted web searches, then runs LLM extraction on the results. Returns
+structured member data that the entities API stores as pending candidates.
 """
 from __future__ import annotations
 
@@ -21,19 +21,22 @@ logger = logging.getLogger(__name__)
 
 
 class ExtractMembers(dspy.Signature):
-    """Extract the names and roles of current members/leadership from document text.
+    """Extract the names and roles of members/leadership from document text.
 
-    Look for: board members, president, vice president, superintendent,
-    directors, committee chairs, elected officials. Only include people
-    who appear to be CURRENTLY active (not former members).
+    Use the member_criteria field to decide WHICH people to extract.
+    Only include people who match the criteria and appear currently active
+    (not former members) unless the criteria explicitly asks for former ones.
     """
     document_text: str = dspy.InputField(desc="Text from a web page about the organization")
     entity_name: str = dspy.InputField(desc="Name of the organization")
     entity_type: str = dspy.InputField(desc="Type: district, board, agency, department, program")
+    member_criteria: str = dspy.InputField(
+        desc="What type of members to extract, e.g. 'all active board members', 'superintendent and assistant superintendents'"
+    )
 
     members: list[dict] = dspy.OutputField(
         desc=(
-            "List of members found. Each dict has keys: "
+            "List of members found matching the criteria. Each dict has keys: "
             "'name' (full name), "
             "'role' (their title/position, e.g. 'Board Member', 'President', 'Superintendent'), "
             "'active' (true if currently serving, false if former/unclear)"
@@ -42,25 +45,25 @@ class ExtractMembers(dspy.Signature):
 
 
 class EntityDiscoverer(dspy.Module):
-    """Discovers active members of an organization via web search."""
+    """Discovers members of an organization via web search + LLM extraction."""
 
     def __init__(self):
         self.extractor = dspy.ChainOfThought(ExtractMembers)
 
-    def forward(self, entity: Entity) -> list[dict]:
-        return _discover(self.extractor, entity)
+    def forward(self, entity: Entity, prompt: str = "") -> list[dict]:
+        return _discover(self.extractor, entity, prompt)
 
 
-def _discover(extractor, entity: Entity) -> list[dict]:
+def _discover(extractor, entity: Entity, prompt: str = "") -> list[dict]:
     year = datetime.now().year
+    search_terms = prompt or "board members leadership"
     queries = [
-        f'"{entity.name}" board members {year}',
-        f'"{entity.name}" board of education members',
-        f'{entity.name} leadership staff directory',
+        f'"{entity.name}" {search_terms} {year}',
+        f'"{entity.name}" {search_terms}',
     ]
 
     if entity.website:
-        queries.append(f'site:{entity.website} board members')
+        queries.append(f'site:{entity.website} {search_terms}')
 
     all_members: list[dict] = []
     seen_names: set[str] = set()
@@ -94,6 +97,7 @@ def _discover(extractor, entity: Entity) -> list[dict]:
                     document_text=page_text,
                     entity_name=entity.name,
                     entity_type=entity.type,
+                    member_criteria=prompt or "all current members and leadership",
                 )
                 members = result.members or []
                 if isinstance(members, str):
@@ -127,7 +131,7 @@ def _discover(extractor, entity: Entity) -> list[dict]:
     return all_members
 
 
-def discover_entity_members(entity: Entity) -> list[dict]:
+def discover_entity_members(entity: Entity, prompt: str = "") -> list[dict]:
     """Entry point called by the entities API. Configures DSPy and runs discovery.
     Langfuse tracing is initialized globally in main.py via DSPyInstrumentor."""
     from app.config import settings
@@ -139,10 +143,10 @@ def discover_entity_members(entity: Entity) -> list[dict]:
         from langfuse import observe, propagate_attributes
         with propagate_attributes(
             tags=["entity-discovery"],
-            metadata={"entity_id": entity.id, "entity_name": entity.name},
+            metadata={"entity_id": entity.id, "entity_name": entity.name, "prompt": prompt},
         ):
             discoverer = EntityDiscoverer()
-            return discoverer(entity)
+            return discoverer(entity, prompt=prompt)
     except ImportError:
         discoverer = EntityDiscoverer()
-        return discoverer(entity)
+        return discoverer(entity, prompt=prompt)

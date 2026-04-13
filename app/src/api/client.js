@@ -52,11 +52,33 @@ export async function getJobStatus(jobId) {
   return res.json();
 }
 
-export async function discoverMembers(entityId) {
+export async function discoverMembers(entityId, prompt) {
   const res = await fetch(`${API_BASE}/api/entities/${entityId}/discover`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt }),
   });
   if (!res.ok) throw new Error(`Discovery failed: ${res.status}`);
+  return res.json();
+}
+
+export async function acceptEntityMember(entityId, discoveredName) {
+  const res = await fetch(`${API_BASE}/api/entities/${entityId}/members/accept`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ discovered_name: discoveredName }),
+  });
+  if (!res.ok) throw new Error(`Accept failed: ${res.status}`);
+  return res.json();
+}
+
+export async function rejectEntityMember(entityId, discoveredName) {
+  const res = await fetch(`${API_BASE}/api/entities/${entityId}/members/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ discovered_name: discoveredName }),
+  });
+  if (!res.ok) throw new Error(`Reject failed: ${res.status}`);
   return res.json();
 }
 
@@ -99,5 +121,25 @@ export async function deleteProfile(personId) {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+  return res.json();
+}
+
+export async function confirmSocialProfile(personId, url) {
+  const res = await fetch(`${API_BASE}/api/profiles/${personId}/social-profiles/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) throw new Error(`Confirm failed: ${res.status}`);
+  return res.json();
+}
+
+export async function dismissSocialProfile(personId, url) {
+  const res = await fetch(`${API_BASE}/api/profiles/${personId}/social-profiles/dismiss`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  if (!res.ok) throw new Error(`Dismiss failed: ${res.status}`);
   return res.json();
 }

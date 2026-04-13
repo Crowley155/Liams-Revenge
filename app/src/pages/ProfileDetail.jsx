@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import {
-  fetchProfile, fetchEntities, startResearch, resetResearch, deleteProfile,
-  startEnrichment, updateIdentity, confirmIdentity,
+  fetchProfile, fetchEntities, startResearch, resetResearch,
+  startEnrichment, updateIdentity,
+  confirmSocialProfile, dismissSocialProfile,
 } from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
 import DocLink from '../components/DocLink';
@@ -133,7 +134,6 @@ function Section({ title, children, count, tip }) {
 
 export default function ProfileDetail() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [entities, setEntities] = useState([]);
   const [error, setError] = useState(null);
@@ -141,7 +141,6 @@ export default function ProfileDetail() {
   const [launching, setLaunching] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -217,15 +216,6 @@ export default function ProfileDetail() {
     }
   }
 
-  async function handleLockIdentity() {
-    try {
-      const updated = await confirmIdentity(id);
-      setProfile(updated);
-    } catch (e) {
-      setError(e.message);
-    }
-  }
-
   async function saveField(field, value) {
     setSaving(true);
     try {
@@ -251,16 +241,6 @@ export default function ProfileDetail() {
     }
   }
 
-  async function handleDeleteProfile() {
-    try {
-      await deleteProfile(profile.id);
-      navigate('/people');
-    } catch (e) {
-      setError(e.message);
-      setConfirmDelete(false);
-    }
-  }
-
   const { battle_card: bc, facts = [], contact, curated_bio, curated_quotes = [], entity_ids = [] } = profile;
   const badge = SOURCE_BADGE[profile.source] || SOURCE_BADGE.manual;
   const hasResearch = facts.length > 0 || !!bc;
@@ -272,7 +252,6 @@ export default function ProfileDetail() {
     || (profile.enrichment_sources?.length > 0);
 
   const affiliatedEntities = entities.filter((e) => entity_ids.includes(e.id));
-  const isConfirmed = profile.identity_confidence >= 1.0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-up">
@@ -323,15 +302,17 @@ export default function ProfileDetail() {
                 onClick={handleResearch}
                 disabled={launching || isRunning}
                 className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Searches the web for public statements, votes, positions, and other facts about this person"
               >
-                {launching ? 'Starting...' : isRunning ? 'Researching...' : hasResearch ? 'Re-research' : 'Research this person'}
+                {launching ? 'Starting...' : isRunning ? 'Researching...' : hasResearch ? 'Re-scan Web' : 'Find Facts'}
               </button>
               <button
                 onClick={handleEnrich}
                 disabled={enriching || enrichRunning}
                 className="text-xs font-medium px-4 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Searches for social media profiles, employment history, and public records for this person"
               >
-                {enriching ? 'Starting...' : enrichRunning ? 'Enriching...' : profile.enriched_at ? 'Re-enrich Identity' : 'Enrich Identity'}
+                {enriching ? 'Starting...' : enrichRunning ? 'Enriching...' : profile.enriched_at ? 'Re-discover Profiles' : 'Find Profiles'}
               </button>
               {isRunning && job && (
                 <span className="text-xs text-text-dim flex items-center gap-2">
@@ -355,21 +336,6 @@ export default function ProfileDetail() {
               {enrichDone && enrichJob?.status === 'complete' && <span className="text-xs text-success">Enrichment complete</span>}
               {enrichDone && enrichJob?.status === 'failed' && <span className="text-xs text-danger">Enrich failed: {enrichJob.error || 'unknown'}</span>}
               {enrichJobError && <span className="text-xs text-danger">{enrichJobError}</span>}
-              {!isConfirmed && profile.identity_confidence > 0 && (
-                <button
-                  onClick={handleLockIdentity}
-                  className="text-[10px] font-medium px-2 py-0.5 rounded bg-success/15 text-success hover:bg-success/25 transition-colors"
-                  title="Sets confidence to 100% — confirms you've reviewed and verified this person's identity data is correct"
-                >
-                  Lock Identity
-                </button>
-              )}
-              {isConfirmed && (
-                <span className="text-[10px] text-success font-medium flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                  Locked
-                </span>
-              )}
             </div>
             {profile.enrichment_sources?.length > 0 && (
               <div className="mt-1 flex items-center gap-1.5 flex-wrap">
@@ -407,30 +373,6 @@ export default function ProfileDetail() {
                     </button>
                     <button
                       onClick={() => setConfirmReset(false)}
-                      className="text-[11px] px-2 py-1 text-text-dim hover:text-text transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </span>
-                )}
-                {!confirmDelete ? (
-                  <button
-                    onClick={() => setConfirmDelete(true)}
-                    className="text-[11px] font-medium px-3 py-1 rounded-lg bg-danger/15 text-danger hover:bg-danger/25 transition-colors"
-                  >
-                    Delete Profile
-                  </button>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <span className="text-[11px] text-danger">Permanently delete? Re-seed to restore.</span>
-                    <button
-                      onClick={handleDeleteProfile}
-                      className="text-[11px] font-bold px-3 py-1 rounded-lg bg-danger text-white hover:bg-danger/80 transition-colors"
-                    >
-                      Yes, delete
-                    </button>
-                    <button
-                      onClick={() => setConfirmDelete(false)}
                       className="text-[11px] px-2 py-1 text-text-dim hover:text-text transition-colors"
                     >
                       Cancel
@@ -509,12 +451,25 @@ export default function ProfileDetail() {
         </div>
       </div>
 
-      {/* Social Profiles — with confidence + source */}
-      {profile.social_profiles?.length > 0 && (
-        <Section title="Social Profiles" count={profile.social_profiles.length} tip="Public social media profiles found by the enrichment pipeline. Confidence shows how likely each link is the right person. Source shows where it was found.">
+      {/* Social Profiles — with confirm / dismiss */}
+      {profile.social_profiles?.filter((sp) => sp.status !== 'dismissed').length > 0 && (
+        <Section
+          title="Social Profiles"
+          count={profile.social_profiles.filter((sp) => sp.status !== 'dismissed').length}
+          tip="Discovered social media profiles. Confirm a profile to scrape it for data (employment, education, intel). Dismiss to remove it and any data it contributed."
+        >
           <div className="space-y-2">
-            {profile.social_profiles.map((sp, i) => (
-              <div key={i} className="flex items-center gap-3 bg-surface border border-border rounded-lg p-3 hover:border-accent/40 transition-colors">
+            {profile.social_profiles
+              .filter((sp) => sp.status !== 'dismissed')
+              .map((sp, i) => (
+              <div
+                key={i}
+                className={`flex items-center gap-3 bg-surface border rounded-lg p-3 transition-colors ${
+                  sp.status === 'confirmed'
+                    ? 'border-success/40'
+                    : 'border-border hover:border-accent/40'
+                }`}
+              >
                 <span className="text-xs font-bold uppercase tracking-wider text-accent w-20 shrink-0">
                   {sp.platform}
                 </span>
@@ -528,7 +483,39 @@ export default function ProfileDetail() {
                 </a>
                 <ConfidenceBar value={sp.confidence || 0} />
                 <SourceBadge source={sp.source} />
-                {sp.verified && <span className="text-[10px] text-success ml-auto shrink-0">Verified</span>}
+                {sp.status === 'confirmed' ? (
+                  <span className="text-[10px] text-success font-medium flex items-center gap-1 shrink-0">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                    Confirmed
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const updated = await confirmSocialProfile(id, sp.url);
+                          setProfile(updated);
+                        } catch (e) { setError(e.message); }
+                      }}
+                      className="text-[10px] font-medium px-2.5 py-1 rounded bg-success/15 text-success hover:bg-success/30 transition-colors"
+                      title="Confirm this is the right person — triggers scraping and data extraction from this profile"
+                    >
+                      Confirm
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const updated = await dismissSocialProfile(id, sp.url);
+                          setProfile(updated);
+                        } catch (e) { setError(e.message); }
+                      }}
+                      className="text-[10px] font-medium px-2.5 py-1 rounded bg-text-dim/10 text-text-dim hover:bg-danger/15 hover:text-danger transition-colors"
+                      title="Not this person — removes this profile and any data extracted from it"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -543,7 +530,7 @@ export default function ProfileDetail() {
             {profile.profile_intel.map((item, i) => (
               <div key={i} className="flex items-start gap-2 text-sm text-text">
                 <span className="text-purple-400 mt-0.5 shrink-0">&#x2022;</span>
-                <p className="leading-relaxed">{item}</p>
+                <p className="leading-relaxed">{typeof item === 'string' ? item : item.text}</p>
               </div>
             ))}
           </div>

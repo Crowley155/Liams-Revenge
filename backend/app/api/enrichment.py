@@ -269,16 +269,127 @@ async def clay_callback(person_id: str, request: Request):
     return {"status": "ok", "person_id": person_id}
 
 
-@router.post("/profiles/{person_id}/confirm-identity", response_model=Person)
-async def confirm_identity(person_id: str):
-    """Lock in identity with confidence 1.0 after human review."""
+class SocialProfileAction(BaseModel):
+    """Body for confirm/dismiss social profile endpoints."""
+    url: str
+
+
+@router.post("/profiles/{person_id}/social-profiles/confirm", response_model=Person)
+async def confirm_social_profile(person_id: str, body: SocialProfileAction, bg: BackgroundTasks):
+    """
+    Confirm a discovered social profile. Sets status to 'confirmed', then
+    scrapes + LLM-extracts data from that profile and merges into the person.
+    """
     person = profiles.get(person_id)
     if not person:
         raise HTTPException(status_code=404, detail="Person not found")
 
-    person.identity_confidence = 1.0
+    sp = next((s for s in person.social_profiles if s.url == body.url), None)
+    if not sp:
+        raise HTTPException(status_code=404, detail="Social profile not found on this person")
+
+    sp.status = "confirmed"
+    sp.verified = True
     person.updated_at = datetime.utcnow()
     profiles[person.id] = person
 
-    logger.info("Identity CONFIRMED for %s (%s)", person.name, person.id)
+    bg.add_task(_scrape_confirmed_profile, person_id, body.url)
+
+    logger.info("Social profile CONFIRMED for %s: %s", person.name, body.url)
+    return person
+
+
+def _scrape_confirmed_profile(person_id: str, profile_url: str):
+    """Background task: scrape a single confirmed profile and merge results."""
+    try:
+        person = profiles.get(person_id)
+        if not person:
+            return
+
+        sp = next((s for s in person.social_profiles if s.url == profile_url), None)
+        if not sp:
+            return
+
+        from app.pipeline.enrichment.social_scraper import scrape_single_profile
+        result = scrape_single_profile(person, sp)
+
+        existing_orgs = {e.organization.lower() for e in person.employer_history}
+        for emp in result.get("employer_history", []):
+            if emp.organization.lower() not in existing_orgs:
+                person.employer_history.append(emp)
+                existing_orgs.add(emp.organization.lower())
+
+        existing_inst = {e.institution.lower() for e in person.education}
+        for edu in result.get("education", []):
+            if edu.institution.lower() not in existing_inst:
+                person.education.append(edu)
+                existing_inst.add(edu.institution.lower())
+
+        existing_addrs = {(a.city.lower(), a.state.lower()) for a in person.addresses}
+        for addr in result.get("addresses", []):
+            key = (addr.city.lower(), addr.state.lower())
+            if key not in existing_addrs:
+                person.addresses.append(addr)
+                existing_addrs.add(key)
+
+        if result.get("bio_snippet") and not person.curated_bio:
+            person.curated_bio = result["bio_snippet"]
+
+        existing_intel = {item.text.strip().lower() for item in person.profile_intel}
+        for item in result.get("profile_intel", []):
+            txt = item.text if hasattr(item, "text") else str(item)
+            if txt.strip().lower() not in existing_intel:
+                from app.models import ProfileIntelItem
+                person.profile_intel.append(
+                    ProfileIntelItem(text=txt.strip(), source_url=profile_url)
+                )
+                existing_intel.add(txt.strip().lower())
+
+        person.updated_at = datetime.utcnow()
+        profiles[person.id] = person
+
+        logger.info(
+            "Scrape complete for confirmed profile %s on %s: +%d jobs, +%d edu, +%d intel",
+            profile_url, person.name,
+            len(result.get("employer_history", [])),
+            len(result.get("education", [])),
+            len(result.get("profile_intel", [])),
+        )
+    except Exception as e:
+        logger.exception("Failed to scrape confirmed profile %s: %s", profile_url, e)
+
+
+@router.post("/profiles/{person_id}/social-profiles/dismiss", response_model=Person)
+async def dismiss_social_profile(person_id: str, body: SocialProfileAction):
+    """
+    Dismiss a social profile. Removes the profile and cascade-deletes any
+    data (employment, education, addresses, intel) sourced from its URL.
+    """
+    person = profiles.get(person_id)
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+
+    sp = next((s for s in person.social_profiles if s.url == body.url), None)
+    if not sp:
+        raise HTTPException(status_code=404, detail="Social profile not found on this person")
+
+    person.social_profiles = [s for s in person.social_profiles if s.url != body.url]
+
+    person.employer_history = [
+        e for e in person.employer_history if e.source_url != body.url
+    ]
+    person.education = [
+        e for e in person.education if e.source_url != body.url
+    ]
+    person.addresses = [
+        a for a in person.addresses if a.source_url != body.url
+    ]
+    person.profile_intel = [
+        item for item in person.profile_intel if item.source_url != body.url
+    ]
+
+    person.updated_at = datetime.utcnow()
+    profiles[person.id] = person
+
+    logger.info("Social profile DISMISSED for %s: %s (cascade delete done)", person.name, body.url)
     return person

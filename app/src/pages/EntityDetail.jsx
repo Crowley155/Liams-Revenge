@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { fetchEntity, fetchEntityMembers, discoverMembers } from '../api/client';
+import {
+  fetchEntity, fetchEntityMembers, discoverMembers,
+  acceptEntityMember, rejectEntityMember,
+} from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
 
 const TYPE_LABELS = {
@@ -37,6 +40,8 @@ export default function EntityDetail() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [launchingDiscover, setLaunchingDiscover] = useState(false);
+  const [showPrompt, setShowPrompt] = useState(false);
+  const [discoveryPrompt, setDiscoveryPrompt] = useState('');
 
   const reload = useCallback(() => {
     Promise.all([fetchEntity(id), fetchEntityMembers(id)])
@@ -76,10 +81,13 @@ export default function EntityDetail() {
   }
 
   async function handleDiscover() {
+    if (!discoveryPrompt.trim()) return;
     setLaunchingDiscover(true);
     try {
-      const j = await discoverMembers(id);
+      const j = await discoverMembers(id, discoveryPrompt.trim());
       startDiscover(j.id);
+      setShowPrompt(false);
+      setDiscoveryPrompt('');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -87,10 +95,32 @@ export default function EntityDetail() {
     }
   }
 
+  async function handleAccept(name) {
+    try {
+      const updated = await acceptEntityMember(id, name);
+      setEntity(updated);
+      reload();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function handleReject(name) {
+    try {
+      const updated = await rejectEntityMember(id, name);
+      setEntity(updated);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   const memberMap = {};
   for (const em of entity.members || []) {
-    memberMap[em.person_id] = em;
+    if (em.person_id) memberMap[em.person_id] = em;
   }
+
+  const pendingMembers = (entity.members || []).filter((m) => m.status === 'pending');
+  const acceptedMembers = (entity.members || []).filter((m) => m.status === 'accepted' && m.person_id);
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-up">
@@ -130,7 +160,49 @@ export default function EntityDetail() {
         </section>
       )}
 
-      {/* Members */}
+      {/* Pending Review */}
+      {pendingMembers.length > 0 && (
+        <section className="animate-fade-up">
+          <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+            Pending Review
+            <span className="text-xs font-normal text-warning bg-warning/10 px-2 py-0.5 rounded-full">
+              {pendingMembers.length}
+            </span>
+          </h2>
+          <div className="space-y-2">
+            {pendingMembers.map((m, i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 bg-surface border border-warning/30 rounded-lg p-3"
+              >
+                <Initials name={m.discovered_name} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text">{m.discovered_name}</p>
+                  <p className="text-xs text-text-dim">{m.role || m.title}</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => handleAccept(m.discovered_name)}
+                    className="text-[10px] font-medium px-2.5 py-1 rounded bg-success/15 text-success hover:bg-success/30 transition-colors"
+                    title="Accept this person as a member of this entity"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={() => handleReject(m.discovered_name)}
+                    className="text-[10px] font-medium px-2.5 py-1 rounded bg-text-dim/10 text-text-dim hover:bg-danger/15 hover:text-danger transition-colors"
+                    title="Not relevant — hide from list but remember to avoid re-suggesting"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Accepted Members */}
       <section>
         <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
           <h2 className="text-lg font-bold flex items-center gap-2">
@@ -139,14 +211,42 @@ export default function EntityDetail() {
               {members.length}
             </span>
           </h2>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleDiscover}
-              disabled={launchingDiscover || discovering}
-              className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {launchingDiscover ? 'Starting...' : discovering ? 'Discovering...' : members.length > 0 ? 'Refresh Members' : 'Discover Members'}
-            </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            {!showPrompt ? (
+              <button
+                onClick={() => setShowPrompt(true)}
+                disabled={discovering}
+                className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Search for people associated with this entity"
+              >
+                {discovering ? 'Discovering...' : 'Find Members'}
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={discoveryPrompt}
+                  onChange={(e) => setDiscoveryPrompt(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleDiscover()}
+                  placeholder='e.g. "All active school board members"'
+                  className="text-xs bg-surface border border-border rounded-lg px-3 py-1.5 text-text placeholder-text-dim/50 focus:outline-none focus:border-accent/50 w-64 transition-colors"
+                  autoFocus
+                />
+                <button
+                  onClick={handleDiscover}
+                  disabled={launchingDiscover || !discoveryPrompt.trim()}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {launchingDiscover ? 'Starting...' : 'Search'}
+                </button>
+                <button
+                  onClick={() => { setShowPrompt(false); setDiscoveryPrompt(''); }}
+                  className="text-xs px-2 py-1.5 text-text-dim hover:text-text transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
             {discovering && discoverJob && (
               <span className="text-xs text-text-dim flex items-center gap-2">
                 <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -163,8 +263,10 @@ export default function EntityDetail() {
           </div>
         </div>
 
-        {members.length === 0 ? (
-          <p className="text-sm text-text-dim italic">No members discovered yet. Click "Discover Members" to search.</p>
+        {members.length === 0 && pendingMembers.length === 0 ? (
+          <p className="text-sm text-text-dim italic">No members yet. Click "Find Members" to search.</p>
+        ) : members.length === 0 ? (
+          <p className="text-sm text-text-dim italic">No accepted members yet. Review pending candidates above.</p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {members.map((person) => {

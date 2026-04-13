@@ -2,15 +2,16 @@
 Enrichment orchestrator — Phase 0: IDENTIFY.
 
 Runs all enrichment workers in sequence, starting with our own internal
-evidence before hitting external APIs.
+evidence before hitting external APIs. Discovered social profiles land as
+"pending" — the user confirms/dismisses each one via separate endpoints,
+which triggers per-profile scraping and data extraction.
 
 Flow:
   0. Internal evidence search → contact info + bio from our own data (free)
   1. SerpAPI Knowledge Graph → social links + bio
   2. Clay webhook (async) or PDL (fallback) → structured identity data
   3. Maigret OSINT → extra social profiles from discovered usernames
-  4. Social profile scraping → extract data from confirmed profiles
-  5. Unify → merge, deduplicate, score confidence
+  4. Unify → merge, deduplicate, score confidence
 """
 from __future__ import annotations
 
@@ -150,14 +151,8 @@ def run_enrichment_pipeline(person: Person, job: ResearchJob) -> Person:
     except Exception as e:
         logger.warning("Maigret enrichment failed: %s", e)
 
-    # --- Worker 4: Social profile scraping ---
-    logger.info("Enrichment Phase 0.4: Social profile scraping for %s", person.name)
-    try:
-        from app.pipeline.enrichment.social_scraper import enrich_from_social_profiles
-        scrape_result = enrich_from_social_profiles(person)
-        worker_results.append(scrape_result)
-    except Exception as e:
-        logger.warning("Social scraping failed: %s", e)
+    # Worker 4 (social scraping) removed — scraping now happens per-profile
+    # when the user confirms a discovered profile via the confirm endpoint.
 
     # --- Unify ---
     logger.info("Enrichment Phase 0.5: Unifying results for %s", person.name)
