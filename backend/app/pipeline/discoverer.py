@@ -120,7 +120,7 @@ def _discover(extractor, entity: Entity, prompt: str = "") -> list[dict]:
                     seen_names.add(name_key)
                     all_members.append({
                         "name": name,
-                        "role": m.get("role", "Member"),
+                        "role": m.get("role") or "Member",
                     })
                     logger.info("    Found: %s (%s)", name, m.get("role", "?"))
 

@@ -92,7 +92,7 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
         added = 0
         for member_info in discovered:
             name = member_info.get("name", "").strip()
-            role = member_info.get("role", "Member")
+            role = member_info.get("role") or "Member"
             if not name:
                 continue
 

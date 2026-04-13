@@ -20,7 +20,7 @@ _client = None
 _available = False
 
 COLLECTION_NAME = "documents"
-VECTOR_SIZE = 768  # text-embedding-004 outputs 768-dim vectors
+VECTOR_SIZE = 3072  # gemini-embedding-001 outputs 3072-dim vectors
 SIMILARITY_THRESHOLD = 0.92  # above this = "same document"
 
 
