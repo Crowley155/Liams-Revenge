@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useCase } from '../data/useCase';
 import DocLink from '../components/DocLink';
 import { Link } from 'react-router-dom';
@@ -227,7 +228,7 @@ export default function Overview() {
 function VideoModal({ url, onClose }) {
   const embedUrl = url + (url.includes('?') ? '&' : '?') + 'autoplay=1&badge=0&autopause=0&player_id=0&app_id=58479';
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 bg-black/90 z-50" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
@@ -253,7 +254,8 @@ function VideoModal({ url, onClose }) {
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body
   );
 }
 
