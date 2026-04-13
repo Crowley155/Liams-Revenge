@@ -170,8 +170,12 @@ async def clay_callback(person_id: str, request: Request):
         person.date_of_birth = parsed["date_of_birth"]
     if parsed.get("gender") and not person.gender:
         person.gender = parsed["gender"]
-    if parsed.get("email") and parsed["email"] not in person.known_associates:
-        person.known_associates.append(parsed["email"])
+    if parsed.get("email"):
+        from app.models import ContactInfo
+        if not person.contact:
+            person.contact = ContactInfo()
+        if not person.contact.email:
+            person.contact.email = parsed["email"]
     if parsed.get("photo_url") and not person.photo_url:
         person.photo_url = parsed["photo_url"]
 

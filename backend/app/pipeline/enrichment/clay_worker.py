@@ -100,6 +100,12 @@ def _build_payload(person: Person, callback_url: str) -> dict:
     if person.county:
         payload["County"] = person.county
 
+    # Email is one of Clay's best enrichment anchors
+    if person.contact and person.contact.email:
+        payload["Email"] = person.contact.email
+    if person.contact and person.contact.phone:
+        payload["Phone"] = person.contact.phone
+
     for sp in person.social_profiles:
         if sp.platform == "linkedin" and sp.url:
             payload["LinkedIn URL"] = sp.url
