@@ -242,6 +242,7 @@ function KoraSection() {
   const [expandedId, setExpandedId] = useState(null);
   const [copied, setCopied] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState(null);
   const fileRef = useRef(null);
   const pollRef = useRef(null);
 
@@ -265,12 +266,21 @@ function KoraSection() {
         if (job.status === 'complete' || job.status === 'failed') {
           setGenerating(false);
           setGenJobId(null);
-          if (job.status === 'complete') loadData();
+          if (job.status === 'complete') {
+            setError(null);
+            loadData();
+          } else {
+            setError(job.error || 'KORA generation failed — check backend logs');
+          }
           return;
         }
         pollRef.current = setTimeout(poll, 2000);
-      } catch {
-        if (!cancelled) { setGenerating(false); setGenJobId(null); }
+      } catch (err) {
+        if (!cancelled) {
+          setGenerating(false);
+          setGenJobId(null);
+          setError(`Polling failed: ${err.message}`);
+        }
       }
     }
     poll();
@@ -279,11 +289,13 @@ function KoraSection() {
 
   async function handleGenerate() {
     setGenerating(true);
+    setError(null);
     try {
       const job = await generateKoraRequests();
       setGenJobId(job.id);
     } catch (err) {
       console.error(err);
+      setError(`Failed to start generation: ${err.message}`);
       setGenerating(false);
     }
   }
@@ -366,6 +378,13 @@ function KoraSection() {
           )}
         </div>
       </div>
+
+      {error && (
+        <div className="bg-danger/10 border border-danger/30 rounded-lg px-4 py-3 flex items-start justify-between gap-3">
+          <p className="text-xs text-danger leading-relaxed">{error}</p>
+          <button onClick={() => setError(null)} className="text-danger/60 hover:text-danger text-sm shrink-0">&times;</button>
+        </div>
+      )}
 
       {/* Entity filter chips */}
       {entities.length > 0 && koraRequests.length > 0 && (

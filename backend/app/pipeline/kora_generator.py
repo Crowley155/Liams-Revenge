@@ -164,11 +164,17 @@ def generate_kora_requests(
 
     lm = dspy.LM(settings.synthesize_model, max_tokens=8000)
     dspy.configure(lm=lm)
+    logger.info("DSPy configured with model=%s", settings.synthesize_model)
 
     data = _load_case_data()
     case_summary = _build_case_summary(data)
+    logger.info("Case data loaded, summary length=%d", len(case_summary))
 
     all_entities = entities_override or list(entity_store.values())
+    if not all_entities:
+        logger.warning("No entities found — KORA generator needs at least one target entity")
+        raise ValueError("No entities in the store. Seed entities before generating KORA requests.")
+
     entities_json = json.dumps([
         {"id": e.id, "name": e.name, "type": e.type, "state": e.state}
         for e in all_entities
@@ -196,6 +202,11 @@ def generate_kora_requests(
         {"name": a.get("name", ""), "role": a.get("role", ""), "org": a.get("org", "")}
         for a in actors[:15]
     ], indent=2)
+
+    if not kora_gaps:
+        logger.warning("No KORA-relevant evidence gaps found — pass 1 may produce no requests")
+    if not kora_statutes:
+        logger.warning("No KORA-relevant statutes found")
 
     logger.info("Generating KORA requests — %d gaps, %d entities, %d statutes",
                 len(kora_gaps), len(all_entities), len(kora_statutes))
