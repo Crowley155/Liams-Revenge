@@ -17,7 +17,7 @@ const SECTIONS = [
         actual:
           'JCPRD\'s own published handbook states: "our programs function independently in both policy and procedure. We are guests of the school." They explicitly disclaim the obligation the lease imposes. This is a material breach of §8(d) — and the district has the right under §7(c) to remedy it. Neither enforcement mechanism was used.',
         evidenceIds: ['AUTH-41', 'DOC-021'],
-        status: 'violated',
+        status: 'not_applied',
       },
       {
         rule: 'Anti-bullying policy applies on school property',
@@ -26,9 +26,9 @@ const SECTIONS = [
         requires:
           'K.S.A. 72-6147 requires every school district to maintain an anti-bullying plan. USD 232\'s JDDC policy implements this. The statute and the policy apply on school property regardless of time of day. The lease requires JCPRD to follow this policy.',
         actual:
-          'After a kindergartener was assaulted by a nine-year-old on school property, neither JCPRD nor USD 232 initiated any bullying investigation or applied the JDDC policy. Principal Balthazor called JCPRD a "separate entity." The district treated the after-school timing as a jurisdictional shield despite its own policy containing no such limitation.',
+          'After a kindergartener was assaulted by a nine-year-old on school property, no bullying investigation was initiated under the JDDC policy by either JCPRD or USD 232, based on available records. Principal Balthazor referred to JCPRD as a "separate entity" (DOC-004). The after-school timing appears to have been treated as a jurisdictional boundary, though the policy text contains no such limitation.',
         evidenceIds: ['DOC-004', 'DOC-009'],
-        status: 'violated',
+        status: 'not_applied',
       },
       {
         rule: 'Disciplinary authority is location-based, not time-based',
@@ -37,17 +37,17 @@ const SECTIONS = [
         requires:
           'Kansas statute gives school districts discipline authority based on where something happens (school property), not when it happens. The after-school timing does not eliminate the district\'s authority.',
         actual:
-          'USD 232 took no disciplinary action and disclaimed jurisdiction. Alvie Cater\'s emails redirect the parent to JCPRD, framing the incident as entirely outside USD 232\'s purview despite it occurring on school grounds.',
+          'Based on available records, USD 232 took no disciplinary action. Alvie Cater\'s emails (DOC-012, DOC-014) redirect the parent to JCPRD, characterizing the incident as outside USD 232\'s purview, though it occurred on school grounds.',
         evidenceIds: ['DOC-012', 'DOC-014'],
-        status: 'violated',
+        status: 'not_applied',
       },
     ],
   },
   {
     id: 'board-policy',
-    title: 'Board Policy Violations',
+    title: 'Board Policy Compliance',
     subtitle:
-      'Specific USD 232 board policies that JCPRD is contractually bound to follow under Lease §8(d) — and evidence none were applied',
+      'Specific USD 232 board policies that JCPRD is contractually bound to follow under Lease §8(d), and what the evidence shows',
     color: '#c084fc',
     rules: [
       {
@@ -57,9 +57,9 @@ const SECTIONS = [
         requires:
           'Policy KG states: "Whenever any school facility is used by non-school groups or individuals, a school employee shall be on duty to see that the building and equipment are properly used." JCPRD is a non-school group using school facilities. The policy requires a district employee present during their operation.',
         actual:
-          'No USD 232 employee was on duty at Mize Elementary during the JCPRD OST program when the assault occurred. The district takes the position that once the school day ends, the building belongs to JCPRD. Their own policy says otherwise.',
+          'Based on available records, no USD 232 employee was on duty at Mize Elementary during the JCPRD OST program when the assault occurred. The district\'s position appears to be that the building is under JCPRD\'s control after school hours, though the policy text does not include that distinction.',
         evidenceIds: ['BP-01', 'DOC-021', 'DOC-004'],
-        status: 'violated',
+        status: 'not_applied',
       },
       {
         rule: 'All school-sponsored activities must be supervised by an administration-approved adult',
@@ -68,9 +68,9 @@ const SECTIONS = [
         requires:
           'JGFB: "All school-sponsored activities shall be supervised by an adult approved by the administration." JH: "The principal shall be responsible for organizing and approving all student activities." The district\'s own website presents JCPRD OST as a service USD 232 "offers" — meeting the definition of school-sponsored. Under these policies, the principal should have approved supervisors.',
         actual:
-          'JCPRD staff were never approved by the Mize Elementary principal or any USD 232 administrator. The district disclaims any role in organizing, approving, or supervising the program despite presenting it to families as a district service on their website.',
+          'Based on available records, JCPRD staff were not approved by the Mize Elementary principal or any USD 232 administrator. The district does not appear to play a role in organizing or supervising the program, though it presents the program to families as a service it "offers" on its website (BP-09).',
         evidenceIds: ['BP-02', 'BP-05', 'BP-09', 'DOC-004'],
-        status: 'violated',
+        status: 'not_applied',
       },
       {
         rule: 'Administration must implement a bullying plan covering school property',
@@ -79,9 +79,9 @@ const SECTIONS = [
         requires:
           'JDDC: "The administration shall implement a plan to address bullying on school property, in a school vehicle or at a school-sponsored activity or event." This applies "at school, on school property, and at all school-sponsored activities, programs, or events" with no time-of-day limitation.',
         actual:
-          'No bullying investigation was initiated after a kindergartener was assaulted by a nine-year-old on school property. Principal Balthazor called JCPRD a "separate entity." The JDDC policy contains no carve-out for after-school programs — it applies to conduct on school property, period.',
+          'Based on available records, no bullying investigation was initiated after a kindergartener was assaulted by a nine-year-old on school property. Principal Balthazor referred to JCPRD as a "separate entity" (DOC-004). The JDDC policy text contains no carve-out for after-school programs.',
         evidenceIds: ['BP-03', 'DOC-004', 'DOC-009'],
-        status: 'violated',
+        status: 'not_applied',
       },
       {
         rule: 'Principal must report assaults on school property to law enforcement',
@@ -90,9 +90,9 @@ const SECTIONS = [
         requires:
           'JDDB: "Whenever a student engages in conduct which constitutes the commission of any misdemeanor or felony, at school, on school property, or at a school supervised activity and/or has been found... to have engaged in behavior... which has resulted in or was substantially likely to have resulted in serious bodily injury to others, the principal shall report such act to the appropriate law enforcement agency." This is mandatory — "shall," not "may."',
         actual:
-          'A six-year-old was physically assaulted on school property and required medical attention. No evidence that Principal Balthazor or any USD 232 administrator reported the incident to law enforcement. The mandatory duty under JDDB was not fulfilled.',
+          'A six-year-old was physically assaulted on school property and required medical attention. Based on available records, there is no evidence that Principal Balthazor or any USD 232 administrator reported the incident to law enforcement as required by JDDB.',
         evidenceIds: ['BP-04', 'DOC-009', 'DOC-004'],
-        status: 'violated',
+        status: 'not_applied',
       },
     ],
   },
@@ -109,9 +109,9 @@ const SECTIONS = [
         requires:
           'Every KDHE-licensed facility must operate "with strict regard to the health, comfort, safety, and social welfare of such children." This is not aspirational — it is a legal condition of the license JCPRD holds and prominently advertises.',
         actual:
-          'Five staff were outside and none witnessed the assault on a six-year-old. The incident report contradicted medical evidence. No follow-up investigation was conducted. JCPRD Site Coordinator responded to the parent with: "I am sorry you feel [child] is being harmed."',
+          'According to the incident report (DOC-017), five staff were outside and none witnessed the assault on a six-year-old. The incident report appears to contradict medical evidence. Based on available records, no follow-up investigation was conducted. JCPRD Site Coordinator responded to the parent with: "I am sorry you feel [child] is being harmed" (DOC-009).',
         evidenceIds: ['DOC-009', 'DOC-017'],
-        status: 'violated',
+        status: 'not_applied',
       },
       {
         rule: 'Staff must maintain active awareness of and responsibility for each child',
@@ -120,9 +120,9 @@ const SECTIONS = [
         requires:
           'KDHE regulation requires staff to have "active awareness of and responsibility for each child\'s activity." This means knowing where each child is and what they are doing — not just being physically present in the area.',
         actual:
-          'Five staff were outside during the assault and none saw it happen. Even if JCPRD\'s marketed 1:15 staff-to-child ratio was numerically met, five adults present and none witnessing a physical assault is a failure of active awareness — not a staffing shortage. JCPRD Manager Jennifer Anderson admitted the incident report "does not include later information," meaning it was knowingly incomplete.',
+          'According to the incident report, five staff were outside during the assault and none observed it. JCPRD Manager Jennifer Anderson stated that the incident report "does not include later information" (DOC-017), indicating it was incomplete at the time of filing.',
         evidenceIds: ['DOC-017', 'AUTH-08'],
-        status: 'violated',
+        status: 'not_applied',
       },
     ],
   },
@@ -130,7 +130,7 @@ const SECTIONS = [
     id: 'district',
     title: 'District Obligations',
     subtitle:
-      'What USD 232 owes — through the lease it created, the statutes it operates under, and the authority it chose not to use',
+      'What USD 232 owes through the lease it created, the statutes it operates under, and the authority available to it',
     color: 'var(--color-accent)',
     rules: [
       {
@@ -140,9 +140,9 @@ const SECTIONS = [
         requires:
           'Section 8(d) requires JCPRD to "abide by... all rules, regulations, and policies adopted by the Board of Education" and "conform to such administrative orders as may be from time to time issued by the Superintendent." Section 7(c) provides the district\'s enforcement authority: if JCPRD materially breaches the lease — including the policy-compliance obligations in §8(d) — the district has the contractual right to remedy that breach. The district wrote both the obligation AND the enforcement mechanism into the same lease.',
         actual:
-          'After the April 2026 assault, no enforcement action was taken under either §8(d) or §7(c). The parent cited the lease agreement directly. Alvie Cater proposed a meeting, then cancelled it the next morning. No administrative order was issued under §8(d). No breach remedy was pursued under §7(c). No audit of JCPRD\'s policy compliance was conducted. The district created a contract with two enforcement tools — the Superintendent\'s administrative order authority (§8(d)) and the lessor\'s right to remedy material breach (§7(c)) — and used neither.',
+          'Based on available records, after the April 2026 assault, no enforcement action was taken under either §8(d) or §7(c). The parent cited the lease agreement directly. Alvie Cater proposed a meeting, then cancelled it the following morning (DOC-014). No administrative order appears to have been issued under §8(d). No breach remedy appears to have been pursued under §7(c). No audit of JCPRD\'s policy compliance is reflected in available records.',
         evidenceIds: ['DOC-021', 'DOC-014', 'DOC-012'],
-        status: 'violated',
+        status: 'not_applied',
       },
       {
         rule: 'K.S.A. 72-1421(c) binds the district to the entire KDHE child care licensing chapter',
@@ -177,7 +177,7 @@ const SECTIONS = [
           },
         ],
         actualIntro:
-          'USD 232 disclaimed any oversight role. Balthazor called JCPRD a "separate entity." Cater stated JCPRD "operates independently." No Kansas court has ruled on this specific question, but the statutory text, structure, and the district\'s own admissions all favor the parent.',
+          'USD 232 has not asserted an oversight role in this matter. Balthazor referred to JCPRD as a "separate entity." Cater stated JCPRD "operates independently." No Kansas court has ruled on this specific statutory question. The statutory text, structure, and the district\'s own characterizations appear to support the parent\'s reading.',
         actualPoints: [
           {
             label: '"Establishes, operates and maintains" is conjunctive',
@@ -199,18 +199,18 @@ const SECTIONS = [
           'DOC-004',
           'BP-09',
         ],
-        status: 'violated',
+        status: 'not_applied',
       },
       {
-        rule: 'USD 232 never filed a KDHE complaint; JCPRD filed only reactively; neither informed the parent of the right to trigger an inspection',
+        rule: 'KDHE complaint filing and parent notification of inspection rights',
         source: 'K.S.A. 65-512',
         sourceId: 'AUTH-59',
         requires:
           'K.S.A. 65-512 mandates that KDHE "shall conduct an inspection of any child care facility upon receiving a complaint." Any person — including a parent, a school district, or the facility itself — can trigger this inspection. Under 72-1421(c), the district is subject to this inspection regime. The parent of a child assaulted in a KDHE-licensed facility has the right to file a complaint and trigger a state inspection of supervision practices, incident reporting, and compliance with K.S.A. 65-508.',
         actual:
-          'JCPRD did file a KDHE Critical Incident Report — but only after the parent mentioned seeking medical care (DOC-017: "Our report to KDHE and local licensing was made when you notified us that you sought medical care"). This raises the question of whether JCPRD would have filed at all without the parent\'s disclosure. USD 232 never filed its own KDHE complaint despite its obligations under 72-1421(c). Most critically, neither entity informed the parent of their right to trigger a complaint-based inspection. Alvie Cater referenced KDHE only as a deflection — "concerns regarding their actions or compliance would need to be addressed directly with JCPRD and, if necessary, KDHE" — not as actionable guidance about the parent\'s statutory right under 65-512.',
+          'JCPRD did file a KDHE Critical Incident Report, though their own communication states it was filed after the parent disclosed seeking medical care (DOC-017: "Our report to KDHE and local licensing was made when you notified us that you sought medical care"). Based on available records, USD 232 did not file its own KDHE complaint. Neither entity appears to have informed the parent of their right to trigger a complaint-based inspection under 65-512. Alvie Cater referenced KDHE in the context of: "concerns regarding their actions or compliance would need to be addressed directly with JCPRD and, if necessary, KDHE" (DOC-012).',
         evidenceIds: ['AUTH-59', 'DOC-017', 'DOC-012', 'DOC-014'],
-        status: 'violated',
+        status: 'not_applied',
       },
       {
         rule: 'Facility must maintain complete records of each child, including physician for injuries',
@@ -219,9 +219,9 @@ const SECTIONS = [
         requires:
           'K.S.A. 65-507 requires child care facilities to keep records including "the name and age of each child received and cared for in the facility" and "the name of the physician who attended any sick children." This applies directly to JCPRD as a licensed facility.',
         actual:
-          'JCPRD Manager Jennifer Anderson admitted the incident report "does not include later information," meaning it was knowingly incomplete. The initial report contradicted medical evidence. A knowingly incomplete incident report for a child who required medical attention may violate the statutory record-keeping requirement.',
+          'JCPRD Manager Jennifer Anderson stated that the incident report "does not include later information" (DOC-017). The initial report appears to contradict subsequent medical evidence. An incomplete incident report for a child who required medical attention may raise questions under the statutory record-keeping requirement.',
         evidenceIds: ['AUTH-58', 'DOC-017', 'DOC-009'],
-        status: 'violated',
+        status: 'not_applied',
       },
     ],
   },
@@ -230,21 +230,24 @@ const SECTIONS = [
 export default function NonCompliance() {
   const [activeSection, setActiveSection] = useState('lease');
 
-  const totalViolations = SECTIONS.reduce(
-    (sum, s) => sum + s.rules.filter((r) => r.status === 'violated').length,
+  const totalIssues = SECTIONS.reduce(
+    (sum, s) => sum + s.rules.filter((r) => r.status === 'not_applied').length,
     0,
   );
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold mb-1">Non-Compliance Breakdown</h2>
+        <h2 className="text-2xl font-bold mb-1">Policy & Compliance Review</h2>
         <p className="text-xs text-text-dim mb-2">
-          Rules, contracts, and statutes JCPRD and USD 232 are obligated to follow — and evidence they don't.
+          Rules, contracts, and statutes that apply to this situation, compared against what the available evidence shows.
+        </p>
+        <p className="text-[11px] text-text-dim/70 italic mb-2">
+          This analysis reflects one family's reading of publicly available policies, statutes, and records. It is not a legal finding or adjudication.
         </p>
         <div className="flex gap-3 items-center mt-3">
-          <span className="text-sm font-medium text-danger">
-            {totalViolations} documented violations
+          <span className="text-sm font-medium text-warning">
+            {totalIssues} policies appear not applied
           </span>
           <span className="text-xs text-text-dim">across {SECTIONS.length} categories</span>
         </div>
@@ -265,7 +268,7 @@ export default function NonCompliance() {
           >
             {s.title}
             <span className="ml-2 text-[10px] opacity-60">
-              ({s.rules.filter((r) => r.status === 'violated').length})
+              ({s.rules.filter((r) => r.status === 'not_applied').length})
             </span>
           </button>
         ))}
@@ -290,13 +293,13 @@ export default function NonCompliance() {
       {/* Summary */}
       <div className="border-t border-border pt-6 mt-8">
         <div className="bg-surface-alt border border-border rounded-lg p-5" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <h4 className="text-sm font-bold mb-2">The Pattern</h4>
+          <h4 className="text-sm font-bold mb-2">What the Records Show</h4>
           <p className="text-sm leading-relaxed text-text-dim">
-            Across every category — the lease, KDHE licensing, and district statutes — the pattern
-            is the same. Rules exist. Obligations are clear. Marketing promises safety and
-            integration. But when a child is harmed, both entities disclaim responsibility, refuse to
-            investigate, and redirect the parent to the other party. The rules aren't ambiguous.
-            They're just not followed.
+            Across the lease, KDHE licensing, and district statutes, the available evidence
+            shows a consistent pattern: policies and obligations exist, but based on the
+            records available to this family, they do not appear to have been applied in this
+            instance. Both entities directed the parent to the other party. The policies
+            themselves are not ambiguous.
           </p>
         </div>
       </div>
@@ -367,8 +370,8 @@ function RuleCard({ rule, color }) {
               )}
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-danger mb-1.5">
-                What actually happened
+              <p className="text-[10px] font-bold uppercase tracking-wider text-warning mb-1.5">
+                What the evidence shows
               </p>
               {hasStructured ? (
                 <StructuredContent
@@ -397,10 +400,10 @@ function RuleCard({ rule, color }) {
 }
 
 function StatusIcon({ status }) {
-  if (status === 'violated') {
+  if (status === 'not_applied') {
     return (
-      <span className="w-6 h-6 rounded-full bg-danger/15 text-danger flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
-        ✕
+      <span className="w-6 h-6 rounded-full bg-warning/15 text-warning flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+        ○
       </span>
     );
   }

@@ -43,29 +43,29 @@ export default function Overview() {
           <p>
             On <strong>April 2, 2026</strong>, a {ageLabel} kindergartener was physically assaulted
             by a nine-year-old at Mize Elementary during JCPRD's Out-of-School-Time program.
-            Five JCPRD staff were outside. Not a single adult witnessed the attack. The child
-            sustained visible injuries and was kept home for a week on pediatrician's orders.
+            According to the incident report, five JCPRD staff were outside. None witnessed
+            the attack. The child sustained visible injuries and was kept home for a week on
+            pediatrician's orders.
           </p>
           <p>
-            Neither JCPRD nor USD 232 investigated. Neither accepted responsibility.
-            Both pointed at the other. The parent was left to file police reports, DCF
-            complaints, and formal grievances — all while being told it was someone else's
-            problem.
+            Based on available records, neither JCPRD nor USD 232 conducted an investigation.
+            Each entity directed the parent to the other. The parent filed police reports, a DCF
+            complaint, and formal grievances independently.
           </p>
         </div>
 
         <div className="mt-6 bg-surface-alt border-l-4 border-accent rounded-r-lg p-5">
           <p className="text-sm font-semibold text-accent mb-2">The Core Problem</p>
           <p className="text-sm leading-relaxed">
-            Every signal available to a parent — the district's website, school staff
-            communications, the registration process, and the lease itself — indicated this
+            Every signal available to a parent, including the district's website, school staff
+            communications, the registration process, and the lease itself, indicated this
             program adhered to district standards. The district's own board policies (KG, JGFB,
             JDDC, JDDB) require employee presence, approved supervision, bullying prevention,
             and crime reporting on school property. The lease binds JCPRD to all of them.
             K.S.A. 72-1421(c) binds the district to the entire KDHE child care licensing
-            chapter. None of it was followed. No reasonable parent could have known JCPRD
-            operated independently of district policy — because the district itself never
-            disclosed it.
+            chapter. Based on available records, these policies do not appear to have been
+            applied in this instance. The independent nature of JCPRD's operation was not
+            communicated to parents during registration or in prior communications.
           </p>
           <Link
             to="/non-compliance"
@@ -208,19 +208,20 @@ export default function Overview() {
 
         <div className="mt-6 bg-surface border border-border rounded-lg p-5 space-y-4">
           <p className="text-sm leading-relaxed">
-            The "separate entity" framing only surfaced after the assault: Principal Balthazor
-            used it to deflect responsibility, Alvie Cater wrote it in response to a parent
-            complaint. It was never disclosed during registration or any parent communication.
-            JCPRD's own handbook admitting its programs "function independently" (<DocLink id="AUTH-41" />) is
-            not a defense — a lessee cannot unilaterally disclaim obligations imposed by its
-            lease. It is evidence of intent to ignore contractual obligations.
+            The "separate entity" characterization appears in records only after the assault:
+            Principal Balthazor used it in her response (DOC-004), and Alvie Cater used it
+            in his reply to the parent's complaint (DOC-012). Based on available records,
+            this distinction was not communicated during registration or in prior parent
+            communications. JCPRD's own handbook states its programs "function independently"
+            (<DocLink id="AUTH-41" />), though the lease agreement requires compliance with
+            all board policies.
           </p>
           <p className="text-sm leading-relaxed">
-            The incident report itself contradicts the medical evidence: JCPRD
-            wrote "no medical treatment was necessary" while the child was under pediatric
-            care with a mandatory DCF filing. The report listed witnesses who saw nothing
-            and was admitted to be "written the day the incident occurred; does not include
-            later information." <DocLink id="DOC-017" />
+            The incident report states "no medical treatment was necessary," though the child
+            was subsequently under pediatric care and a DCF report was filed. The report lists
+            witnesses who did not observe the assault, and JCPRD Manager Jennifer Anderson stated
+            it was "written the day the incident occurred; does not include later information."
+            <DocLink id="DOC-017" />
           </p>
         </div>
       </section>

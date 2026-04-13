@@ -45,7 +45,7 @@
           "date": "2026-04-07"
         }
       ],
-      "bio": "The principal of Mize Elementary. When the parent reported the assault, she was the first to use the 'separate entity' language about JCPRD, directing the parent away from the school. She offered a school-day safety plan but declined to address anything that happened during aftercare hours."
+      "bio": "Principal of Mize Elementary. When the parent reported the assault, she referred to JCPRD as a 'separate entity' (DOC-004). She offered a school-day safety plan but stated that aftercare hours were outside the school's purview."
     },
     {
       "id": "alvie-cater",
@@ -69,7 +69,7 @@
           "date": "2026-04-10"
         }
       ],
-      "bio": "USD 232's Deputy Chief of Staff and Communications. He initially scheduled a meeting with the parent, then cancelled it within 48 hours — the morning after the parent quoted the lease agreement. He cherry-picked the parent's 'exclusively during aftercare' language to build a jurisdictional argument that the school had no responsibility."
+      "bio": "USD 232's Deputy Chief of Staff and Communications. He initially scheduled a meeting with the parent, then cancelled it the following morning (DOC-014), after the parent cited the lease agreement. In his emails, he referenced the parent's statement that the behavior occurred 'exclusively during the aftercare program' as the basis for directing the matter to JCPRD (DOC-012)."
     },
     {
       "id": "janine-winters",
@@ -83,7 +83,7 @@
           "date": "2026-04-09"
         }
       ],
-      "bio": "Mize Elementary's school counselor. She had a phone call with the parent about 504 protections, then sent a follow-up email memorializing the parent's alleged choice not to pursue it — effectively closing a formal written request through an undocumented phone conversation."
+      "bio": "Mize Elementary's school counselor. She had a phone call with the parent regarding 504 protections and subsequently sent a follow-up email (DOC-024) stating her understanding that the parent chose not to pursue that avenue at that time."
     },
     {
       "id": "leigh-white",
@@ -97,7 +97,7 @@
           "date": "2026-04-03"
         }
       ],
-      "bio": "JCPRD's on-site coordinator at Mize Elementary. She sent the first response after the assault, framing a documented battery as 'I am sorry you feel [child] is being harmed.' She also helped investigate the earlier Fall 2025 incidents and is thanked by the parent in that thread."
+      "bio": "JCPRD's on-site coordinator at Mize Elementary. She sent the first response after the assault, writing 'I am sorry you feel [child] is being harmed in some way' (DOC-009). She was also involved in responding to earlier Fall 2025 incidents."
     },
     {
       "id": "jennifer-anderson",
@@ -111,7 +111,7 @@
           "date": "2026-04-06"
         }
       ],
-      "bio": "JCPRD's Children's Services Manager. She confirmed the incident report was written the same day as the assault and that KDHE was only notified after the parent mentioned seeking medical care — suggesting the regulatory report might not have been filed otherwise."
+      "bio": "JCPRD's Children's Services Manager. She stated that the incident report was written the day of the assault and 'does not include later information' (DOC-017). JCPRD's own communication indicates the KDHE report was filed after the parent disclosed seeking medical care."
     },
     {
       "id": "amy-branson",
@@ -133,7 +133,7 @@
           "date": "2024-06-26"
         }
       ],
-      "bio": "USD 232's Chief of Operations. He wrote the memo to the school board calling JCPRD's programs 'invaluable to our families that need childcare.' This is the same program the district later called a 'separate entity' when a child was hurt. His memo is key evidence that the district viewed JCPRD as integrated family services, not an independent outside organization."
+      "bio": "USD 232's Chief of Operations. He authored the memo to the school board describing JCPRD's programs as 'invaluable to our families that need childcare' (SCHWANZ-MEMO). The memo characterizes the program as a district-endorsed family service and was presented on the board's consent agenda."
     },
     {
       "id": "breanna-burks",
@@ -147,7 +147,7 @@
           "date": "2025-09-18"
         }
       ],
-      "bio": "Kindergarten staff at Mize Elementary. In September 2025, she provided written confirmation that the school's recess policy prevents mixing age groups and that 3-4 adults supervise kindergartners. These assurances were contradicted by the April 2026 assault on the same property."
+      "bio": "Kindergarten staff at Mize Elementary. In September 2025, she provided written confirmation that the school's recess policy prevents mixing age groups and that 3-4 adults supervise kindergartners (DOC-028)."
     }
   ],
   "timeline": [
