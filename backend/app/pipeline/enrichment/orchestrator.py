@@ -98,7 +98,8 @@ def run_enrichment_pipeline(person: Person, job: ResearchJob) -> Person:
     logger.info("Enrichment Phase 0.1: SerpAPI KG for %s", person.name)
     try:
         from app.pipeline.enrichment.serpapi_kg import enrich_from_serpapi
-        serp_result = enrich_from_serpapi(person)
+        is_re_enrich = bool(person.enriched_at)
+        serp_result = enrich_from_serpapi(person, flush_cache=is_re_enrich)
         worker_results.append(serp_result)
 
         if serp_result.get("social_profiles"):

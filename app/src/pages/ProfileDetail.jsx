@@ -72,12 +72,27 @@ function FactCard({ fact }) {
   );
 }
 
-function Section({ title, children, count }) {
+function InfoIcon({ tip }) {
+  return (
+    <span className="relative group cursor-help ml-1">
+      <svg className="w-3.5 h-3.5 text-text-dim/50 group-hover:text-text-dim transition-colors inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 16v-4m0-4h.01" />
+      </svg>
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 text-[11px] text-text bg-surface-alt border border-border rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal w-56 text-center leading-snug z-50">
+        {tip}
+      </span>
+    </span>
+  );
+}
+
+function Section({ title, children, count, tip }) {
   if (!children || (Array.isArray(children) && children.length === 0)) return null;
   return (
     <section className="animate-fade-up">
       <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
         {title}
+        {tip && <InfoIcon tip={tip} />}
         {count != null && (
           <span className="text-xs font-normal text-text-dim bg-surface-alt px-2 py-0.5 rounded-full">
             {count}
@@ -313,7 +328,35 @@ export default function ProfileDetail() {
               {enrichDone && enrichJob?.status === 'complete' && <span className="text-xs text-success">Enrichment complete</span>}
               {enrichDone && enrichJob?.status === 'failed' && <span className="text-xs text-danger">Enrich failed: {enrichJob.error || 'unknown'}</span>}
               {enrichJobError && <span className="text-xs text-danger">{enrichJobError}</span>}
+              {!isConfirmed && profile.identity_confidence > 0 && (
+                <button
+                  onClick={handleLockIdentity}
+                  className="text-[10px] font-medium px-2 py-0.5 rounded bg-success/15 text-success hover:bg-success/25 transition-colors"
+                  title="Sets confidence to 100% — confirms you've reviewed and verified this person's identity data is correct"
+                >
+                  Lock Identity
+                </button>
+              )}
+              {isConfirmed && (
+                <span className="text-[10px] text-success font-medium flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                  Locked
+                </span>
+              )}
             </div>
+            {profile.enrichment_sources?.length > 0 && (
+              <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-text-dim">Sources:</span>
+                {profile.enrichment_sources.map((src, i) => (
+                  <SourceBadge key={i} source={src} />
+                ))}
+                {profile.enriched_at && (
+                  <span className="text-[10px] text-text-dim ml-1">
+                    (last {new Date(profile.enriched_at).toLocaleDateString()})
+                  </span>
+                )}
+              </div>
+            )}
 
             {/* Reset / Delete actions */}
             {hasPipelineData && (
@@ -376,14 +419,14 @@ export default function ProfileDetail() {
       {/* Curated Bio */}
       {curated_bio && (
         <div className="bg-surface border border-info/30 rounded-xl p-6" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-info mb-3">Case Background</h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-info mb-3">Case Background <InfoIcon tip="Hand-written summary of this person's role in the case. Set during initial data seeding." /></h2>
           <p className="text-sm text-text leading-relaxed">{curated_bio}</p>
         </div>
       )}
 
       {/* Curated Quotes */}
       {curated_quotes.length > 0 && (
-        <Section title="Key Quotes from Evidence" count={curated_quotes.length}>
+        <Section title="Key Quotes from Evidence" count={curated_quotes.length} tip="Direct quotes pulled from uploaded case documents and evidence files.">
           <div className="space-y-3">
             {curated_quotes.map((q, i) => (
               <div key={i} className="pl-4 border-l-2 border-info/40">
@@ -400,7 +443,7 @@ export default function ProfileDetail() {
 
       {/* Contact & Identity — editable */}
       <div className="bg-surface border border-accent/20 rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-        <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Contact &amp; Identity</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Contact &amp; Identity <InfoIcon tip="Editable contact info and identity anchors. Click 'edit' to change any field. Used as seed data for enrichment and research." /></h2>
         <div className="space-y-0.5">
           <EditableField label="Email" value={contact?.email} onSave={(v) => saveField('email', v)} placeholder="name@example.com" />
           <EditableField label="Phone" value={contact?.phone} onSave={(v) => saveField('phone', v)} placeholder="913-555-1234" />
@@ -430,7 +473,7 @@ export default function ProfileDetail() {
 
       {/* Basic Identity Fields — editable */}
       <div className="bg-surface border border-border rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-        <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim mb-3">Basic Info</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim mb-3">Basic Info <InfoIcon tip="Location and demographic fields. Used to disambiguate this person from others with the same name during research." /></h2>
         <div className="space-y-0.5">
           <EditableField label="City" value={profile.city} onSave={(v) => saveField('city', v)} placeholder="e.g. Lenexa" />
           <EditableField label="County" value={profile.county} onSave={(v) => saveField('county', v)} placeholder="e.g. Johnson" />
@@ -439,61 +482,9 @@ export default function ProfileDetail() {
         </div>
       </div>
 
-      {/* Identity Confidence */}
-      {profile.identity_confidence > 0 && (
-        <div className="bg-surface border border-border rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim">Identity Confidence</h2>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-bold" style={{
-                color: profile.identity_confidence >= 0.7 ? 'var(--color-success)' :
-                       profile.identity_confidence >= 0.4 ? 'var(--color-warning)' : 'var(--color-danger)'
-              }}>
-                {Math.round(profile.identity_confidence * 100)}%
-              </span>
-              {!isConfirmed && (
-                <button
-                  onClick={handleLockIdentity}
-                  className="text-[10px] font-medium px-2 py-0.5 rounded bg-success/15 text-success hover:bg-success/25 transition-colors"
-                  title="Sets confidence to 100% — confirms you've reviewed and verified this person's identity data is correct"
-                >
-                  Lock Identity
-                </button>
-              )}
-              {isConfirmed && (
-                <span className="text-[10px] text-success font-medium flex items-center gap-1">
-                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
-                  Locked
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="w-full h-2 bg-surface-alt rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${Math.round(profile.identity_confidence * 100)}%`,
-                backgroundColor: profile.identity_confidence >= 0.7 ? 'var(--color-success)' :
-                                  profile.identity_confidence >= 0.4 ? 'var(--color-warning)' : 'var(--color-danger)',
-              }}
-            />
-          </div>
-          {profile.enrichment_sources?.length > 0 && (
-            <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {profile.enrichment_sources.map((src, i) => (
-                <SourceBadge key={i} source={src} />
-              ))}
-            </div>
-          )}
-          {profile.enriched_at && (
-            <p className="text-[10px] text-text-dim mt-1">Last enriched: {new Date(profile.enriched_at).toLocaleString()}</p>
-          )}
-        </div>
-      )}
-
       {/* Social Profiles — with confidence + source */}
       {profile.social_profiles?.length > 0 && (
-        <Section title="Social Profiles" count={profile.social_profiles.length}>
+        <Section title="Social Profiles" count={profile.social_profiles.length} tip="Public social media profiles found by the enrichment pipeline. Confidence shows how likely each link is the right person. Source shows where it was found.">
           <div className="space-y-2">
             {profile.social_profiles.map((sp, i) => (
               <div key={i} className="flex items-center gap-3 bg-surface border border-border rounded-lg p-3 hover:border-accent/40 transition-colors">
@@ -520,7 +511,7 @@ export default function ProfileDetail() {
       {/* Profile Intelligence */}
       {profile.profile_intel?.length > 0 && (
         <div className="bg-surface border border-purple-400/30 rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-3">Profile Intelligence</h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-3">Profile Intelligence <InfoIcon tip="LLM-extracted intelligence from confirmed social profiles. Affiliations, connections, career moves, and other due diligence findings." /></h2>
           <div className="space-y-2">
             {profile.profile_intel.map((item, i) => (
               <div key={i} className="flex items-start gap-2 text-sm text-text">
@@ -534,7 +525,7 @@ export default function ProfileDetail() {
 
       {/* Employment History */}
       {profile.employer_history?.length > 0 && (
-        <Section title="Employment History" count={profile.employer_history.length}>
+        <Section title="Employment History" count={profile.employer_history.length} tip="Jobs and roles found from enrichment sources (LinkedIn, Clay, public records). Source badge shows where each entry came from.">
           <div className="space-y-2">
             {profile.employer_history.map((emp, i) => (
               <div key={i} className="flex items-start gap-3 bg-surface border border-border rounded-lg p-3">
@@ -559,7 +550,7 @@ export default function ProfileDetail() {
 
       {/* Education */}
       {profile.education?.length > 0 && (
-        <Section title="Education" count={profile.education.length}>
+        <Section title="Education" count={profile.education.length} tip="Schools, degrees, and programs found from enrichment sources.">
           <div className="space-y-2">
             {profile.education.map((edu, i) => (
               <div key={i} className="flex items-start gap-3 bg-surface border border-border rounded-lg p-3">
@@ -583,7 +574,7 @@ export default function ProfileDetail() {
 
       {/* Addresses */}
       {profile.addresses?.length > 0 && (
-        <Section title="Known Locations" count={profile.addresses.length}>
+        <Section title="Known Locations" count={profile.addresses.length} tip="Physical addresses and cities associated with this person from enrichment sources and public records.">
           <div className="space-y-2">
             {profile.addresses.map((addr, i) => (
               <div key={i} className="flex items-center gap-3 bg-surface border border-border rounded-lg p-3">
@@ -601,7 +592,7 @@ export default function ProfileDetail() {
 
       {/* Known Associates */}
       {profile.known_associates?.length > 0 && (
-        <Section title="Known Associates" count={profile.known_associates.length}>
+        <Section title="Known Associates" count={profile.known_associates.length} tip="Other people connected to this person, found from enrichment or case evidence.">
           <div className="flex flex-wrap gap-2">
             {profile.known_associates.map((name, i) => (
               <span key={i} className="text-xs bg-surface-alt border border-border rounded-full px-3 py-1 text-text-dim">
@@ -615,13 +606,13 @@ export default function ProfileDetail() {
       {/* Battle Card Summary */}
       {bc && (
         <div className="bg-surface border border-accent/30 rounded-xl p-6" style={{ boxShadow: 'var(--shadow-elevated)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Battle Card</h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Battle Card <InfoIcon tip="AI-synthesized summary of this person based on all researched facts. The 'so what' of everything we know." /></h2>
           <p className="text-sm text-text leading-relaxed">{bc.summary}</p>
         </div>
       )}
 
       {/* Key Positions */}
-      <Section title="Key Positions" count={bc?.key_positions?.length}>
+      <Section title="Key Positions" count={bc?.key_positions?.length} tip="Notable stances, policy positions, or public commitments this person has taken — extracted from research sources by the LLM.">
         <div className="space-y-2">
           {bc?.key_positions?.map((pos, i) => (
             <div key={i} className="pl-4 border-l-2 border-accent/40">
@@ -632,7 +623,7 @@ export default function ProfileDetail() {
       </Section>
 
       {/* Contradictions */}
-      <Section title="Contradictions" count={bc?.contradictions?.length}>
+      <Section title="Contradictions" count={bc?.contradictions?.length} tip="Places where this person's actions contradict their public statements or stated positions.">
         <div className="space-y-2">
           {bc?.contradictions?.map((c, i) => (
             <div key={i} className="pl-4 border-l-2 border-danger/40">
@@ -643,7 +634,7 @@ export default function ProfileDetail() {
       </Section>
 
       {/* Organizational Ties */}
-      <Section title="Organizational Ties" count={bc?.organizational_ties?.length}>
+      <Section title="Organizational Ties" count={bc?.organizational_ties?.length} tip="Organizations, boards, committees, or groups this person is affiliated with.">
         <div className="flex flex-wrap gap-2">
           {bc?.organizational_ties?.map((org, i) => (
             <span key={i} className="text-xs bg-surface-alt border border-border rounded-full px-3 py-1 text-text-dim">
@@ -655,7 +646,7 @@ export default function ProfileDetail() {
 
       {/* All Facts by Category */}
       {facts.length > 0 && (
-        <Section title="All Facts" count={facts.length}>
+        <Section title="All Facts" count={facts.length} tip="Every individual fact found about this person from web research. Each has a confidence score and source link.">
           <div className="grid gap-3 sm:grid-cols-2">
             {facts.map((f) => (
               <FactCard key={f.id} fact={f} />
@@ -665,7 +656,7 @@ export default function ProfileDetail() {
       )}
 
       {/* Action Items */}
-      <Section title="Action Items" count={bc?.action_items?.length}>
+      <Section title="Action Items" count={bc?.action_items?.length} tip="Concrete next steps suggested by the research — meetings to attend, records to request, complaints to file, etc.">
         <div className="space-y-2">
           {bc?.action_items?.map((item, i) => (
             <div key={i} className="flex items-start gap-2 text-sm text-text">

@@ -58,6 +58,7 @@ async def reset_research(person_id: str):
     person.education = []
     person.addresses = []
     person.known_associates = []
+    person.profile_intel = []
     person.date_of_birth = None
     person.gender = None
     person.identity_confidence = 0.0

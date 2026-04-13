@@ -34,16 +34,18 @@ _JUNK_PATH_SEGMENTS = {
     "linkedin": {
         "search", "results", "posts", "pulse", "feed", "jobs", "groups",
         "company", "school", "showcase", "learning", "sales", "talent",
-        "messaging", "notifications", "mynetwork",
+        "messaging", "notifications", "mynetwork", "dir", "pub",
+        "help", "legal", "safety", "about", "accessibility",
     },
     "facebook": {
         "search", "posts", "watch", "groups", "events", "marketplace",
         "gaming", "pages", "stories", "reels", "hashtag", "photo",
-        "photo.php", "permalink.php", "notes",
+        "photo.php", "permalink.php", "notes", "help", "policies",
+        "login", "recover", "ads",
     },
-    "twitter": {"search", "explore", "hashtag", "i", "lists"},
-    "instagram": {"explore", "reels", "stories", "p"},
-    "youtube": {"results", "playlist", "feed", "shorts"},
+    "twitter": {"search", "explore", "hashtag", "i", "lists", "settings", "tos", "privacy"},
+    "instagram": {"explore", "reels", "stories", "p", "accounts"},
+    "youtube": {"results", "playlist", "feed", "shorts", "channel"},
     "tiktok": {"search", "discover"},
 }
 
@@ -63,7 +65,7 @@ def _is_profile_url(url: str, platform: str) -> bool:
     return True
 
 
-def enrich_from_serpapi(person: Person) -> dict:
+def enrich_from_serpapi(person: Person, *, flush_cache: bool = False) -> dict:
     """
     Search SerpAPI for knowledge graph + social links.
 
@@ -74,6 +76,9 @@ def enrich_from_serpapi(person: Person) -> dict:
         return {"social_profiles": [], "bio_snippet": None, "knowledge_graph": {}}
 
     queries = _build_queries(person)
+
+    if flush_cache:
+        _flush_query_cache(queries)
     social_profiles: list[SocialProfile] = []
     seen_urls: set[str] = set()
     bio_snippet = None
@@ -172,6 +177,21 @@ def _detect_social_platform(url: str) -> str | None:
         if domain in host:
             return platform
     return None
+
+
+def _flush_query_cache(queries: list[str]):
+    """Delete cached SerpAPI responses so re-enrichment gets fresh results."""
+    try:
+        from app.services.redis_client import _get_redis, cache_key as _ck
+        r = _get_redis()
+        if not r:
+            return
+        keys = [_ck(f"serpapi_full:{q}") for q in queries]
+        if keys:
+            deleted = r.delete(*keys)
+            logger.info("Flushed %d SerpAPI cache entries for re-enrichment", deleted)
+    except Exception as e:
+        logger.warning("Failed to flush SerpAPI cache: %s", e)
 
 
 def _extract_username(url: str) -> str:

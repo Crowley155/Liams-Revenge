@@ -80,6 +80,21 @@ def set_cached_search(query: str, data: dict):
         logger.warning("Failed to cache search result: %s", e)
 
 
+def flush_serpapi_cache(queries: list[str]):
+    """Delete cached SerpAPI responses for specific queries."""
+    r = _get_redis()
+    if not r:
+        return
+    try:
+        keys = [cache_key(q) for q in queries]
+        full_keys = [f"serpapi_full:{q}" for q in queries]
+        all_keys = keys + full_keys
+        deleted = r.delete(*all_keys) if all_keys else 0
+        logger.info("Flushed %d SerpAPI cache keys", deleted)
+    except Exception as e:
+        logger.warning("Failed to flush SerpAPI cache: %s", e)
+
+
 # ---------------------------------------------------------------------------
 # Job status (supplementary — SQLite is primary, this enables pub/sub later)
 # ---------------------------------------------------------------------------
