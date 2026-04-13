@@ -19,7 +19,10 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
-from app.models import Entity, EntityCreate, EntityMember, Person, PersonSource, ResearchJob, JobStatus
+from app.models import (
+    Entity, EntityCreate, EntityMember, Person, PersonSource,
+    ResearchJob, JobStatus, SocialProfile, Fact, ProfileIntelItem,
+)
 from app.api._store import entities, profiles, jobs
 
 logger = logging.getLogger(__name__)
@@ -254,7 +257,8 @@ async def accept_member(entity_id: str, body: MemberAction):
         person = existing
         if entity_id not in person.entity_ids:
             person.entity_ids.append(entity_id)
-            profiles[person.id] = person
+        _merge_preview_data(person, member.preview_data)
+        profiles[person.id] = person
     else:
         person = Person(
             id=str(uuid.uuid4())[:8],
@@ -265,6 +269,7 @@ async def accept_member(entity_id: str, body: MemberAction):
             source=PersonSource.PIPELINE,
             entity_ids=[entity_id],
         )
+        _merge_preview_data(person, member.preview_data)
         profiles[person.id] = person
 
     member.person_id = person.id
@@ -275,6 +280,55 @@ async def accept_member(entity_id: str, body: MemberAction):
 
     logger.info("Member ACCEPTED for %s: %s -> person %s", ent.name, member.discovered_name, person.id)
     return ent
+
+
+def _merge_preview_data(person: Person, preview: dict | None) -> None:
+    """Carry forward discovery preview_data onto a Person record.
+    For existing persons, only fills in fields that are currently empty."""
+    if not preview:
+        return
+
+    # Social profiles — add any we don't already have by URL
+    existing_urls = {sp.url for sp in person.social_profiles}
+    for sp in preview.get("social_profiles", []):
+        url = sp.get("url", "")
+        if url and url not in existing_urls:
+            existing_urls.add(url)
+            person.social_profiles.append(SocialProfile(
+                platform=sp.get("platform", ""),
+                url=url,
+                username=sp.get("username", ""),
+                confidence=sp.get("confidence", 0.0),
+                source=sp.get("source", "discovery"),
+                status="pending",
+            ))
+
+    # Knowledge graph thumbnail → photo
+    kg = preview.get("knowledge_graph", {})
+    if not person.photo_url and kg.get("thumbnail"):
+        person.photo_url = kg["thumbnail"]
+
+    # Bio snippet → curated_bio (only if empty)
+    if not person.curated_bio and preview.get("bio_snippet"):
+        person.curated_bio = preview["bio_snippet"]
+
+    # Search results → profile_intel (only if empty)
+    if not person.profile_intel:
+        for sr in preview.get("search_results", [])[:5]:
+            snippet = sr.get("snippet", "").strip()
+            if snippet:
+                person.profile_intel.append(
+                    ProfileIntelItem(text=snippet, source_url=sr.get("url", ""))
+                )
+
+    # Source URLs → enrichment_sources
+    existing_sources = set(person.enrichment_sources)
+    for url in preview.get("source_urls", []):
+        if url not in existing_sources:
+            existing_sources.add(url)
+            person.enrichment_sources.append(url)
+
+    person.updated_at = datetime.utcnow()
 
 
 @router.post("/entities/{entity_id}/members/reject", response_model=Entity)

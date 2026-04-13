@@ -49,8 +49,13 @@ export default function EntityDetail() {
       .catch(() => {});
   }, [id]);
 
-  const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover } = useResearchJob({
-    onComplete: reload,
+  const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover, reset: resetDiscover } = useResearchJob({
+    onComplete: () => {
+      setTimeout(() => {
+        reload();
+        resetDiscover();
+      }, 800);
+    },
   });
 
   useEffect(() => {
