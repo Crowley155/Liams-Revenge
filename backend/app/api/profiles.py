@@ -38,26 +38,38 @@ async def get_profile(person_id: str):
 @router.delete("/profiles/{person_id}/research", response_model=Person)
 async def reset_research(person_id: str):
     """
-    Clear research-derived fields (facts, battle_card, rejected_facts)
-    while preserving identity, enrichment, and curated data.
+    Nuke ALL pipeline/enrichment-derived data. Preserves only seed and
+    manually-entered fields: name, role, org, location, curated_bio,
+    curated_quotes, entity_ids, contact (from evidence mining), and
+    negative_anchors.
     """
     person = profiles.get(person_id)
     if not person:
         raise HTTPException(status_code=404, detail="Profile not found")
 
+    # Research fields
     person.facts = []
     person.rejected_facts = []
     person.battle_card = None
 
-    if person.source == PersonSource.BOTH:
-        person.source = PersonSource.MANUAL
-    elif person.source == PersonSource.PIPELINE:
-        person.source = PersonSource.MANUAL
+    # Enrichment fields
+    person.social_profiles = []
+    person.employer_history = []
+    person.education = []
+    person.addresses = []
+    person.known_associates = []
+    person.date_of_birth = None
+    person.gender = None
+    person.identity_confidence = 0.0
+    person.enrichment_sources = []
+    person.enriched_at = None
+    person.photo_url = None
 
+    person.source = PersonSource.MANUAL
     person.updated_at = datetime.utcnow()
     profiles[person.id] = person
 
-    logger.info("Research reset for %s (%s) — facts/battle_card cleared", person.name, person.id)
+    logger.info("Full reset for %s (%s) — all research + enrichment cleared", person.name, person.id)
     return person
 
 

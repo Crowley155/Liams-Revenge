@@ -177,6 +177,12 @@ export default function ProfileDetail() {
   const { battle_card: bc, facts = [], contact, curated_bio, curated_quotes = [], entity_ids = [] } = profile;
   const badge = SOURCE_BADGE[profile.source] || SOURCE_BADGE.manual;
   const hasResearch = facts.length > 0 || !!bc;
+  const hasPipelineData = hasResearch
+    || (profile.social_profiles?.length > 0)
+    || (profile.employer_history?.length > 0)
+    || (profile.education?.length > 0)
+    || (profile.addresses?.length > 0)
+    || (profile.enrichment_sources?.length > 0);
 
   const affiliatedEntities = entities.filter((e) => entity_ids.includes(e.id));
 
@@ -258,7 +264,7 @@ export default function ProfileDetail() {
             </div>
 
             {/* Reset / Delete actions */}
-            {hasResearch && (
+            {hasPipelineData && (
               <div className="mt-2 flex items-center gap-2 flex-wrap">
                 {!confirmReset ? (
                   <button
@@ -269,7 +275,7 @@ export default function ProfileDetail() {
                   </button>
                 ) : (
                   <span className="flex items-center gap-2">
-                    <span className="text-[11px] text-warning">Clear all facts &amp; battle card?</span>
+                    <span className="text-[11px] text-warning">Clear all research + enrichment data?</span>
                     <button
                       onClick={handleResetResearch}
                       disabled={resetting}
