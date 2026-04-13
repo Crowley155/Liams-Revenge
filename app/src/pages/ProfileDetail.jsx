@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   fetchProfile, fetchEntities, startResearch, resetResearch, deleteProfile,
@@ -72,17 +73,43 @@ function FactCard({ fact }) {
   );
 }
 
-function InfoIcon({ tip }) {
+function InfoTip({ tip }) {
+  const [show, setShow] = useState(false);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const ref = useRef(null);
+
+  function handleEnter() {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setPos({ x: rect.left + rect.width / 2, y: rect.top });
+    setShow(true);
+  }
+
   return (
-    <span className="relative group cursor-help ml-1">
-      <svg className="w-3.5 h-3.5 text-text-dim/50 group-hover:text-text-dim transition-colors inline-block" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <circle cx="12" cy="12" r="10" />
-        <path d="M12 16v-4m0-4h.01" />
-      </svg>
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 text-[11px] text-text bg-surface-alt border border-border rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-normal w-56 text-center leading-snug z-50">
-        {tip}
+    <>
+      <span
+        ref={ref}
+        onMouseEnter={handleEnter}
+        onMouseLeave={() => setShow(false)}
+        className="inline-flex items-center justify-center cursor-help select-none text-text-dim/30 hover:text-text-dim/60 transition-colors text-[0.65em] font-normal ml-1 align-middle"
+        aria-label="More info"
+      >
+        ?
       </span>
-    </span>
+      {show && createPortal(
+        <div
+          style={{ left: pos.x, top: pos.y }}
+          className="fixed z-[9999] -translate-x-1/2 -translate-y-full pointer-events-none"
+        >
+          <div className="mb-2 px-3 py-2 text-[11px] leading-relaxed text-text bg-[var(--color-surface-alt)] border border-[var(--color-border)] rounded-lg max-w-[260px] text-center"
+            style={{ boxShadow: '0 4px 24px rgba(0,0,0,.45)' }}
+          >
+            {tip}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -92,7 +119,7 @@ function Section({ title, children, count, tip }) {
     <section className="animate-fade-up">
       <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
         {title}
-        {tip && <InfoIcon tip={tip} />}
+        {tip && <InfoTip tip={tip} />}
         {count != null && (
           <span className="text-xs font-normal text-text-dim bg-surface-alt px-2 py-0.5 rounded-full">
             {count}
@@ -419,7 +446,7 @@ export default function ProfileDetail() {
       {/* Curated Bio */}
       {curated_bio && (
         <div className="bg-surface border border-info/30 rounded-xl p-6" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-info mb-3">Case Background <InfoIcon tip="Hand-written summary of this person's role in the case. Set during initial data seeding." /></h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-info mb-3">Case Background <InfoTip tip="Hand-written summary of this person's role in the case. Set during initial data seeding." /></h2>
           <p className="text-sm text-text leading-relaxed">{curated_bio}</p>
         </div>
       )}
@@ -443,7 +470,7 @@ export default function ProfileDetail() {
 
       {/* Contact & Identity — editable */}
       <div className="bg-surface border border-accent/20 rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-        <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Contact &amp; Identity <InfoIcon tip="Editable contact info and identity anchors. Click 'edit' to change any field. Used as seed data for enrichment and research." /></h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Contact &amp; Identity <InfoTip tip="Editable contact info and identity anchors. Click 'edit' to change any field. Used as seed data for enrichment and research." /></h2>
         <div className="space-y-0.5">
           <EditableField label="Email" value={contact?.email} onSave={(v) => saveField('email', v)} placeholder="name@example.com" />
           <EditableField label="Phone" value={contact?.phone} onSave={(v) => saveField('phone', v)} placeholder="913-555-1234" />
@@ -473,7 +500,7 @@ export default function ProfileDetail() {
 
       {/* Basic Identity Fields — editable */}
       <div className="bg-surface border border-border rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-        <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim mb-3">Basic Info <InfoIcon tip="Location and demographic fields. Used to disambiguate this person from others with the same name during research." /></h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim mb-3">Basic Info <InfoTip tip="Location and demographic fields. Used to disambiguate this person from others with the same name during research." /></h2>
         <div className="space-y-0.5">
           <EditableField label="City" value={profile.city} onSave={(v) => saveField('city', v)} placeholder="e.g. Lenexa" />
           <EditableField label="County" value={profile.county} onSave={(v) => saveField('county', v)} placeholder="e.g. Johnson" />
@@ -511,7 +538,7 @@ export default function ProfileDetail() {
       {/* Profile Intelligence */}
       {profile.profile_intel?.length > 0 && (
         <div className="bg-surface border border-purple-400/30 rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-3">Profile Intelligence <InfoIcon tip="LLM-extracted intelligence from confirmed social profiles. Affiliations, connections, career moves, and other due diligence findings." /></h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-3">Profile Intelligence <InfoTip tip="LLM-extracted intelligence from confirmed social profiles. Affiliations, connections, career moves, and other due diligence findings." /></h2>
           <div className="space-y-2">
             {profile.profile_intel.map((item, i) => (
               <div key={i} className="flex items-start gap-2 text-sm text-text">
@@ -606,7 +633,7 @@ export default function ProfileDetail() {
       {/* Battle Card Summary */}
       {bc && (
         <div className="bg-surface border border-accent/30 rounded-xl p-6" style={{ boxShadow: 'var(--shadow-elevated)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Battle Card <InfoIcon tip="AI-synthesized summary of this person based on all researched facts. The 'so what' of everything we know." /></h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Battle Card <InfoTip tip="AI-synthesized summary of this person based on all researched facts. The 'so what' of everything we know." /></h2>
           <p className="text-sm text-text leading-relaxed">{bc.summary}</p>
         </div>
       )}
