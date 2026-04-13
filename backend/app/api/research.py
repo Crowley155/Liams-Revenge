@@ -31,6 +31,7 @@ def _find_person_by_name_org(name: str, org: str) -> Person | None:
 def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
     """Background task that runs the full pipeline and merges results."""
     try:
+        logger.info("Background task executing for job %s (%s)", job.id, request.name)
         from app.pipeline import run_research_pipeline
         person = run_research_pipeline(request, job, existing_person=existing)
 

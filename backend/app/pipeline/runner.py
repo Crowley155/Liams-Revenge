@@ -40,6 +40,12 @@ from app.pipeline.disambiguator import Disambiguator, build_anchor_from_request
 from app.pipeline.tools.web_search import fetch_page
 
 logger = logging.getLogger(__name__)
+
+
+def _persist_job(job: "ResearchJob"):
+    """Write job state back to SQLite so the status API reflects changes."""
+    from app.api._store import jobs as _jobs_store
+    _jobs_store[job.id] = job
 logging.basicConfig(level=logging.INFO)
 
 try:
@@ -180,11 +186,13 @@ def _run_pipeline_phases(
 
     job.status = JobStatus.SEARCHING
     job.started_at = datetime.utcnow()
+    _persist_job(job)
 
     with dspy.context(lm=collect_lm):
         documents = _pass1_collect(request, anchor)
 
     job.sources_searched = len(documents)
+    _persist_job(job)
     logger.info("Pass 1 complete: %d documents collected", len(documents))
 
     # =======================================================================
@@ -194,6 +202,7 @@ def _run_pipeline_phases(
     logger.info("Pass 2: DISAMBIGUATE using %s", settings.disambiguate_model)
 
     job.status = JobStatus.DISAMBIGUATING
+    _persist_job(job)
 
     with dspy.context(lm=disamb_lm):
         accepted_docs, rejected_docs, all_facts, merged_contact, raw_texts = \
@@ -206,6 +215,7 @@ def _run_pipeline_phases(
 
     person.facts = all_facts
     job.facts_found = len(all_facts)
+    _persist_job(job)
 
     if merged_contact:
         if "other_urls" in merged_contact:
@@ -235,10 +245,12 @@ def _run_pipeline_phases(
         person.battle_card = _pass3_synthesize(profile_facts, raw_texts, request)
 
         job.status = JobStatus.VALIDATING
+        _persist_job(job)
         _pass3_validate(profile_facts)
 
     job.status = JobStatus.COMPLETE
     job.completed_at = datetime.utcnow()
+    _persist_job(job)
     person.updated_at = datetime.utcnow()
 
     person.facts = [f for f in all_facts if f.tier != ConfidenceTier.D_REJECTED]

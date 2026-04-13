@@ -69,6 +69,8 @@ def _run_discovery(entity_id: str, job: ResearchJob):
             raise ValueError(f"Entity {entity_id} not found")
 
         job.status = JobStatus.SEARCHING
+        job.started_at = datetime.utcnow()
+        jobs[job.id] = job
 
         discovered = discover_entity_members(ent)
         logger.info("Discovered %d members for %s", len(discovered), ent.name)
