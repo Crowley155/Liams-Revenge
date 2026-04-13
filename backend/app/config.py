@@ -50,8 +50,8 @@ class Settings:
         default_factory=lambda: _env("GOOGLE_CSE_API_KEY")
     )
 
-    qdrant_url: str = field(
-        default_factory=lambda: _env("QDRANT_URL", "http://localhost:6333")
+    qdrant_url: str | None = field(
+        default_factory=lambda: _env("QDRANT_URL")
     )
     qdrant_api_key: str | None = field(
         default_factory=lambda: _env("QDRANT_API_KEY")
@@ -60,8 +60,8 @@ class Settings:
         default_factory=lambda: _env("QDRANT_COLLECTION", "documents")
     )
 
-    redis_url: str = field(
-        default_factory=lambda: _env("REDIS_URL", "redis://localhost:6379")
+    redis_url: str | None = field(
+        default_factory=lambda: _env("REDIS_URL")
     )
 
     pdl_api_key: str | None = field(
@@ -114,6 +114,10 @@ class Settings:
     @property
     def has_qdrant(self) -> bool:
         return bool(self.qdrant_url)
+
+    @property
+    def has_redis(self) -> bool:
+        return bool(self.redis_url)
 
 
 settings = Settings()

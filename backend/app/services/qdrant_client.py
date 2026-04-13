@@ -28,6 +28,8 @@ def _get_client():
     global _client, _available
     if _client is not None:
         return _client
+    if not settings.has_qdrant:
+        return None
 
     try:
         from qdrant_client import QdrantClient

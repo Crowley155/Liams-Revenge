@@ -26,6 +26,8 @@ def _get_redis():
     global _redis, _available
     if _redis is not None:
         return _redis
+    if not settings.has_redis:
+        return None
 
     try:
         import redis
