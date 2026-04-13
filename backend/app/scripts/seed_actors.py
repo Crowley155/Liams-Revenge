@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
 
 from app.models import (
-    Person, PersonSource, CuratedQuote,
+    Person, PersonSource, CuratedQuote, ContactInfo,
     Entity, EntityMember,
 )
 from app.api._store import profiles, entities
@@ -71,6 +72,104 @@ PERSON_COUNTY: dict[str, str] = {
 }
 
 
+_EMAIL_RE = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
+_PHONE_RE = re.compile(r'\b(?:\d{3}[-.]?\d{3}[-.]?\d{4})\b')
+_PHONE_EXT_RE = re.compile(r'\b(\d{3}[-.]?\d{3}[-.]?\d{4}),?\s*(?:ext\.?\s*(\d+))?\b', re.IGNORECASE)
+
+# Name-to-email patterns extracted from case evidence headers
+_NAME_PATTERNS: dict[str, list[str]] = {
+    "gerri-balthazor": ["gerri balthazor", "gbalthazor"],
+    "alvie-cater": ["alvie cater", "acater"],
+    "janine-winters": ["janine winters", "janine.winters"],
+    "breanna-burks": ["breanna burks", "bre burks", "bburks"],
+    "jennifer-anderson": ["jennifer anderson", "jennifer.ander"],
+    "amy-branson": ["amy branson", "amy.branson"],
+    "leigh-white": ["leigh white"],
+    "brian-schwanz": ["brian schwanz"],
+    "will-crowley": ["william crowley", "will crowley", "william.crowley"],
+}
+
+
+def _mine_evidence_contacts(evidence: list[dict], actors: list[dict]) -> dict[str, ContactInfo]:
+    """
+    Scan all evidence bodyText for email addresses and phone numbers.
+    Match them to actor IDs by name patterns in email headers.
+    Returns {actor_id: ContactInfo}.
+    """
+    actor_name_map: dict[str, str] = {}
+    for actor in actors:
+        actor_id = actor["id"]
+        name_lower = actor["name"].lower()
+        actor_name_map[name_lower] = actor_id
+        first = name_lower.split()[0]
+        last = name_lower.split()[-1] if len(name_lower.split()) > 1 else ""
+        if last:
+            actor_name_map[last] = actor_id
+        for pattern in _NAME_PATTERNS.get(actor_id, []):
+            actor_name_map[pattern] = actor_id
+
+    contacts: dict[str, ContactInfo] = {}
+
+    for doc in evidence:
+        body = doc.get("bodyText", "")
+        if not body:
+            continue
+
+        # Extract "Name <email>" patterns from From/To/Cc lines
+        name_email_pairs = re.findall(
+            r'([A-Za-z][A-Za-z .,\'"]+?)\s*<\s*([\w.+-]+@[\w-]+\.[\w.-]+)\s*>',
+            body,
+        )
+        for raw_name, email in name_email_pairs:
+            clean_name = raw_name.strip().strip('*"\'').lower()
+            actor_id = _match_name_to_actor(clean_name, actor_name_map)
+            if actor_id:
+                if actor_id not in contacts:
+                    contacts[actor_id] = ContactInfo()
+                if not contacts[actor_id].email:
+                    contacts[actor_id].email = email.lower()
+
+        # Extract phone numbers near actor signatures
+        phone_blocks = _PHONE_EXT_RE.findall(body)
+        for phone, ext in phone_blocks:
+            phone_str = phone.strip()
+            if ext:
+                phone_str = f"{phone_str} ext {ext}"
+
+            source_id = doc.get("source", "")
+            if source_id and source_id in contacts:
+                if not contacts[source_id].phone:
+                    contacts[source_id].phone = phone_str
+            elif source_id and source_id not in contacts:
+                contacts[source_id] = ContactInfo(phone=phone_str)
+
+        # Try matching signature blocks: "*Name*\n*Title*\n*Org*\nPhone"
+        sig_pattern = re.compile(
+            r'\*([A-Z][a-z]+ [A-Z][a-z]+)\*.*?(\d{3}[-.]?\d{3}[-.]?\d{4})',
+            re.DOTALL,
+        )
+        for name_match, phone_match in sig_pattern.findall(body):
+            actor_id = _match_name_to_actor(name_match.lower(), actor_name_map)
+            if actor_id:
+                if actor_id not in contacts:
+                    contacts[actor_id] = ContactInfo()
+                if not contacts[actor_id].phone:
+                    contacts[actor_id].phone = phone_match
+
+    return contacts
+
+
+def _match_name_to_actor(name: str, actor_name_map: dict[str, str]) -> str | None:
+    """Fuzzy match a name string to an actor ID."""
+    name = name.lower().strip()
+    if name in actor_name_map:
+        return actor_name_map[name]
+    for pattern, actor_id in actor_name_map.items():
+        if pattern in name or name in pattern:
+            return actor_id
+    return None
+
+
 def _get_or_create_entity(org_name: str) -> Entity:
     """Find an existing entity by name or create one."""
     for ent in entities.values():
@@ -107,7 +206,12 @@ def seed():
 
     data = json.loads(CASE_DATA_PATH.read_text())
     actors = data.get("actors", [])
-    logger.info("Found %d actors in case-data.json", len(actors))
+    evidence = data.get("evidence", [])
+    logger.info("Found %d actors, %d evidence docs in case-data.json", len(actors), len(evidence))
+
+    mined_contacts = _mine_evidence_contacts(evidence, actors)
+    for aid, ci in mined_contacts.items():
+        logger.info("  Mined contact for %s: email=%s, phone=%s", aid, ci.email, ci.phone)
 
     created = 0
     merged = 0
@@ -137,6 +241,16 @@ def seed():
                 existing.entity_ids = (existing.entity_ids or []) + [entity.id]
             if existing.source == PersonSource.PIPELINE:
                 existing.source = PersonSource.BOTH
+            # Backfill contact info from evidence if missing
+            mined = mined_contacts.get(actor_id)
+            if mined:
+                if not existing.contact:
+                    existing.contact = mined
+                else:
+                    if mined.email and not existing.contact.email:
+                        existing.contact.email = mined.email
+                    if mined.phone and not existing.contact.phone:
+                        existing.contact.phone = mined.phone
             existing.updated_at = datetime.utcnow()
             profiles[actor_id] = existing
             logger.info("  Updated existing: %s (%s)", actor["name"], actor_id)
@@ -178,6 +292,7 @@ def seed():
                 curated_quotes=quotes,
                 entity_ids=[entity.id] if entity else [],
                 negative_anchors=NEGATIVE_ANCHORS.get(actor_id, []),
+                contact=mined_contacts.get(actor_id),
             )
             profiles[actor_id] = person
             created += 1
