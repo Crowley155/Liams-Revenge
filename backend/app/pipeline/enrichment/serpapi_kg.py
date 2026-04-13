@@ -30,6 +30,38 @@ _SOCIAL_DOMAINS = {
     "tiktok.com": "tiktok",
 }
 
+_JUNK_PATH_SEGMENTS = {
+    "linkedin": {
+        "search", "results", "posts", "pulse", "feed", "jobs", "groups",
+        "company", "school", "showcase", "learning", "sales", "talent",
+        "messaging", "notifications", "mynetwork",
+    },
+    "facebook": {
+        "search", "posts", "watch", "groups", "events", "marketplace",
+        "gaming", "pages", "stories", "reels", "hashtag", "photo",
+        "photo.php", "permalink.php", "notes",
+    },
+    "twitter": {"search", "explore", "hashtag", "i", "lists"},
+    "instagram": {"explore", "reels", "stories", "p"},
+    "youtube": {"results", "playlist", "feed", "shorts"},
+    "tiktok": {"search", "discover"},
+}
+
+
+def _is_profile_url(url: str, platform: str) -> bool:
+    """Return True only if the URL looks like an actual person/user profile page."""
+    try:
+        path_parts = set(urlparse(url).path.strip("/").lower().split("/"))
+    except Exception:
+        return False
+    junk = _JUNK_PATH_SEGMENTS.get(platform, set())
+    if path_parts & junk:
+        return False
+    clean = path_parts - {"", "in", "pub", "people"}
+    if not clean:
+        return False
+    return True
+
 
 def enrich_from_serpapi(person: Person) -> dict:
     """
@@ -62,7 +94,8 @@ def enrich_from_serpapi(person: Person) -> dict:
 
             for profile in kg.get("profiles", []):
                 url = profile.get("link", "")
-                if url and url not in seen_urls:
+                plat_name = profile.get("name", "").lower()
+                if url and url not in seen_urls and _is_profile_url(url, plat_name):
                     seen_urls.add(url)
                     social_profiles.append(SocialProfile(
                         platform=profile.get("name", "").lower(),
@@ -75,7 +108,7 @@ def enrich_from_serpapi(person: Person) -> dict:
         for result in data.get("organic_results", [])[:10]:
             url = result.get("link", "")
             platform = _detect_social_platform(url)
-            if platform and url not in seen_urls:
+            if platform and url not in seen_urls and _is_profile_url(url, platform):
                 seen_urls.add(url)
                 title = result.get("title", "").lower()
                 name_in_title = person.name.lower().split()[0] in title

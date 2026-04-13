@@ -1,8 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { fetchProfile, fetchEntities, startResearch, resetResearch, deleteProfile } from '../api/client';
+import {
+  fetchProfile, fetchEntities, startResearch, resetResearch, deleteProfile,
+  startEnrichment, updateIdentity, confirmIdentity,
+} from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
 import DocLink from '../components/DocLink';
+import EditableField from '../components/EditableField';
+import ConfidenceBar from '../components/ConfidenceBar';
+import SourceBadge from '../components/SourceBadge';
 
 const CAT_LABELS = {
   statement: 'Statement',
@@ -91,15 +97,21 @@ export default function ProfileDetail() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [launching, setLaunching] = useState(false);
+  const [enriching, setEnriching] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const reload = useCallback(() => {
     fetchProfile(id).then(setProfile).catch(() => {});
   }, [id]);
 
   const { job, isRunning, isDone, error: jobError, start: startJob } = useResearchJob({
+    onComplete: reload,
+  });
+
+  const { job: enrichJob, isRunning: enrichRunning, isDone: enrichDone, error: enrichJobError, start: startEnrichJob } = useResearchJob({
     onComplete: reload,
   });
 
@@ -151,6 +163,39 @@ export default function ProfileDetail() {
     }
   }
 
+  async function handleEnrich() {
+    setEnriching(true);
+    try {
+      const j = await startEnrichment(id);
+      startEnrichJob(j.id);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setEnriching(false);
+    }
+  }
+
+  async function handleLockIdentity() {
+    try {
+      const updated = await confirmIdentity(id);
+      setProfile(updated);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function saveField(field, value) {
+    setSaving(true);
+    try {
+      const updated = await updateIdentity(id, { [field]: value });
+      setProfile(updated);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleResetResearch() {
     setResetting(true);
     try {
@@ -185,10 +230,7 @@ export default function ProfileDetail() {
     || (profile.enrichment_sources?.length > 0);
 
   const affiliatedEntities = entities.filter((e) => entity_ids.includes(e.id));
-
-  const hasContact = contact && Object.values(contact).some(v =>
-    v && (Array.isArray(v) ? v.length > 0 : true)
-  );
+  const isConfirmed = profile.identity_confidence >= 1.0;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-up">
@@ -233,20 +275,21 @@ export default function ProfileDetail() {
               </div>
             )}
 
-            {/* Identity + Research triggers */}
+            {/* Research + Enrichment triggers */}
             <div className="mt-3 flex items-center gap-3 flex-wrap">
-              <Link
-                to={`/people/${profile.id}/identity`}
-                className="text-xs font-medium px-4 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-colors"
-              >
-                {profile.identity_confidence >= 1.0 ? 'Identity (Confirmed)' : profile.enriched_at ? 'View Identity' : 'Build Identity'}
-              </Link>
               <button
                 onClick={handleResearch}
                 disabled={launching || isRunning}
                 className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {launching ? 'Starting...' : isRunning ? 'Researching...' : hasResearch ? 'Re-research' : 'Research this person'}
+              </button>
+              <button
+                onClick={handleEnrich}
+                disabled={enriching || enrichRunning}
+                className="text-xs font-medium px-4 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {enriching ? 'Starting...' : enrichRunning ? 'Enriching...' : profile.enriched_at ? 'Re-enrich Identity' : 'Enrich Identity'}
               </button>
               {isRunning && job && (
                 <span className="text-xs text-text-dim flex items-center gap-2">
@@ -261,6 +304,15 @@ export default function ProfileDetail() {
                 <span className="text-xs text-danger">Failed: {job.error || 'unknown error'}</span>
               )}
               {jobError && <span className="text-xs text-danger">{jobError}</span>}
+              {enrichRunning && enrichJob && (
+                <span className="text-xs text-text-dim flex items-center gap-2">
+                  <span className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                  {enrichJob.status}
+                </span>
+              )}
+              {enrichDone && enrichJob?.status === 'complete' && <span className="text-xs text-success">Enrichment complete</span>}
+              {enrichDone && enrichJob?.status === 'failed' && <span className="text-xs text-danger">Enrich failed: {enrichJob.error || 'unknown'}</span>}
+              {enrichJobError && <span className="text-xs text-danger">{enrichJobError}</span>}
             </div>
 
             {/* Reset / Delete actions */}
@@ -346,31 +398,17 @@ export default function ProfileDetail() {
         </Section>
       )}
 
-      {/* Contact Info */}
-      {hasContact && (
-        <div className="bg-surface border border-border rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim mb-3">Contact &amp; Profiles</h2>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {contact.email && (
-              <a href={`mailto:${contact.email}`} className="flex items-center gap-2 text-sm text-accent hover:text-accent-hover transition-colors">
-                <span className="text-text-dim">Email</span> {contact.email}
-              </a>
-            )}
-            {contact.phone && (
-              <a href={`tel:${contact.phone}`} className="flex items-center gap-2 text-sm text-accent hover:text-accent-hover transition-colors">
-                <span className="text-text-dim">Phone</span> {contact.phone}
-              </a>
-            )}
-            {contact.address && (
-              <p className="flex items-center gap-2 text-sm text-text">
-                <span className="text-text-dim">Address</span> {contact.address}
-              </p>
-            )}
-            {contact.linkedin_url && (
-              <a href={contact.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-accent hover:text-accent-hover transition-colors">
-                <span className="text-text-dim">LinkedIn</span> Profile &rarr;
-              </a>
-            )}
+      {/* Contact & Identity — editable */}
+      <div className="bg-surface border border-accent/20 rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Contact &amp; Identity</h2>
+        <div className="space-y-0.5">
+          <EditableField label="Email" value={contact?.email} onSave={(v) => saveField('email', v)} placeholder="name@example.com" />
+          <EditableField label="Phone" value={contact?.phone} onSave={(v) => saveField('phone', v)} placeholder="913-555-1234" />
+          <EditableField label="LinkedIn URL" value={contact?.linkedin_url} onSave={(v) => saveField('linkedin_url', v)} placeholder="https://linkedin.com/in/username" />
+          <EditableField label="Address" value={contact?.address} onSave={(v) => saveField('address', v)} placeholder="123 Main St, City, ST" />
+        </div>
+        {(contact?.twitter_handle || contact?.facebook_url || contact?.other_urls?.length > 0) && (
+          <div className="mt-3 pt-3 border-t border-border grid gap-2 sm:grid-cols-2">
             {contact.twitter_handle && (
               <a href={`https://twitter.com/${contact.twitter_handle.replace('@', '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm text-accent hover:text-accent-hover transition-colors">
                 <span className="text-text-dim">X/Twitter</span> {contact.twitter_handle}
@@ -387,20 +425,48 @@ export default function ProfileDetail() {
               </a>
             ))}
           </div>
+        )}
+      </div>
+
+      {/* Basic Identity Fields — editable */}
+      <div className="bg-surface border border-border rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim mb-3">Basic Info</h2>
+        <div className="space-y-0.5">
+          <EditableField label="City" value={profile.city} onSave={(v) => saveField('city', v)} placeholder="e.g. Lenexa" />
+          <EditableField label="County" value={profile.county} onSave={(v) => saveField('county', v)} placeholder="e.g. Johnson" />
+          <EditableField label="Date of Birth" value={profile.date_of_birth} onSave={(v) => saveField('date_of_birth', v)} placeholder="YYYY-MM-DD" />
+          <EditableField label="Gender" value={profile.gender} onSave={(v) => saveField('gender', v)} />
         </div>
-      )}
+      </div>
 
       {/* Identity Confidence */}
       {profile.identity_confidence > 0 && (
         <div className="bg-surface border border-border rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim">Identity Confidence</h2>
-            <span className="text-sm font-bold" style={{
-              color: profile.identity_confidence >= 0.7 ? 'var(--color-success)' :
-                     profile.identity_confidence >= 0.4 ? 'var(--color-warning)' : 'var(--color-danger)'
-            }}>
-              {Math.round(profile.identity_confidence * 100)}%
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-bold" style={{
+                color: profile.identity_confidence >= 0.7 ? 'var(--color-success)' :
+                       profile.identity_confidence >= 0.4 ? 'var(--color-warning)' : 'var(--color-danger)'
+              }}>
+                {Math.round(profile.identity_confidence * 100)}%
+              </span>
+              {!isConfirmed && (
+                <button
+                  onClick={handleLockIdentity}
+                  className="text-[10px] font-medium px-2 py-0.5 rounded bg-success/15 text-success hover:bg-success/25 transition-colors"
+                  title="Sets confidence to 100% — confirms you've reviewed and verified this person's identity data is correct"
+                >
+                  Lock Identity
+                </button>
+              )}
+              {isConfirmed && (
+                <span className="text-[10px] text-success font-medium flex items-center gap-1">
+                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
+                  Locked
+                </span>
+              )}
+            </div>
           </div>
           <div className="w-full h-2 bg-surface-alt rounded-full overflow-hidden">
             <div
@@ -415,36 +481,55 @@ export default function ProfileDetail() {
           {profile.enrichment_sources?.length > 0 && (
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {profile.enrichment_sources.map((src, i) => (
-                <span key={i} className="text-[10px] bg-accent/10 text-accent px-2 py-0.5 rounded-full">
-                  {src}
-                </span>
+                <SourceBadge key={i} source={src} />
               ))}
             </div>
+          )}
+          {profile.enriched_at && (
+            <p className="text-[10px] text-text-dim mt-1">Last enriched: {new Date(profile.enriched_at).toLocaleString()}</p>
           )}
         </div>
       )}
 
-      {/* Social Profiles */}
+      {/* Social Profiles — with confidence + source */}
       {profile.social_profiles?.length > 0 && (
         <Section title="Social Profiles" count={profile.social_profiles.length}>
-          <div className="grid gap-2 sm:grid-cols-2">
+          <div className="space-y-2">
             {profile.social_profiles.map((sp, i) => (
-              <a
-                key={i}
-                href={sp.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-3 bg-surface border border-border rounded-lg p-3 hover:border-accent/40 transition-colors"
-              >
+              <div key={i} className="flex items-center gap-3 bg-surface border border-border rounded-lg p-3 hover:border-accent/40 transition-colors">
                 <span className="text-xs font-bold uppercase tracking-wider text-accent w-20 shrink-0">
                   {sp.platform}
                 </span>
-                <span className="text-sm text-text truncate">{sp.username || sp.url}</span>
+                <a
+                  href={sp.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-accent hover:text-accent-hover transition-colors truncate flex-1"
+                >
+                  {sp.username || sp.url}
+                </a>
+                <ConfidenceBar value={sp.confidence || 0} />
+                <SourceBadge source={sp.source} />
                 {sp.verified && <span className="text-[10px] text-success ml-auto shrink-0">Verified</span>}
-              </a>
+              </div>
             ))}
           </div>
         </Section>
+      )}
+
+      {/* Profile Intelligence */}
+      {profile.profile_intel?.length > 0 && (
+        <div className="bg-surface border border-purple-400/30 rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-3">Profile Intelligence</h2>
+          <div className="space-y-2">
+            {profile.profile_intel.map((item, i) => (
+              <div key={i} className="flex items-start gap-2 text-sm text-text">
+                <span className="text-purple-400 mt-0.5 shrink-0">&#x2022;</span>
+                <p className="leading-relaxed">{item}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Employment History */}
@@ -457,7 +542,8 @@ export default function ProfileDetail() {
                   <p className="text-sm font-medium text-text">{emp.title || 'Unknown title'}</p>
                   <p className="text-xs text-text-dim">{emp.organization}</p>
                 </div>
-                <div className="text-right shrink-0">
+                <div className="text-right shrink-0 flex items-center gap-2">
+                  <SourceBadge source={emp.source} />
                   {emp.current && <span className="text-[10px] text-success font-medium">Current</span>}
                   {(emp.start_date || emp.end_date) && (
                     <p className="text-[11px] text-text-dim">
@@ -485,7 +571,10 @@ export default function ProfileDetail() {
                     </p>
                   )}
                 </div>
-                {edu.year && <span className="text-[11px] text-text-dim shrink-0">{edu.year}</span>}
+                <div className="flex items-center gap-2 shrink-0">
+                  <SourceBadge source={edu.source} />
+                  {edu.year && <span className="text-[11px] text-text-dim">{edu.year}</span>}
+                </div>
               </div>
             ))}
           </div>
@@ -495,11 +584,28 @@ export default function ProfileDetail() {
       {/* Addresses */}
       {profile.addresses?.length > 0 && (
         <Section title="Known Locations" count={profile.addresses.length}>
-          <div className="flex flex-wrap gap-2">
+          <div className="space-y-2">
             {profile.addresses.map((addr, i) => (
-              <span key={i} className="text-xs bg-surface border border-border rounded-full px-3 py-1.5 text-text-dim">
-                {[addr.street, addr.city, addr.state, addr.zip_code].filter(Boolean).join(', ')}
-                {addr.current && <span className="ml-1 text-success">&#x2022;</span>}
+              <div key={i} className="flex items-center gap-3 bg-surface border border-border rounded-lg p-3">
+                <span className="text-xs text-text-dim w-16 shrink-0 capitalize">{addr.type}</span>
+                <span className="text-sm text-text flex-1">
+                  {[addr.street, addr.city, addr.state, addr.zip_code].filter(Boolean).join(', ')}
+                </span>
+                {addr.current && <span className="text-[10px] text-success">Current</span>}
+                <SourceBadge source={addr.source} />
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Known Associates */}
+      {profile.known_associates?.length > 0 && (
+        <Section title="Known Associates" count={profile.known_associates.length}>
+          <div className="flex flex-wrap gap-2">
+            {profile.known_associates.map((name, i) => (
+              <span key={i} className="text-xs bg-surface-alt border border-border rounded-full px-3 py-1 text-text-dim">
+                {name}
               </span>
             ))}
           </div>

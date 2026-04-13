@@ -269,6 +269,7 @@ class Person(BaseModel):
     employer_history: list[Employment] = Field(default_factory=list)
     education: list[Education] = Field(default_factory=list)
     known_associates: list[str] = Field(default_factory=list)
+    profile_intel: list[str] = Field(default_factory=list, description="LLM-extracted intelligence bullets from social profiles")
     date_of_birth: Optional[str] = None
     gender: Optional[str] = None
     identity_confidence: float = Field(default=0.0, description="0-1 how sure we are this profile is unified correctly")

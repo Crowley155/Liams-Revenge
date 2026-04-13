@@ -1,15 +1,18 @@
 """
-Worker 4: Direct social profile scraping.
+Worker 4: Direct social profile scraping + LLM intelligence extraction.
 
 For confirmed social profile URLs, fetch the public page and extract
-structured identity data (bio, headline, location, employer, education).
-Uses SerpAPI's google cache or direct fetch.
+structured identity data (bio, headline, location, employer, education)
+via regex, then run an LLM pass to extract profile intelligence bullets.
 """
 from __future__ import annotations
 
+import json
 import logging
 import re
 from urllib.parse import urlparse
+
+import dspy
 
 from app.config import settings
 from app.models import Person, SocialProfile, Employment, Education, Address
@@ -18,12 +21,54 @@ from app.pipeline.tools.web_search import fetch_page
 logger = logging.getLogger(__name__)
 
 
+class ExtractProfileIntel(dspy.Signature):
+    """Extract intelligence from a social media profile page for a person.
+
+    You are given the raw text of a public social profile page. Extract:
+    1. Any structured data (employer, title, education, location)
+    2. Short bullet points of notable findings useful for due diligence
+       or opposition research — affiliations, public positions, notable
+       connections, career moves, anything that reveals character or leverage.
+
+    Return valid JSON with these fields:
+    - bio: one-sentence headline/bio (null if not found)
+    - employer: current employer name (null if not found)
+    - title: current job title (null if not found)
+    - location: city, state (null if not found)
+    - education: list of institution names
+    - intel: list of short bullet-point strings (max 10) — notable facts,
+      affiliations, public positions, anything useful for oppo research.
+      Each bullet should be a single concise sentence.
+    """
+    person_name: str = dspy.InputField(desc="Full name of the target person")
+    platform: str = dspy.InputField(desc="Social platform: linkedin, facebook, twitter, etc.")
+    profile_text: str = dspy.InputField(desc="Raw text content of the profile page")
+
+    extracted_json: str = dspy.OutputField(
+        desc='Valid JSON: {"bio", "employer", "title", "location", "education": [], "intel": []}'
+    )
+
+
+_intel_module: dspy.Module | None = None
+
+
+def _get_intel_module() -> dspy.Module:
+    global _intel_module
+    if _intel_module is not None:
+        return _intel_module
+
+    lm = dspy.LM(settings.collect_model, max_tokens=1024, temperature=0.1)
+    _intel_module = dspy.Predict(ExtractProfileIntel)
+    dspy.configure(lm=lm)
+    return _intel_module
+
+
 def enrich_from_social_profiles(person: Person) -> dict:
     """
-    Scrape public social profiles for identity data.
+    Scrape public social profiles for identity data + LLM intelligence.
 
     Returns dict with keys:
-      employer_history, education, addresses, bio_snippet, social_updates
+      employer_history, education, addresses, bio_snippet, social_updates, profile_intel
     """
     result = {
         "employer_history": [],
@@ -31,6 +76,7 @@ def enrich_from_social_profiles(person: Person) -> dict:
         "addresses": [],
         "bio_snippet": None,
         "social_updates": [],
+        "profile_intel": [],
     }
 
     verified_or_likely = [
@@ -40,34 +86,107 @@ def enrich_from_social_profiles(person: Person) -> dict:
 
     for sp in verified_or_likely[:5]:
         try:
-            data = _scrape_profile(sp, person.name)
-            _merge_into(result, data)
+            text = fetch_page(sp.url)
+            if not text or text.startswith("Error"):
+                continue
+
+            regex_data = _scrape_profile_regex(sp, text, person.name)
+            _merge_into(result, regex_data)
+
+            intel_data = _llm_extract_profile_intel(text, person.name, sp.platform)
+            _merge_intel(result, intel_data)
+
         except Exception as e:
-            logger.warning("Failed to scrape %s: %s", sp.url, e)
+            logger.warning("Failed to process %s: %s", sp.url, e)
 
     return result
 
 
-def _scrape_profile(sp: SocialProfile, person_name: str) -> dict:
-    """Fetch and parse a single social profile page."""
-    text = fetch_page(sp.url)
-    if not text or text.startswith("Error"):
+def _scrape_profile_regex(sp: SocialProfile, text: str, person_name: str) -> dict:
+    """Regex-based extraction from a single social profile page."""
+    if sp.platform == "linkedin":
+        return _parse_linkedin_text(text, person_name)
+    elif sp.platform == "facebook":
+        return _parse_facebook_text(text, person_name)
+    elif sp.platform == "twitter":
+        return _parse_twitter_text(text, person_name)
+    return {}
+
+
+def _llm_extract_profile_intel(text: str, person_name: str, platform: str) -> dict:
+    """Run LLM to extract structured intel from a profile page."""
+    truncated = text[:3000]
+    if len(truncated) < 50:
         return {}
 
-    data: dict = {}
+    try:
+        module = _get_intel_module()
+        result = module(
+            person_name=person_name,
+            platform=platform,
+            profile_text=truncated,
+        )
 
-    if sp.platform == "linkedin":
-        data = _parse_linkedin_text(text, person_name)
-    elif sp.platform == "facebook":
-        data = _parse_facebook_text(text, person_name)
-    elif sp.platform == "twitter":
-        data = _parse_twitter_text(text, person_name)
+        raw = result.extracted_json
+        if raw.startswith("```"):
+            raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0]
 
-    return data
+        parsed = json.loads(raw)
+
+        logger.info(
+            "LLM profile intel for %s (%s): %d bullets, employer=%s",
+            person_name, platform,
+            len(parsed.get("intel", [])),
+            parsed.get("employer"),
+        )
+        return parsed
+
+    except json.JSONDecodeError as e:
+        logger.warning("LLM profile intel returned invalid JSON: %s", e)
+        return {}
+    except Exception as e:
+        logger.warning("LLM profile intel failed (non-fatal): %s", e)
+        return {}
+
+
+def _merge_intel(target: dict, llm_data: dict):
+    """Merge LLM extraction results into the worker result dict."""
+    if not llm_data:
+        return
+
+    if llm_data.get("bio") and not target.get("bio_snippet"):
+        target["bio_snippet"] = llm_data["bio"]
+
+    if llm_data.get("employer") and llm_data.get("title"):
+        target.setdefault("employer_history", []).append(Employment(
+            organization=llm_data["employer"],
+            title=llm_data.get("title", ""),
+            current=True,
+            source="llm_profile_intel",
+        ))
+
+    if llm_data.get("location"):
+        parts = llm_data["location"].split(",")
+        if len(parts) >= 2:
+            target.setdefault("addresses", []).append(Address(
+                city=parts[0].strip(),
+                state=parts[-1].strip(),
+                source="llm_profile_intel",
+            ))
+
+    for inst in llm_data.get("education", []):
+        if isinstance(inst, str) and inst.strip():
+            target.setdefault("education", []).append(Education(
+                institution=inst.strip()[:100],
+                source="llm_profile_intel",
+            ))
+
+    for bullet in llm_data.get("intel", [])[:10]:
+        if isinstance(bullet, str) and bullet.strip():
+            target.setdefault("profile_intel", []).append(bullet.strip())
 
 
 def _parse_linkedin_text(text: str, name: str) -> dict:
-    """Extract structured data from LinkedIn's public profile text."""
     result: dict = {"employer_history": [], "education": [], "addresses": [], "bio_snippet": None}
 
     lines = text.split("\n")
@@ -92,7 +211,6 @@ def _parse_linkedin_text(text: str, name: str) -> dict:
 
 
 def _parse_facebook_text(text: str, name: str) -> dict:
-    """Best-effort extraction from Facebook public profile text."""
     result: dict = {"employer_history": [], "education": [], "addresses": [], "bio_snippet": None}
 
     loc_patterns = [

@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { CaseProvider } from './data/useCase';
 import { EvidencePanelProvider } from './components/EvidencePanel';
 import Layout from './components/Layout';
@@ -9,7 +9,11 @@ import Sources from './pages/Sources';
 import WhatsNext from './pages/WhatsNext';
 import ProfileDetail from './pages/ProfileDetail';
 import EntityDetail from './pages/EntityDetail';
-import IdentityEditor from './pages/IdentityEditor';
+
+function IdentityRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/people/${id}`} replace />;
+}
 
 export default function App() {
   return (
@@ -21,7 +25,7 @@ export default function App() {
               <Route index element={<Overview />} />
               <Route path="people" element={<People />} />
               <Route path="people/:id" element={<ProfileDetail />} />
-              <Route path="people/:id/identity" element={<IdentityEditor />} />
+              <Route path="people/:id/identity" element={<IdentityRedirect />} />
               <Route path="entities/:id" element={<EntityDetail />} />
               <Route path="non-compliance" element={<NonCompliance />} />
               <Route path="sources" element={<Sources />} />

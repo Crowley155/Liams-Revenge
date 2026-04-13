@@ -28,6 +28,7 @@ def unify_enrichment(person: Person, worker_results: list[dict]) -> Person:
     all_employers: list[Employment] = []
     all_education: list[Education] = []
     all_associates: list[str] = list(person.known_associates)
+    all_intel: list[str] = list(person.profile_intel)
     sources_used: set[str] = set(person.enrichment_sources)
     bio_snippets: list[str] = []
 
@@ -42,6 +43,8 @@ def unify_enrichment(person: Person, worker_results: list[dict]) -> Person:
             all_education.extend(result["education"])
         if result.get("known_associates"):
             all_associates.extend(result["known_associates"])
+        if result.get("profile_intel"):
+            all_intel.extend(result["profile_intel"])
         if result.get("bio_snippet"):
             bio_snippets.append(result["bio_snippet"])
 
@@ -54,6 +57,14 @@ def unify_enrichment(person: Person, worker_results: list[dict]) -> Person:
     person.employer_history = _dedup_employers(person.employer_history + all_employers)
     person.education = _dedup_education(person.education + all_education)
     person.known_associates = list(set(all_associates))
+    seen_intel = set()
+    deduped_intel = []
+    for bullet in all_intel:
+        normalized = bullet.strip().lower()
+        if normalized not in seen_intel:
+            seen_intel.add(normalized)
+            deduped_intel.append(bullet.strip())
+    person.profile_intel = deduped_intel
     person.enrichment_sources = sorted(sources_used)
 
     for result in worker_results:
