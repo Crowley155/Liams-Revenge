@@ -219,6 +219,16 @@ export default function IdentityEditor() {
         )}
       </div>
 
+      {/* Contact & Key Anchors */}
+      <section className="bg-surface border border-accent/20 rounded-xl p-5" style={{ boxShadow: 'var(--shadow-card)' }}>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Contact &amp; Enrichment Anchors</h2>
+        <div className="space-y-0.5">
+          <EditableField label="Email" value={profile.contact?.email} onSave={(v) => saveField('email', v)} placeholder="name@example.com" />
+          <EditableField label="Phone" value={profile.contact?.phone} onSave={(v) => saveField('phone', v)} placeholder="913-555-1234" />
+          <EditableField label="LinkedIn URL" value={profile.contact?.linkedin_url} onSave={(v) => saveField('linkedin_url', v)} placeholder="https://linkedin.com/in/username" />
+        </div>
+      </section>
+
       {/* Basic Identity Fields */}
       <section className="bg-surface border border-border rounded-xl p-5" style={{ boxShadow: 'var(--shadow-card)' }}>
         <h2 className="text-xs font-bold uppercase tracking-wider text-text-dim mb-3">Basic Info</h2>

@@ -31,6 +31,9 @@ class IdentityUpdate(BaseModel):
     county: Optional[str] = None
     date_of_birth: Optional[str] = None
     gender: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin_url: Optional[str] = None
     addresses: Optional[list[Address]] = None
     social_profiles: Optional[list[SocialProfile]] = None
     employer_history: Optional[list[Employment]] = None
@@ -93,6 +96,24 @@ async def update_identity(person_id: str, update: IdentityUpdate):
         person.date_of_birth = update.date_of_birth
     if update.gender is not None:
         person.gender = update.gender
+    if update.email is not None or update.phone is not None or update.linkedin_url is not None:
+        from app.models import ContactInfo
+        if not person.contact:
+            person.contact = ContactInfo()
+        if update.email is not None:
+            person.contact.email = update.email
+        if update.phone is not None:
+            person.contact.phone = update.phone
+        if update.linkedin_url is not None:
+            person.contact.linkedin_url = update.linkedin_url
+            existing_urls = {sp.url for sp in person.social_profiles}
+            if update.linkedin_url and update.linkedin_url not in existing_urls:
+                from app.models import SocialProfile
+                person.social_profiles.append(SocialProfile(
+                    platform="linkedin", url=update.linkedin_url,
+                    username=update.linkedin_url.rstrip("/").split("/")[-1],
+                    confidence=1.0, source="manual", verified=True,
+                ))
     if update.addresses is not None:
         person.addresses = update.addresses
     if update.social_profiles is not None:
