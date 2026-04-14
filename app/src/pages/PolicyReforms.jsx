@@ -24,30 +24,30 @@ const SECTIONS = [
       {
         title: 'Prohibit Personal Cell Phone Use During Active Supervision',
         description:
-          'Adopt an explicit policy prohibiting supervising staff from using personal cell phones while responsible for children. Five staff were outside during the assault and none witnessed it. Active supervision requires active attention. Kansas KDHE regulations require staff to maintain "active awareness of and responsibility for each child\'s activity" — a phone in hand undermines that obligation.',
-        basis: 'K.A.R. 28-4-420',
+          'On March 19, 2026 — fourteen days before this assault — Governor Kelly signed HB 2299, banning student cell phones in Kansas schools bell-to-bell. The basis: phones are so cognitively disruptive that children cannot be expected to learn in their presence. The University of Texas "Brain Drain" study (Ward et al., 2017) found that the mere presence of a smartphone — even silenced and face-down — measurably reduces available working memory and cognitive capacity. If the State of Kansas recognizes that a phone degrades a child\'s ability to pay attention in a classroom, the same science applies to an adult\'s ability to supervise children on a playground. Five staff were outside during the assault. None witnessed it. K.A.R. 28-4-420 requires staff to maintain "active awareness of and responsibility for each child\'s activity." Adopt an explicit policy: no personal cell phone use while on active supervision duty.',
+        basis: 'HB 2299 / Ward et al., 2017 / K.A.R. 28-4-420',
         basisId: 'AUTH-08',
       },
       {
-        title: 'Reform Medical Assessment Protocol',
+        title: 'Reform Medical Assessment Protocol for Physical Assaults',
         description:
-          'Eliminate any policy that allows on-site staff to make medical judgments about whether treatment is necessary. When a nine-year-old — roughly twice the size of a kindergartener — physically assaults a smaller child, staff are not qualified to rule out internal injuries, concussion, or spinal damage. The default response must be immediate parent notification and a recommendation for medical evaluation. The incident report stated "no medical treatment was necessary." The child was under pediatric care for a week.',
-        basis: 'DOC-017 / K.S.A. 65-508',
+          'K.A.R. 28-4-592(g)(1)(E) triggers the critical incident protocol for any injury "that requires medical attention" — but the regulation places that determination in the hands of staff whose highest qualification is a first aid/CPR certification (K.A.R. 28-4-592(c)(1)). That training does not equip staff to rule out internal injuries, concussion, or spinal damage — especially when a nine-year-old, roughly twice the size of a kindergartener, physically assaults a smaller child. For any incident involving a physical assault or significant age/size disparity, the default must be immediate parent notification and a recommendation for professional medical evaluation. Staff should not be in the position of gate-keeping a determination they are not trained to make. Separately, K.A.R. 28-4-592(g)(1)(G) defines "any other incident that jeopardizes the safety of any child" as a critical incident — a physical assault qualifies on its own, regardless of the medical judgment. The incident report in this case stated "no medical treatment was necessary." The child was under pediatric care for a week.',
+        basis: 'K.A.R. 28-4-592(g)(1)(E), (G), (c)(1)',
         basisId: 'DOC-017',
       },
       {
-        title: 'Overhaul Incident Reporting Standards',
+        title: 'Overhaul Incident Report Standards',
         description:
-          'Require incident reports to be reviewed by a supervisor within 24 hours, include all known facts at the time of completion, and be updated as new information becomes available. The current report contradicted subsequent medical evidence and was acknowledged by the program manager as incomplete — "written the day the incident occurred; does not include later information." An incomplete report for a child who required medical attention is not acceptable under KDHE record-keeping requirements.',
+          'The incident report in this case was not a factual account — it was a defensive narrative. Despite the form\'s own instruction to "State only facts," the report was built primarily on the older child\'s account, characterized the six-year-old victim as the primary aggressor, made no mention of the other child\'s age, size, or grade, listed staff as "witnesses" who by the report\'s own admission did not see the event, presented disputed claims as settled fact, included an unsupported medical determination ("no medical treatment was necessary"), and was later acknowledged by the program manager as incomplete. Incident reports must: (1) document only firsthand observations, clearly labeled; (2) identify all children involved by age and grade; (3) distinguish between witnessed facts and secondhand accounts; (4) never include medical determinations by non-medical staff; and (5) be reviewed by a supervisor before being shared with families. K.S.A. 65-507 requires licensed facilities to maintain accurate records. A report designed to close a conversation rather than document an incident does not meet that standard.',
         basis: 'DOC-017 / K.S.A. 65-507',
-        basisId: 'AUTH-58',
+        basisId: 'DOC-017',
       },
       {
-        title: 'Mandatory Immediate Parent Notification',
+        title: 'Adopt Protective Interview Procedures for Minor Children',
         description:
-          'Implement a policy requiring immediate, direct parent notification — by phone, not text — for any physical incident involving a child. Notification must include what happened, who was involved, what injuries were observed, and what actions were taken. Parents should never learn details about their child\'s assault piecemeal, days later, through follow-up questions they had to initiate themselves.',
-        basis: 'K.S.A. 65-508',
-        basisId: 'AUTH-45',
+          'After the assault, staff questioned the six-year-old victim in the same room as the older child who attacked him. A kindergartener being interviewed in the physical presence of a larger, older aggressor is inherently coercive — the child will say whatever ends the stress of the situation. This is not a theoretical concern; it is a recognized principle in child forensic interviewing. Adopt a written policy requiring: (1) children involved in a physical incident are separated immediately and interviewed individually; (2) no child is questioned in the presence of the other child involved; (3) a parent or guardian is notified before any substantive interview of a child under age eight; and (4) interview notes distinguish between a child\'s spontaneous statements and responses to staff questioning. The current process produced a report that relied on the older child\'s account to characterize the victim as the aggressor — exactly the outcome a proper interview protocol is designed to prevent.',
+        basis: 'DOC-017',
+        basisId: 'DOC-017',
       },
     ],
   },
