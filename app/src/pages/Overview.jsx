@@ -76,45 +76,7 @@ export default function Overview() {
         </div>
       </section>
 
-      {/* Section 2: Key Players */}
-      <section className="animate-fade-up delay-1">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold">Key Players</h3>
-          <Link to="/people" className="text-xs text-accent hover:text-accent-hover">
-            View all →
-          </Link>
-        </div>
-        <div className="flex gap-4 flex-wrap">
-          {(data.actors || [])
-            .filter((a) =>
-              ['will-crowley', 'alvie-cater', 'leigh-white', 'brian-schwanz', 'gerri-balthazor', 'jennifer-anderson'].includes(a.id)
-            )
-            .map((a) => {
-              const orgClass =
-                a.org === 'USD 232' ? 'bg-accent/15 text-accent' : a.org === 'JCPRD' ? 'bg-danger/15 text-danger' : 'bg-success/15 text-success';
-              const initials = a.name.split(' ').map((w) => w[0]).join('').slice(0, 2);
-              return (
-                <Link
-                  key={a.id}
-                  to={`/people/${a.id}`}
-                  className="flex items-center gap-3 bg-surface border border-border rounded-lg px-4 py-3 card-hover"
-                >
-                  <div
-                    className={`w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${orgClass}`}
-                  >
-                    {initials}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">{a.name}</p>
-                    <p className="text-xs text-text-dim">{a.role}</p>
-                  </div>
-                </Link>
-              );
-            })}
-        </div>
-      </section>
-
-      {/* Section 3: The Manufactured Trust */}
+      {/* Section 2: The Manufactured Trust */}
       <section className="animate-fade-up delay-2">
         <h3 className="text-lg font-bold mb-2">The Manufactured Trust</h3>
         <p className="text-xs text-text-dim mb-6">
