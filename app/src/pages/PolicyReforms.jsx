@@ -86,13 +86,6 @@ const SECTIONS = [
         basisId: 'BP-03',
       },
       {
-        title: 'Staff KG-Compliant Employee During Third-Party Programs',
-        description:
-          'Assign a USD 232 employee to be on duty whenever a non-school group uses district facilities for activities involving children — as Policy KG requires. This employee serves as the district\'s eyes on the ground and ensures board policies are being followed in real time, not just on paper.',
-        basis: 'USD 232 Policy KG',
-        basisId: 'BP-01',
-      },
-      {
         title: 'Transparent Enrollment Disclosure',
         description:
           'Require that all registration materials, website pages, and parent communications clearly and prominently disclose whether a program is operated by the district or by a third party. Parents must be told — before they enroll their child — who is responsible for supervision, who sets the safety standards, and who to contact if something goes wrong. This distinction was never communicated. It should have been the first thing parents saw.',
@@ -108,25 +101,11 @@ const SECTIONS = [
     color: 'var(--color-success)',
     reforms: [
       {
-        title: 'Establish a Joint Incident Investigation Protocol',
+        title: 'Establish a Joint Investigation Protocol for Critical Incidents',
         description:
-          'Create a binding, written protocol requiring both entities to participate in a joint investigation of any incident involving injury to a child on school property. The current arrangement — where each entity tells the parent to contact the other — is not a policy gap. It is an accountability gap. No parent should have to file police reports, DCF complaints, and formal grievances unassisted because neither institution will own the problem.',
-        basis: 'DOC-004 / DOC-012',
+          'Create a binding, written protocol requiring both entities to participate in a joint investigation of critical incidents on school property — specifically those involving physical assault, significant age or size disparity between children, or injuries that trigger K.A.R. 28-4-592(g)(1) reporting. Not every scraped knee needs a task force. But when a nine-year-old assaults a kindergartener and the pediatrician files a mandatory DCF report, someone needs to own it. The protocol must designate a single point of contact for the affected family — one person responsible for coordinating between entities and providing updates. The current arrangement, where each entity tells the parent to contact the other, is not a policy gap. It is an accountability gap. No parent should have to file police reports, DCF complaints, and formal grievances unassisted because neither institution will take responsibility.',
+        basis: 'DOC-004 / DOC-012 / K.A.R. 28-4-592(g)(1)',
         basisId: 'DOC-004',
-      },
-      {
-        title: 'Single Point of Contact for Parents After an Incident',
-        description:
-          'Designate a single named individual — from either entity — as the parent\'s point of contact following any incident. That person is responsible for providing updates, coordinating between entities, and ensuring the parent is not forced to navigate the bureaucracy alone. "That\'s not our department" is not an acceptable response to a parent whose child was harmed.',
-        basis: 'DOC-004 / DOC-012 / DOC-014',
-        basisId: 'DOC-012',
-      },
-      {
-        title: 'Annual Safety Report to Parents',
-        description:
-          'Publish a joint annual report to enrolled families documenting: total incidents, types of incidents, staff-to-child ratios observed, policy compliance audit results, and any corrective actions taken. Transparency is the minimum standard. Parents who entrust their children to this program deserve to know whether it\'s working.',
-        basis: 'K.S.A. 65-508 / Lease §8(d)',
-        basisId: 'AUTH-45',
       },
     ],
   },

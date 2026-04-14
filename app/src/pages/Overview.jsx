@@ -60,8 +60,10 @@ export default function Overview() {
             On <strong className="text-text">April 2, 2026</strong>, my {ageLabel} was
             assaulted by a nine-year-old at Mize Elementary — during what I was told was
             a supervised after-school program. According to the incident report, five staff
-            were outside. None of them saw it happen. My son came home with visible injuries
-            and spent a week home on pediatrician's orders.
+            were outside. None of them saw it happen. His pediatrician found the injuries
+            concerning enough to keep him home for a week and — as a mandatory reporter —
+            file a report with DCF. The program's incident report, filed the same day,
+            concluded "no medical treatment was necessary."
           </p>
           <p className="text-pretty">
             The program filed an incident report the same day. It characterized my
