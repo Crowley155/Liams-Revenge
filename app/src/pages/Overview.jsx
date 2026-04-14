@@ -127,7 +127,7 @@ export default function Overview() {
               },
               {
                 quote: 'The programs JCPRD provides are invaluable to some of our families that need childcare during the summer and before and after school.',
-                source: 'Schwanz Memo to USD 232 Board',
+                source: 'Deputy Superintendent Memo to USD 232 Board',
                 sourceId: 'AUTH-43',
                 detail: 'The district\'s own Deputy Superintendent presented this to the Board as a district-endorsed service for "our families" — not an arms-length commercial arrangement.',
               },
@@ -158,7 +158,7 @@ export default function Overview() {
               },
               {
                 quote: 'Our policy is to not intermingle age groups at recess or any other time during the school day. Additionally, kindergarten students are required to remain within set parameters of the playground (the green turf area). We typically have 3–4 adults supervising.',
-                source: 'BreAnna Burks, Mize Elementary, Sep 18, 2025',
+                source: 'Mize Elementary School Staff, Sep 18, 2025',
                 sourceId: 'DOC-028',
                 detail: 'Seven months before the assault, school staff gave the parent an explicit guarantee of age separation and direct supervision — on the same property where JCPRD operates. A parent hearing this would reasonably believe the after-school program follows the same rules.',
               },
@@ -194,8 +194,8 @@ export default function Overview() {
         <div className="mt-10 sm:mt-12 bg-surface border border-border rounded-xl p-6 sm:p-8 space-y-5">
           <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
             The "separate entity" characterization appears in records only after the assault:
-            Principal Balthazor used it in her response (DOC-004), and Alvie Cater used it
-            in his reply to the parent's complaint (DOC-012). Based on available records,
+            The school principal used it in her response (DOC-004), and a district
+            administrator used it in his reply to the parent's complaint (DOC-012). Based on available records,
             this distinction was not communicated during registration or in prior parent
             communications. JCPRD's own handbook states its programs "function independently"
             (<DocLink id="AUTH-41" />), though the lease agreement requires compliance with
@@ -204,7 +204,7 @@ export default function Overview() {
           <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
             The incident report states "no medical treatment was necessary," though the child
             was subsequently under pediatric care and a DCF report was filed. The report lists
-            witnesses who did not observe the assault, and JCPRD Manager Jennifer Anderson stated
+            witnesses who did not observe the assault, and the JCPRD program manager stated
             it was "written the day the incident occurred; does not include later information."
             <DocLink id="DOC-017" />
           </p>
