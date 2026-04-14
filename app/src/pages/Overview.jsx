@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useCase } from '../data/useCase';
 import DocLink from '../components/DocLink';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import {
   generateKoraRequests, fetchKoraRequests, markKoraSent, updateKoraRequest,
   uploadDocument, fetchDocuments, fetchEntities, getJobStatus,
@@ -10,6 +11,7 @@ import {
 
 export default function Overview() {
   const data = useCase();
+  const { isAuthenticated } = useAuth();
   const ageLabel = data.meta?.studentAgeLabel || 'six-year-old';
   const videoUrl = data.meta?.videoUrl;
   const [showVideo, setShowVideo] = useState(false);
@@ -188,8 +190,8 @@ export default function Overview() {
         </div>
       </section>
 
-      {/* Section 4: KORA Requests + Document Upload */}
-      <KoraSection />
+      {/* Section 4: KORA Requests + Document Upload (auth-gated) */}
+      {isAuthenticated && <KoraSection />}
 
     </div>
   );
