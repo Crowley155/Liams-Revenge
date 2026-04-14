@@ -10,6 +10,7 @@ import People from './pages/People';
 import NonCompliance from './pages/NonCompliance';
 import Sources from './pages/Sources';
 import WhatsNext from './pages/WhatsNext';
+import PolicyReforms from './pages/PolicyReforms';
 import ProfileDetail from './pages/ProfileDetail';
 import EntityDetail from './pages/EntityDetail';
 import MemberPreview from './pages/MemberPreview';
@@ -30,6 +31,7 @@ export default function App() {
                 {/* Public routes */}
                 <Route index element={<Overview />} />
                 <Route path="whats-next" element={<WhatsNext />} />
+                <Route path="policy-reforms" element={<PolicyReforms />} />
                 <Route path="login" element={<Login />} />
 
                 {/* Protected routes */}

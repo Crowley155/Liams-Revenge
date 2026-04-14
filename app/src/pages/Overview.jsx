@@ -31,9 +31,14 @@ export default function Overview() {
       <section>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
           <div>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">Duty of Care Briefing</h2>
-            <p className="text-sm text-text-dim/80 mb-6 sm:mb-8 tracking-wide">
-              Crowley v. USD 232 / JCPRD — What parents are told vs. what actually happens
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent/70 mb-3">
+              Crowley v. USD 232 / JCPRD
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">
+              You think your kids are safe at school.
+            </h2>
+            <p className="text-lg sm:text-xl text-text-dim/80 mb-6 sm:mb-8 font-light">
+              So did I.
             </p>
           </div>
           {videoUrl && (
@@ -52,16 +57,16 @@ export default function Overview() {
 
         <div className="prose-custom space-y-5 text-[15px] leading-[1.8] text-text/90">
           <p className="text-pretty">
-            On <strong className="text-text">April 2, 2026</strong>, a {ageLabel} kindergartener
-            was physically assaulted by a nine-year-old at Mize Elementary during JCPRD's
-            Out-of-School-Time program. According to the incident report, five JCPRD staff were
-            outside. None witnessed the attack. The child sustained visible injuries and was kept
-            home for a week on pediatrician's orders.
+            On <strong className="text-text">April 2, 2026</strong>, my {ageLabel} was
+            assaulted by a nine-year-old at Mize Elementary — during what I was told was
+            a supervised after-school program. According to the incident report, five staff
+            were outside. None of them saw it happen. My son came home with visible injuries
+            and spent a week home on pediatrician's orders.
           </p>
           <p className="text-pretty">
-            Based on available records, neither JCPRD nor USD 232 conducted an investigation.
-            Each entity directed the parent to the other. The parent filed police reports, a DCF
-            complaint, and formal grievances independently.
+            I asked the school what happened. They told me it wasn't their program.
+            I asked the program what happened. They told me to talk to the school.
+            Neither entity investigated. Neither took responsibility. So I started digging.
           </p>
         </div>
 
@@ -71,21 +76,25 @@ export default function Overview() {
             alt=""
             className="absolute inset-0 w-full h-full object-cover opacity-[0.06] pointer-events-none"
           />
-          <div className="relative">
+          <div className="relative space-y-4">
             <h3 className="text-lg sm:text-xl font-bold text-accent mb-3 tracking-tight">
-              The Core Problem
+              What No One Told Me
             </h3>
             <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
-              Every signal available to a parent — the district's website, school staff
-              communications, the registration process, and the lease itself — indicated
-              this program adhered to district standards. The district's own board policies
-              (KG, JGFB, JDDC, JDDB) require employee presence, approved supervision,
-              bullying prevention, and crime reporting on school property. The lease binds
-              JCPRD to all of them. K.S.A. 72-1421(c) binds the district to the entire
-              KDHE child care licensing chapter. Based on available records, these policies
-              do not appear to have been applied in this instance. The independent nature
-              of JCPRD's operation was not communicated to parents during registration or
-              in prior communications.
+              Every signal I received as a parent — the district website, school staff,
+              the registration process, the printed policies — told me my son was in a
+              district-supervised program operating under school safety standards.
+            </p>
+            <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
+              The lease agreement requires JCPRD to follow every USD 232 board policy.
+              Those policies require an employee on duty, bullying prevention, and mandatory
+              crime reporting on school property. Kansas statute binds the district to the
+              entire KDHE childcare licensing chapter when they authorize a program on school
+              grounds.
+            </p>
+            <p className="text-[15px] leading-[1.8] text-text text-pretty font-medium">
+              None of it was enforced. And the phrase "separate entity" didn't appear in
+              a single communication until after my child was hurt.
             </p>
           </div>
         </div>
@@ -103,15 +112,15 @@ export default function Overview() {
         </div>
         <h3 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">The Manufactured Trust</h3>
         <p className="text-sm sm:text-base text-text-dim/80 leading-relaxed mb-8 sm:mb-10 max-w-2xl text-pretty">
-          Three layers of institutional messaging told parents this was a district-supervised
-          program operating under school standards. The "separate entity" defense appeared only
-          after a child was harmed.
+          Every parent who enrolled their child received the same message: this is a school
+          program, with school standards, under school supervision. Here's what we were told —
+          in their own words.
         </p>
 
         <div className="space-y-8">
           <EvidenceCluster
-            title="Presented as a District Service"
-            intro="The district's own communications frame this as a program it offers — not an independent third party operating on its property."
+            title="They Said It Was Their Program"
+            intro="When you search the district website for childcare, this is what you find. Not a disclaimer. Not a third-party notice. A service the district says it offers."
             items={[
               {
                 quote: 'USD 232 partners with Johnson County Parks & Recreation District to offer before/after school programming for elementary students.',
@@ -129,14 +138,14 @@ export default function Overview() {
                 quote: 'The programs JCPRD provides are invaluable to some of our families that need childcare during the summer and before and after school.',
                 source: 'Deputy Superintendent Memo to USD 232 Board',
                 sourceId: 'AUTH-43',
-                detail: 'The district\'s own Deputy Superintendent presented this to the Board as a district-endorsed service for "our families" — not an arms-length commercial arrangement.',
+                detail: 'The district\'s own Deputy Superintendent presented this to the Board as a service for "our families" — not a third-party commercial arrangement. When the district calls it theirs, parents believe them.',
               },
             ]}
           />
 
           <EvidenceCluster
-            title="School Standards Apply"
-            intro="Parents are explicitly told — by the program, by the school, and by statute — that this program meets professional care standards."
+            title="They Said It Was Safe"
+            intro="The program, the school, and Kansas law all told parents the same thing: professional standards, licensed care, direct supervision. Here's what that looked like in writing."
             items={[
               {
                 quote: 'Lessee will abide by... all rules, regulations, and policies adopted by the Board of Education.',
@@ -160,32 +169,32 @@ export default function Overview() {
                 quote: 'Our policy is to not intermingle age groups at recess or any other time during the school day. Additionally, kindergarten students are required to remain within set parameters of the playground (the green turf area). We typically have 3–4 adults supervising.',
                 source: 'Mize Elementary School Staff, Sep 18, 2025',
                 sourceId: 'DOC-028',
-                detail: 'Seven months before the assault, school staff gave the parent an explicit guarantee of age separation and direct supervision — on the same property where JCPRD operates. A parent hearing this would reasonably believe the after-school program follows the same rules.',
+                detail: 'Seven months before the assault, school staff gave me an explicit guarantee of age separation and direct supervision — on the same property where JCPRD operates. When you hear this from the school, you believe the after-school program follows the same rules.',
               },
             ]}
           />
 
           <EvidenceCluster
-            title="The District Controls It"
-            intro="The legal framework doesn't just permit oversight — it requires it. The district wrote the contract, retained enforcement power, and bound itself by statute."
+            title="The Law Says They're Responsible"
+            intro="The district wrote the contract. They kept enforcement power. Kansas statute binds them to childcare licensing. This isn't ambiguous — it's just unenforced."
             items={[
               {
                 quote: 'The Lessor or its designee may take any action that may be necessary to cure... any material breach.',
                 source: 'Lease Agreement §7(c)',
                 sourceId: 'DOC-021',
-                detail: 'Section 7(c) doesn\'t just allow the district to enforce compliance — it gives explicit authority to remedy material breaches. The district created the enforcement mechanism and never used it.',
+                detail: 'The district didn\'t just have the right to enforce compliance — they gave themselves explicit authority to remedy any material breach. They wrote the enforcement mechanism into the contract. They never used it.',
               },
               {
                 quote: null,
                 source: 'Board Policies KG, JDDC, JDDB',
                 sourceIds: ['BP-01', 'BP-03', 'BP-04'],
-                detail: 'Policy KG requires a school employee on duty when non-school groups use facilities. JDDC requires a bullying prevention plan on school property with no time-of-day limit. JDDB requires the principal to report assaults to law enforcement. The lease binds JCPRD to all of them. None were followed.',
+                detail: 'An employee on duty when outside groups use the building. A bullying prevention plan that applies on school property — no time-of-day exception. Mandatory reporting of assaults to law enforcement. The lease binds JCPRD to every one of these. Based on available records, none were followed.',
               },
               {
                 quote: null,
                 source: 'K.S.A. 72-1421(c)',
                 sourceId: 'AUTH-51',
-                detail: 'This statute binds the district to the entire KDHE childcare licensing chapter when it authorizes a childcare facility on school property. The district calls this "childcare" in its own board memo, consent agenda, and website.',
+                detail: 'When a district authorizes a childcare facility on school property, this statute binds them to the full KDHE licensing chapter. The district calls this "childcare" in its own board memo, consent agenda, and website. They can\'t have it both ways.',
               },
             ]}
           />
@@ -193,20 +202,23 @@ export default function Overview() {
 
         <div className="mt-10 sm:mt-12 bg-surface border border-border rounded-xl p-6 sm:p-8 space-y-5">
           <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
-            The "separate entity" characterization appears in records only after the assault:
-            The school principal used it in her response (DOC-004), and a district
-            administrator used it in his reply to the parent's complaint (DOC-012). Based on available records,
-            this distinction was not communicated during registration or in prior parent
-            communications. JCPRD's own handbook states its programs "function independently"
-            (<DocLink id="AUTH-41" />), though the lease agreement requires compliance with
-            all board policies.
+            After the assault, the school principal called JCPRD a "separate entity"
+            (<DocLink id="DOC-004" />). A district administrator used the same phrase in
+            his reply to my formal complaint (<DocLink id="DOC-012" />). JCPRD's own
+            handbook says their programs "function independently"
+            (<DocLink id="AUTH-41" />). That language appears nowhere in the materials
+            parents receive before enrollment.
           </p>
           <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
-            The incident report states "no medical treatment was necessary," though the child
-            was subsequently under pediatric care and a DCF report was filed. The report lists
-            witnesses who did not observe the assault, and the JCPRD program manager stated
-            it was "written the day the incident occurred; does not include later information."
-            <DocLink id="DOC-017" />
+            The incident report says "no medical treatment was necessary" — my son was
+            under pediatric care for a week. The report lists witnesses who didn't witness
+            anything. The program manager acknowledged it was "written the day the incident
+            occurred; does not include later information." <DocLink id="DOC-017" />
+          </p>
+          <p className="text-[15px] leading-[1.8] text-text font-medium text-pretty">
+            I did everything a parent is supposed to do. I checked the website. I read the
+            policies. I asked about supervision. The system gave me every reason to trust
+            it — then told me it wasn't responsible.
           </p>
         </div>
       </section>

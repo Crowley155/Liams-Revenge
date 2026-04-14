@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 
 const PUBLIC_NAV = [
   { to: '/', label: 'Overview' },
+  { to: '/policy-reforms', label: 'Policy Reforms' },
   { to: '/whats-next', label: "What's Next" },
 ];
 
