@@ -18,6 +18,16 @@ export default function Overview() {
 
   return (
     <div className="space-y-10 animate-fade-up">
+      {/* Hero image */}
+      <div className="relative -mx-4 sm:-mx-6 -mt-6 mb-2 overflow-hidden rounded-b-2xl">
+        <img
+          src="./images/hero-briefing.png"
+          alt=""
+          className="w-full h-48 sm:h-64 object-cover opacity-40"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+      </div>
+
       {/* Section 1: The Incident + Core Problem */}
       <section>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
@@ -56,7 +66,13 @@ export default function Overview() {
           </p>
         </div>
 
-        <div className="mt-6 bg-surface-alt border-l-4 border-accent rounded-r-lg p-5">
+        <div className="mt-6 bg-surface-alt border-l-4 border-accent rounded-r-lg p-5 relative overflow-hidden">
+          <img
+            src="./images/core-problem.png"
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover opacity-[0.07] pointer-events-none"
+          />
+          <div className="relative">
           <p className="text-sm font-semibold text-accent mb-2">The Core Problem</p>
           <p className="text-sm leading-relaxed">
             Every signal available to a parent, including the district's website, school staff
@@ -75,11 +91,19 @@ export default function Overview() {
           >
             See the full non-compliance breakdown →
           </Link>
+          </div>
         </div>
       </section>
 
       {/* Section 2: The Manufactured Trust */}
       <section className="animate-fade-up delay-2">
+        <div className="mb-4 rounded-xl overflow-hidden">
+          <img
+            src="./images/manufactured-trust.png"
+            alt=""
+            className="w-full h-32 sm:h-40 object-cover opacity-30"
+          />
+        </div>
         <h3 className="text-lg font-bold mb-2">The Manufactured Trust</h3>
         <p className="text-xs text-text-dim mb-6">
           Three layers of institutional messaging told parents this was a district-supervised

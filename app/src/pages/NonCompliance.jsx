@@ -237,6 +237,14 @@ export default function NonCompliance() {
 
   return (
     <div className="space-y-8">
+      <div className="relative -mx-4 sm:-mx-6 -mt-6 mb-4 overflow-hidden rounded-b-2xl">
+        <img
+          src="./images/non-compliance-header.png"
+          alt=""
+          className="w-full h-44 sm:h-56 object-cover opacity-35"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+      </div>
       <div>
         <h2 className="text-2xl font-bold mb-1">Policy & Compliance Review</h2>
         <p className="text-xs text-text-dim mb-2">

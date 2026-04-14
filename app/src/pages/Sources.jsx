@@ -77,6 +77,14 @@ export default function Sources() {
 
   return (
     <div className="space-y-6">
+      <div className="relative -mx-4 sm:-mx-6 -mt-6 mb-2 overflow-hidden rounded-b-2xl">
+        <img
+          src="./images/evidence-catalog.png"
+          alt=""
+          className="w-full h-40 sm:h-52 object-cover opacity-30"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+      </div>
       <div>
         <h2 className="text-2xl font-bold">Evidence Catalog</h2>
         <p className="text-xs text-text-dim mt-1">

@@ -2,6 +2,16 @@ export default function WhatsNext() {
   return (
     <div className="max-w-3xl mx-auto py-8 sm:py-14 px-2 space-y-12 animate-fade-up">
 
+      {/* Hero image */}
+      <div className="relative -mt-8 mb-2 rounded-2xl overflow-hidden">
+        <img
+          src="./images/whats-next-hero.png"
+          alt=""
+          className="w-full h-48 sm:h-64 object-cover opacity-40"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+      </div>
+
       {/* Headline */}
       <section className="space-y-5">
         <h2 className="text-2xl sm:text-3xl font-bold leading-tight tracking-tight">
