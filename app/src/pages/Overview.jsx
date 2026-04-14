@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useCase } from '../data/useCase';
 import DocLink from '../components/DocLink';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import {
-  generateKoraRequests, fetchKoraRequests, markKoraSent, updateKoraRequest,
+  generateKoraRequests, fetchKoraRequests, markKoraSent,
   uploadDocument, fetchDocuments, fetchEntities, getJobStatus,
 } from '../api/client';
 
@@ -17,23 +16,23 @@ export default function Overview() {
   const [showVideo, setShowVideo] = useState(false);
 
   return (
-    <div className="space-y-10 animate-fade-up">
+    <div className="space-y-14 sm:space-y-20 animate-fade-up">
       {/* Hero image */}
-      <div className="relative -mx-4 sm:-mx-6 -mt-6 mb-2 overflow-hidden rounded-b-2xl">
+      <div className="relative -mx-4 sm:-mx-6 -mt-6 mb-6 overflow-hidden rounded-b-2xl">
         <img
           src="./images/hero-briefing.png"
           alt=""
-          className="w-full h-48 sm:h-64 object-cover opacity-40"
+          className="w-full h-56 sm:h-80 object-cover opacity-30"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background from-10% via-background/70 via-50% to-transparent" />
       </div>
 
       {/* Section 1: The Incident + Core Problem */}
       <section>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
           <div>
-            <h2 className="text-2xl font-bold mb-1">Duty of Care Briefing</h2>
-            <p className="text-xs text-text-dim mb-4 sm:mb-6">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-3">Duty of Care Briefing</h2>
+            <p className="text-sm text-text-dim/80 mb-6 sm:mb-8 tracking-wide">
               Crowley v. USD 232 / JCPRD — What parents are told vs. what actually happens
             </p>
           </div>
@@ -51,67 +50,65 @@ export default function Overview() {
           <VideoModal url={videoUrl} onClose={() => setShowVideo(false)} />
         )}
 
-        <div className="prose-custom space-y-4 text-sm leading-relaxed">
-          <p>
-            On <strong>April 2, 2026</strong>, a {ageLabel} kindergartener was physically assaulted
-            by a nine-year-old at Mize Elementary during JCPRD's Out-of-School-Time program.
-            According to the incident report, five JCPRD staff were outside. None witnessed
-            the attack. The child sustained visible injuries and was kept home for a week on
-            pediatrician's orders.
+        <div className="prose-custom space-y-5 text-[15px] leading-[1.8] text-text/90">
+          <p className="text-pretty">
+            On <strong className="text-text">April 2, 2026</strong>, a {ageLabel} kindergartener
+            was physically assaulted by a nine-year-old at Mize Elementary during JCPRD's
+            Out-of-School-Time program. According to the incident report, five JCPRD staff were
+            outside. None witnessed the attack. The child sustained visible injuries and was kept
+            home for a week on pediatrician's orders.
           </p>
-          <p>
+          <p className="text-pretty">
             Based on available records, neither JCPRD nor USD 232 conducted an investigation.
             Each entity directed the parent to the other. The parent filed police reports, a DCF
             complaint, and formal grievances independently.
           </p>
         </div>
 
-        <div className="mt-6 bg-surface-alt border-l-4 border-accent rounded-r-lg p-5 relative overflow-hidden">
+        <div className="mt-8 sm:mt-10 bg-surface-alt border-l-4 border-accent rounded-r-xl p-6 sm:p-8 relative overflow-hidden">
           <img
             src="./images/core-problem.png"
             alt=""
-            className="absolute inset-0 w-full h-full object-cover opacity-[0.07] pointer-events-none"
+            className="absolute inset-0 w-full h-full object-cover opacity-[0.06] pointer-events-none"
           />
           <div className="relative">
-          <p className="text-sm font-semibold text-accent mb-2">The Core Problem</p>
-          <p className="text-sm leading-relaxed">
-            Every signal available to a parent, including the district's website, school staff
-            communications, the registration process, and the lease itself, indicated this
-            program adhered to district standards. The district's own board policies (KG, JGFB,
-            JDDC, JDDB) require employee presence, approved supervision, bullying prevention,
-            and crime reporting on school property. The lease binds JCPRD to all of them.
-            K.S.A. 72-1421(c) binds the district to the entire KDHE child care licensing
-            chapter. Based on available records, these policies do not appear to have been
-            applied in this instance. The independent nature of JCPRD's operation was not
-            communicated to parents during registration or in prior communications.
-          </p>
-          <Link
-            to="/non-compliance"
-            className="inline-block mt-3 text-xs text-accent hover:text-accent-hover font-medium"
-          >
-            See the full non-compliance breakdown →
-          </Link>
+            <h3 className="text-lg sm:text-xl font-bold text-accent mb-3 tracking-tight">
+              The Core Problem
+            </h3>
+            <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
+              Every signal available to a parent — the district's website, school staff
+              communications, the registration process, and the lease itself — indicated
+              this program adhered to district standards. The district's own board policies
+              (KG, JGFB, JDDC, JDDB) require employee presence, approved supervision,
+              bullying prevention, and crime reporting on school property. The lease binds
+              JCPRD to all of them. K.S.A. 72-1421(c) binds the district to the entire
+              KDHE child care licensing chapter. Based on available records, these policies
+              do not appear to have been applied in this instance. The independent nature
+              of JCPRD's operation was not communicated to parents during registration or
+              in prior communications.
+            </p>
           </div>
         </div>
       </section>
 
       {/* Section 2: The Manufactured Trust */}
       <section className="animate-fade-up delay-2">
-        <div className="mb-4 rounded-xl overflow-hidden">
+        <div className="border-t border-border/60 mb-10 sm:mb-14" />
+        <div className="mb-6 rounded-xl overflow-hidden">
           <img
             src="./images/manufactured-trust.png"
             alt=""
-            className="w-full h-32 sm:h-40 object-cover opacity-30"
+            className="w-full h-36 sm:h-48 object-cover opacity-25"
           />
         </div>
-        <h3 className="text-lg font-bold mb-2">The Manufactured Trust</h3>
-        <p className="text-xs text-text-dim mb-6">
+        <h3 className="text-2xl sm:text-3xl font-bold tracking-tight mb-4">The Manufactured Trust</h3>
+        <p className="text-sm sm:text-base text-text-dim/80 leading-relaxed mb-8 sm:mb-10 max-w-2xl text-pretty">
           Three layers of institutional messaging told parents this was a district-supervised
           program operating under school standards. The "separate entity" defense appeared only
           after a child was harmed.
         </p>
 
-        <div className="space-y-6">
+        <div className="space-y-8">
           <EvidenceCluster
             title="Presented as a District Service"
             intro="The district's own communications frame this as a program it offers — not an independent third party operating on its property."
@@ -194,8 +191,8 @@ export default function Overview() {
           />
         </div>
 
-        <div className="mt-6 bg-surface border border-border rounded-lg p-5 space-y-4">
-          <p className="text-sm leading-relaxed">
+        <div className="mt-10 sm:mt-12 bg-surface border border-border rounded-xl p-6 sm:p-8 space-y-5">
+          <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
             The "separate entity" characterization appears in records only after the assault:
             Principal Balthazor used it in her response (DOC-004), and Alvie Cater used it
             in his reply to the parent's complaint (DOC-012). Based on available records,
@@ -204,7 +201,7 @@ export default function Overview() {
             (<DocLink id="AUTH-41" />), though the lease agreement requires compliance with
             all board policies.
           </p>
-          <p className="text-sm leading-relaxed">
+          <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
             The incident report states "no medical treatment was necessary," though the child
             was subsequently under pediatric care and a DCF report was filed. The report lists
             witnesses who did not observe the assault, and JCPRD Manager Jennifer Anderson stated
@@ -578,20 +575,20 @@ function VideoModal({ url, onClose }) {
 function EvidenceCluster({ title, intro, items }) {
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden" style={{ boxShadow: 'var(--shadow-card)' }}>
-      <div className="px-5 pt-5 pb-3">
-        <h4 className="text-sm font-bold mb-1">{title}</h4>
-        <p className="text-xs text-text-dim leading-relaxed">{intro}</p>
+      <div className="px-6 pt-6 pb-4">
+        <h4 className="text-base font-bold tracking-tight mb-1.5">{title}</h4>
+        <p className="text-sm text-text-dim/80 leading-relaxed">{intro}</p>
       </div>
       <div className="divide-y divide-border/50">
         {items.map((item, i) => (
-          <div key={i} className="px-5 py-4">
+          <div key={i} className="px-6 py-5">
             {item.quote && (
-              <blockquote className="text-xs italic text-text-dim leading-relaxed border-l-2 border-accent/30 pl-3 mb-2">
+              <blockquote className="text-sm italic text-text-dim/90 leading-relaxed border-l-2 border-accent/40 pl-4 mb-3">
                 "{item.quote}"
               </blockquote>
             )}
-            <p className="text-sm leading-relaxed">{item.detail}</p>
-            <div className="mt-2 text-[11px] text-text-dim flex flex-wrap gap-2">
+            <p className="text-[15px] leading-[1.75] text-text/90 text-pretty">{item.detail}</p>
+            <div className="mt-3 text-xs text-text-dim/70 flex flex-wrap gap-2">
               {item.sourceIds ? (
                 item.sourceIds.map((sid) => (
                   <DocLink key={sid} id={sid}>{item.source}</DocLink>
