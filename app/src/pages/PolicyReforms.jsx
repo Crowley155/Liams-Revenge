@@ -16,8 +16,41 @@ const SECTIONS = [
       },
       {
         title: 'Enforce Age-Appropriate Grouping and Active Supervision',
-        description:
-          'Five staff were outside when a nine-year-old attacked a six-year-old on the playground. None saw it. The child\'s account — consistent with what was later reported to the pediatrician — is that staff were sitting on a bench, not circulating, not watching. K.A.R. 28-4-437(l)–(m) requires the play area be arranged so staff can "actively supervise each child at all times" and that staff "shall actively engage in the supervision of children." K.A.R. 28-4-115a(b)(3) prohibits providers from engaging in "business, social, or personal activities that interfere with the care and supervision of children." Sitting on a bench in conversation — or on a phone — while children play unsupervised is the textbook violation of both. For a six-year-old outdoors, K.A.R. 28-4-115a(d)(2) requires staff to remain within hearing distance and visually check on each child. "Hearing distance" in regulatory practice means audible range without electronic equipment — close enough to hear and respond immediately. That standard is incompatible with passive bench supervision of a mixed-age group spread across a playground. On the age-mixing question specifically: the CPSC Public Playground Safety Handbook (Publication 325, §2.2.2) recommends age-separated play areas specifically to "reduce the chance of injury from older, more active children running through areas filled with younger children with generally slower movement and reaction times." The Kansas State Fire Marshal\'s office, in Fire Fact 030, explains that K–2 floor restrictions exist to "avoid the danger of older (and larger) children overrunning the very young" — the same physics applies on a playground. And USD 232\'s own kindergarten staff confirmed in writing that the school\'s policy is to "not intermingle age groups at recess or any other time during the school day" (DOC-028). JCPRD is the only entity in this picture that claims mixed-age, unsupervised outdoor play is acceptable — and the result was a physical assault with five staff and zero witnesses.',
+        description: (
+          <>
+            <p>
+              Five staff were outside when a nine-year-old attacked a six-year-old on the playground. None saw it. The child's account — consistent with what was later reported to the pediatrician — is that staff were sitting on a bench, not circulating, not watching.
+            </p>
+
+            <p className="font-semibold mt-4 mb-1">The supervision standard that was violated</p>
+            <p>
+              <a href="https://www.law.cornell.edu/regulations/kansas/K-A-R-28-4-437" target="_blank" rel="noreferrer" className="underline decoration-accent/40 hover:decoration-accent">K.A.R. 28-4-437(l)–(m)</a> requires
+              the play area be arranged so staff can <em>"actively supervise each child at all times"</em> and
+              that staff <em>"shall actively engage in the supervision of children."</em>{' '}
+              <a href="https://www.law.cornell.edu/regulations/kansas/K-A-R-28-4-115a" target="_blank" rel="noreferrer" className="underline decoration-accent/40 hover:decoration-accent">K.A.R. 28-4-115a(b)(3)</a> prohibits
+              providers from engaging in <em>"business, social, or personal activities that interfere with the care and supervision of children."</em> Sitting on a bench in conversation — or on a phone — while children play unsupervised is the textbook violation of both.
+            </p>
+
+            <p className="font-semibold mt-4 mb-1">The hearing distance standard</p>
+            <p>
+              For a six-year-old outdoors, <a href="https://www.law.cornell.edu/regulations/kansas/K-A-R-28-4-115a" target="_blank" rel="noreferrer" className="underline decoration-accent/40 hover:decoration-accent">K.A.R. 28-4-115a(d)(2)</a> requires
+              staff to remain within hearing distance and visually check on each child. "Hearing distance" in regulatory practice means audible range without electronic equipment — close enough to hear and respond immediately. That standard is incompatible with passive bench supervision of a mixed-age group spread across a playground.
+            </p>
+
+            <p className="font-semibold mt-4 mb-1">The case for age separation</p>
+            <p>
+              The <a href="https://www.cpsc.gov/safety-education/safety-guides/playgrounds/public-playground-safety-handbook" target="_blank" rel="noreferrer" className="underline decoration-accent/40 hover:decoration-accent">CPSC Public Playground Safety Handbook</a> (Publication 325, §2.2.2) is not a mandate — it is the federal standard for playground safety design, and it directly addresses this risk. It recommends age-separated play areas specifically to <em>"reduce the chance of injury from older, more active children running through areas filled with younger children with generally slower movement and reaction times."</em> The Kansas State Fire Marshal's office, in{' '}
+              <a href="https://www.firemarshal.ks.gov/DocumentCenter/View/378/Fire-Fact-030---1st-and-2nd-grade-PDF" target="_blank" rel="noreferrer" className="underline decoration-accent/40 hover:decoration-accent">Fire Fact 030</a>, explains that K–2 floor restrictions exist to <em>"avoid the danger of older (and larger) children overrunning the very young"</em> — the same physics applies on a playground.
+            </p>
+            <p className="mt-2">
+              And USD 232's own kindergarten staff confirmed in writing that the school's policy is to <em>"not intermingle age groups at recess or any other time during the school day"</em> (DOC-028).
+            </p>
+
+            <p className="mt-4 font-medium text-text">
+              JCPRD is the only entity in this picture that claims mixed-age, unsupervised outdoor play is acceptable — and the result was a physical assault with five staff and zero witnesses. These are the standards that should be adopted to ensure it doesn't happen again.
+            </p>
+          </>
+        ),
         basis: 'K.A.R. 28-4-437(l)–(m) / K.A.R. 28-4-115a(b)(3), (d)(2) / CPSC Pub. 325 §2.2.2 / Fire Fact 030 / DOC-028',
         basisId: 'DOC-028',
       },
@@ -186,9 +219,15 @@ export default function PolicyReforms() {
 
                 {isExpanded && (
                   <div className="px-5 pb-5 pt-0 border-t border-border/50">
-                    <p className="text-[15px] leading-[1.8] text-text/85 mt-4 text-pretty">
-                      {reform.description}
-                    </p>
+                    {typeof reform.description === 'string' ? (
+                      <p className="text-[15px] leading-[1.8] text-text/85 mt-4 text-pretty">
+                        {reform.description}
+                      </p>
+                    ) : (
+                      <div className="text-[15px] leading-[1.8] text-text/85 mt-4 text-pretty">
+                        {reform.description}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
