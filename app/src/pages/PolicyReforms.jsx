@@ -72,24 +72,17 @@ const SECTIONS = [
         basisId: 'DOC-021',
       },
       {
-        title: 'Enforce JDDB — Mandatory Crime Reporting',
+        title: 'Enforce JDDB and JDDC on School Property at All Hours',
         description:
-          'Require the building principal to comply with JDDB by reporting physical assaults on school property to law enforcement, regardless of whether the assault occurred during school hours or during a third-party program. The policy says "shall report" — not "may," not "should," not "when convenient." Based on available records, no report was filed by any school administrator.',
-        basis: 'USD 232 Policy JDDB',
+          'Both policies use mandatory language. JDDB says the principal "shall report" physical assaults on school property to law enforcement. JDDC applies bullying prevention protections on school property. Neither policy contains a time-of-day limitation or a carve-out for third-party programs. The after-school timing was treated as a jurisdictional boundary — but the policies don\'t create one. Enforce them as written. No report was filed under JDDB. No JDDC investigation was initiated. The policies aren\'t ambiguous — they were simply not applied.',
+        basis: 'USD 232 Policy JDDB / JDDC / K.S.A. 72-6147',
         basisId: 'BP-04',
       },
       {
-        title: 'Apply JDDC Bullying Prevention on School Property at All Hours',
+        title: 'Prohibit Contractual Disclaimers in Program Materials',
         description:
-          'Clarify in writing that JDDC applies to incidents on school property regardless of time of day or which entity is operating the program. The policy text contains no time-of-day limitation. The after-school timing was treated as a jurisdictional boundary — but the policy doesn\'t create one.',
-        basis: 'USD 232 Policy JDDC / K.S.A. 72-6147',
-        basisId: 'BP-03',
-      },
-      {
-        title: 'Transparent Enrollment Disclosure',
-        description:
-          'Require that all registration materials, website pages, and parent communications clearly and prominently disclose whether a program is operated by the district or by a third party. Parents must be told — before they enroll their child — who is responsible for supervision, who sets the safety standards, and who to contact if something goes wrong. This distinction was never communicated. It should have been the first thing parents saw.',
-        basis: 'DOC-004 / AUTH-41',
+          'JCPRD\'s handbook states that its programs "function independently in both policy and procedure." That is not a disclosure — it is a repudiation of the lease. Section 8(d) requires JCPRD to follow all USD 232 board policies, rules, and standards while operating on district property. No handbook, enrollment form, or parent communication can disclaim an obligation the lease imposes. Any materials suggesting that district safety standards do not apply to JCPRD programs must be corrected — not because transparency is optional, but because the underlying claim is false.',
+        basis: 'Lease Agreement §8(d) / DOC-004',
         basisId: 'DOC-004',
       },
     ],
