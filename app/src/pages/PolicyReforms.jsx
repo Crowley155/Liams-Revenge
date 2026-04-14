@@ -10,7 +10,7 @@ const SECTIONS = [
       {
         title: 'Affirm Compliance with All Board Policies',
         description:
-          'Publicly acknowledge and operationalize the obligation under Lease §8(d) to follow all USD 232 board policies — including JDDC (bullying prevention), JDDB (crime reporting), JGFB (supervision), and KG (employee on duty). The current handbook statement that programs "function independently in both policy and procedure" directly contradicts the lease.',
+          'Commit to fulfilling the obligations of the lease. Section 8(d) requires JCPRD to follow all USD 232 board policies, rules, and standards. That clause exists for a reason — it\'s how the district ensures children on its property are protected to its standards, regardless of who runs the program. JCPRD\'s own handbook states that its programs "function independently in both policy and procedure." That directly contradicts the lease they signed.',
         basis: 'Lease Agreement §8(d)',
         basisId: 'DOC-021',
       },
