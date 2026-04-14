@@ -1,6 +1,5 @@
 [build]
 dockerfilePath = "Dockerfile.prod"
-noCache = true
 
 [deploy]
 healthcheckPath = "/health"

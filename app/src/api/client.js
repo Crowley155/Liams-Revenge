@@ -9,7 +9,6 @@ function authFetch(url, options = {}) {
   return fetch(url, { ...options, headers }).then((res) => {
     if (res.status === 401) {
       localStorage.removeItem(TOKEN_KEY);
-      window.location.hash = '#/login';
     }
     return res;
   });
@@ -207,7 +206,6 @@ export async function uploadDocument(file, { entityIds = [], personIds = [], kor
   const res = await fetch(`${API_BASE}/api/documents/upload`, { method: 'POST', body: form, headers });
   if (res.status === 401) {
     localStorage.removeItem(TOKEN_KEY);
-    window.location.hash = '#/login';
   }
   if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
   return res.json();
