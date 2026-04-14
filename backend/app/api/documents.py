@@ -11,11 +11,12 @@ import logging
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
 from typing import Optional
 
 from app.models import CaseDocument
 from app.api._store import case_documents
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["documents"])
@@ -143,6 +144,7 @@ async def upload_document(
     person_ids: Optional[str] = Form(default=""),
     kora_request_id: Optional[str] = Form(default=""),
     source: Optional[str] = Form(default="manual_upload"),
+    _user: dict = Depends(get_current_user),
 ):
     """Upload a document for processing. Returns immediately; processing runs in background."""
     content = await file.read()
@@ -170,7 +172,7 @@ async def upload_document(
 
 
 @router.get("/documents", response_model=list[CaseDocument])
-async def list_documents(entity_id: str = "", status: str = ""):
+async def list_documents(entity_id: str = "", status: str = "", _user: dict = Depends(get_current_user)):
     """List uploaded documents, optionally filtered."""
     docs = list(case_documents.values())
     if entity_id:
@@ -182,7 +184,7 @@ async def list_documents(entity_id: str = "", status: str = ""):
 
 
 @router.get("/documents/{doc_id}", response_model=CaseDocument)
-async def get_document(doc_id: str):
+async def get_document(doc_id: str, _user: dict = Depends(get_current_user)):
     doc = case_documents.get(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")

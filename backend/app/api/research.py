@@ -10,10 +10,11 @@ import logging
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from app.models import PersonCreate, Person, PersonSource, ResearchJob, JobStatus
 from app.api._store import jobs, profiles
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["research"])
@@ -89,7 +90,7 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
 
 
 @router.post("/research", response_model=ResearchJob)
-async def start_research(request: PersonCreate, bg: BackgroundTasks):
+async def start_research(request: PersonCreate, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
     """Kick off a research pipeline for a person. Returns a job you can poll."""
     existing: Person | None = None
 
@@ -117,7 +118,7 @@ async def start_research(request: PersonCreate, bg: BackgroundTasks):
 
 
 @router.get("/research/{job_id}", response_model=ResearchJob)
-async def get_job_status(job_id: str):
+async def get_job_status(job_id: str, _user: dict = Depends(get_current_user)):
     """Check the status of a research job."""
     job = jobs.get(job_id)
     if not job:

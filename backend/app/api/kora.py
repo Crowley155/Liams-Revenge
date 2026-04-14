@@ -13,12 +13,13 @@ import logging
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
 from app.models import KoraRequest, ResearchJob, JobStatus
 from app.api._store import kora_requests, jobs
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["kora"])
@@ -60,7 +61,7 @@ def _run_kora_generation(job: ResearchJob):
 
 
 @router.post("/kora/generate", response_model=ResearchJob)
-async def generate_kora(bg: BackgroundTasks):
+async def generate_kora(bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
     """Generate KORA requests for the entire case. Runs async."""
     job_id = str(uuid.uuid4())[:8]
     job = ResearchJob(id=job_id, person_id="kora-generation")
@@ -77,6 +78,7 @@ async def list_kora_requests(
     entity_id: str = "",
     status: str = "",
     category: str = "",
+    _user: dict = Depends(get_current_user),
 ):
     """List KORA requests with optional filters."""
     reqs = list(kora_requests.values())
@@ -91,7 +93,7 @@ async def list_kora_requests(
 
 
 @router.get("/kora/requests/{request_id}", response_model=KoraRequest)
-async def get_kora_request(request_id: str):
+async def get_kora_request(request_id: str, _user: dict = Depends(get_current_user)):
     req = kora_requests.get(request_id)
     if not req:
         raise HTTPException(status_code=404, detail="KORA request not found")
@@ -108,7 +110,7 @@ class KoraRequestUpdate(BaseModel):
 
 
 @router.put("/kora/requests/{request_id}", response_model=KoraRequest)
-async def update_kora_request(request_id: str, body: KoraRequestUpdate):
+async def update_kora_request(request_id: str, body: KoraRequestUpdate, _user: dict = Depends(get_current_user)):
     """Edit a KORA request (subject, description, status, etc.)."""
     req = kora_requests.get(request_id)
     if not req:
@@ -139,7 +141,7 @@ async def update_kora_request(request_id: str, body: KoraRequestUpdate):
 
 
 @router.post("/kora/requests/{request_id}/mark-sent", response_model=KoraRequest)
-async def mark_sent(request_id: str):
+async def mark_sent(request_id: str, _user: dict = Depends(get_current_user)):
     """Mark a KORA request as sent."""
     req = kora_requests.get(request_id)
     if not req:

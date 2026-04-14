@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.models import (
@@ -20,6 +20,7 @@ from app.models import (
     Address, SocialProfile, Employment, Education,
 )
 from app.api._store import profiles, jobs
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["enrichment"])
@@ -72,7 +73,7 @@ def _run_enrichment(person_id: str, job: ResearchJob):
 
 
 @router.post("/enrich/{person_id}", response_model=ResearchJob)
-async def start_enrichment(person_id: str, bg: BackgroundTasks):
+async def start_enrichment(person_id: str, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
     """Kick off identity enrichment for a person. Returns a job to poll."""
     person = profiles.get(person_id)
     if not person:
@@ -89,7 +90,7 @@ async def start_enrichment(person_id: str, bg: BackgroundTasks):
 
 
 @router.put("/profiles/{person_id}/identity", response_model=Person)
-async def update_identity(person_id: str, update: IdentityUpdate):
+async def update_identity(person_id: str, update: IdentityUpdate, _user: dict = Depends(get_current_user)):
     """Manually update identity enrichment fields for a person."""
     person = profiles.get(person_id)
     if not person:
@@ -144,7 +145,7 @@ async def update_identity(person_id: str, update: IdentityUpdate):
 
 
 @router.post("/clay-callback/{person_id}")
-async def clay_callback(person_id: str, request: Request):
+async def clay_callback(person_id: str, request: Request, _user: dict = Depends(get_current_user)):
     """
     Receives enriched data from Clay's outbound HTTP API column.
     Clay POSTs the full enriched row here after its enrichment pipeline completes.
@@ -275,7 +276,7 @@ class SocialProfileAction(BaseModel):
 
 
 @router.post("/profiles/{person_id}/social-profiles/confirm", response_model=Person)
-async def confirm_social_profile(person_id: str, body: SocialProfileAction, bg: BackgroundTasks):
+async def confirm_social_profile(person_id: str, body: SocialProfileAction, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
     """
     Confirm a discovered social profile. Sets status to 'confirmed', then
     scrapes + LLM-extracts data from that profile and merges into the person.
@@ -360,7 +361,7 @@ def _scrape_confirmed_profile(person_id: str, profile_url: str):
 
 
 @router.post("/profiles/{person_id}/social-profiles/dismiss", response_model=Person)
-async def dismiss_social_profile(person_id: str, body: SocialProfileAction):
+async def dismiss_social_profile(person_id: str, body: SocialProfileAction, _user: dict = Depends(get_current_user)):
     """
     Dismiss a social profile. Removes the profile and cascade-deletes any
     data (employment, education, addresses, intel) sourced from its URL.

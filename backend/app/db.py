@@ -82,6 +82,15 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_docs_case ON case_documents(case_id);
         CREATE INDEX IF NOT EXISTS idx_docs_status ON case_documents(status);
+
+        CREATE TABLE IF NOT EXISTS users (
+            id         TEXT PRIMARY KEY,
+            email      TEXT NOT NULL UNIQUE,
+            password   TEXT NOT NULL,
+            role       TEXT NOT NULL DEFAULT 'admin',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
     """)
     conn.commit()
     conn.close()

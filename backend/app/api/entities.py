@@ -16,7 +16,7 @@ import re
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.models import (
@@ -24,6 +24,7 @@ from app.models import (
     ResearchJob, JobStatus, SocialProfile, Fact, ProfileIntelItem,
 )
 from app.api._store import entities, profiles, jobs
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["entities"])
@@ -35,7 +36,7 @@ async def list_entities():
 
 
 @router.get("/entities/{entity_id}", response_model=Entity)
-async def get_entity(entity_id: str):
+async def get_entity(entity_id: str, _user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
     if not ent:
         raise HTTPException(status_code=404, detail="Entity not found")
@@ -43,7 +44,7 @@ async def get_entity(entity_id: str):
 
 
 @router.post("/entities", response_model=Entity)
-async def create_entity(req: EntityCreate):
+async def create_entity(req: EntityCreate, _user: dict = Depends(get_current_user)):
     ent = Entity(
         id=str(uuid.uuid4())[:8],
         name=req.name,
@@ -58,7 +59,7 @@ async def create_entity(req: EntityCreate):
 
 
 @router.get("/entities/{entity_id}/members", response_model=list[Person])
-async def get_entity_members(entity_id: str):
+async def get_entity_members(entity_id: str, _user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
     if not ent:
         raise HTTPException(status_code=404, detail="Entity not found")
@@ -219,7 +220,7 @@ class MemberAction(BaseModel):
 
 
 @router.post("/entities/{entity_id}/discover", response_model=ResearchJob)
-async def discover_members(entity_id: str, body: DiscoverRequest, bg: BackgroundTasks):
+async def discover_members(entity_id: str, body: DiscoverRequest, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
     if not ent:
         raise HTTPException(status_code=404, detail="Entity not found")
@@ -238,7 +239,7 @@ async def discover_members(entity_id: str, body: DiscoverRequest, bg: Background
 
 
 @router.post("/entities/{entity_id}/members/accept", response_model=Entity)
-async def accept_member(entity_id: str, body: MemberAction):
+async def accept_member(entity_id: str, body: MemberAction, _user: dict = Depends(get_current_user)):
     """Accept a pending discovered member — creates or links a Person record."""
     ent = entities.get(entity_id)
     if not ent:
@@ -332,7 +333,7 @@ def _merge_preview_data(person: Person, preview: dict | None) -> None:
 
 
 @router.post("/entities/{entity_id}/members/reject", response_model=Entity)
-async def reject_member(entity_id: str, body: MemberAction):
+async def reject_member(entity_id: str, body: MemberAction, _user: dict = Depends(get_current_user)):
     """Reject a pending discovered member — keeps the record to prevent re-suggestion."""
     ent = entities.get(entity_id)
     if not ent:

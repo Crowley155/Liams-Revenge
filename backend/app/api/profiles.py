@@ -11,10 +11,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.models import Person, PersonSource
 from app.api._store import profiles
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["profiles"])
@@ -27,7 +28,7 @@ async def list_profiles():
 
 
 @router.get("/profiles/{person_id}", response_model=Person)
-async def get_profile(person_id: str):
+async def get_profile(person_id: str, _user: dict = Depends(get_current_user)):
     """Return a single profile by ID."""
     person = profiles.get(person_id)
     if not person:
@@ -36,7 +37,7 @@ async def get_profile(person_id: str):
 
 
 @router.delete("/profiles/{person_id}/research", response_model=Person)
-async def reset_research(person_id: str):
+async def reset_research(person_id: str, _user: dict = Depends(get_current_user)):
     """
     Nuke ALL pipeline/enrichment-derived data. Preserves only seed and
     manually-entered fields: name, role, org, location, curated_bio,
@@ -75,7 +76,7 @@ async def reset_research(person_id: str):
 
 
 @router.delete("/profiles/{person_id}")
-async def delete_profile(person_id: str):
+async def delete_profile(person_id: str, _user: dict = Depends(get_current_user)):
     """
     Fully delete a person from the store.
     Re-run /api/seed to recreate seeded actors.

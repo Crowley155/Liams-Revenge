@@ -1,19 +1,32 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 
-const NAV = [
+const PUBLIC_NAV = [
   { to: '/', label: 'Overview' },
+  { to: '/whats-next', label: "What's Next" },
+];
+
+const PROTECTED_NAV = [
   { to: '/people', label: 'People' },
   { to: '/non-compliance', label: 'Non-Compliance' },
   { to: '/sources', label: 'Evidence Catalog' },
-  { to: '/whats-next', label: "What's Next" },
 ];
 
 export default function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { isAuthenticated, user, logout } = useAuth();
 
   const closeMenu = () => setMenuOpen(false);
+
+  const NAV = isAuthenticated ? [...PUBLIC_NAV, ...PROTECTED_NAV] : PUBLIC_NAV;
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -25,7 +38,7 @@ export default function Layout() {
             </h1>
 
             {/* Desktop nav */}
-            <nav className="hidden sm:flex gap-1">
+            <nav className="hidden sm:flex items-center gap-1">
               {NAV.map(({ to, label }) => (
                 <NavLink
                   key={to}
@@ -42,6 +55,31 @@ export default function Layout() {
                   {label}
                 </NavLink>
               ))}
+
+              <span className="w-px h-5 bg-border mx-1" />
+
+              {isAuthenticated ? (
+                <button
+                  onClick={handleLogout}
+                  className="px-3 py-2 text-xs font-medium text-text-dim hover:text-text hover:bg-surface-alt rounded-md transition-colors"
+                  title={user?.email}
+                >
+                  Sign Out
+                </button>
+              ) : (
+                <NavLink
+                  to="/login"
+                  className={({ isActive }) =>
+                    `px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                      isActive
+                        ? 'bg-accent/15 text-accent'
+                        : 'text-text-dim hover:text-text hover:bg-surface-alt'
+                    }`
+                  }
+                >
+                  Sign In
+                </NavLink>
+              )}
             </nav>
 
             {/* Mobile hamburger */}
@@ -85,6 +123,25 @@ export default function Layout() {
                   </NavLink>
                 );
               })}
+
+              <div className="border-t border-border pt-2 mt-2">
+                {isAuthenticated ? (
+                  <button
+                    onClick={() => { handleLogout(); closeMenu(); }}
+                    className="block w-full text-left px-3 py-3 text-sm font-medium text-text-dim hover:text-text hover:bg-surface rounded-md transition-colors"
+                  >
+                    Sign Out
+                  </button>
+                ) : (
+                  <NavLink
+                    to="/login"
+                    onClick={closeMenu}
+                    className="block px-3 py-3 text-sm font-medium text-text-dim hover:text-text hover:bg-surface rounded-md transition-colors"
+                  >
+                    Sign In
+                  </NavLink>
+                )}
+              </div>
             </div>
           </div>
         )}

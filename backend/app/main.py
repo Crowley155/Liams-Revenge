@@ -3,12 +3,13 @@ import os
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import init_db, migrate_json_to_sqlite
-from app.api import research, profiles, entities, enrichment, kora, documents
+from app.api import research, profiles, entities, enrichment, kora, documents, auth
+from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +81,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router, prefix="/api")
 app.include_router(research.router, prefix="/api")
 app.include_router(profiles.router, prefix="/api")
 app.include_router(entities.router, prefix="/api")
@@ -136,13 +138,16 @@ def _ingest_evidence_to_qdrant():
 @app.on_event("startup")
 async def startup_ingest():
     """Run seed + evidence ingestion on app startup."""
+    from app.api.auth import seed_admin_user
+    seed_admin_user()
+
     from app.scripts.seed_actors import seed
     seed()
     _ingest_evidence_to_qdrant()
 
 
 @app.post("/api/seed")
-async def seed_actors():
+async def seed_actors(_user: dict = Depends(get_current_user)):
     """One-shot: import case-data.json actors into the backend store."""
     from app.scripts.seed_actors import seed
     seed()
