@@ -7,12 +7,11 @@ from __future__ import annotations
 
 import logging
 import os
-import sqlite3
 from datetime import datetime, timedelta, timezone
 
+import bcrypt
+import jwt
 from fastapi import APIRouter, HTTPException, status
-from jose import jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from app.db import _connect
@@ -20,8 +19,6 @@ from app.api.deps import JWT_SECRET, JWT_ALGORITHM
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "24"))
 
@@ -34,6 +31,14 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def _verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
 def _create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
@@ -60,7 +65,7 @@ async def login(body: LoginRequest):
     finally:
         conn.close()
 
-    if not row or not pwd_context.verify(body.password, row["password"]):
+    if not row or not _verify_password(body.password, row["password"]):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -98,7 +103,7 @@ def seed_admin_user() -> None:
 
         import uuid
         user_id = str(uuid.uuid4())[:8]
-        hashed = pwd_context.hash(password)
+        hashed = _hash_password(password)
         conn.execute(
             "INSERT INTO users (id, email, password, role) VALUES (?, ?, ?, ?)",
             (user_id, email, hashed, "admin"),
