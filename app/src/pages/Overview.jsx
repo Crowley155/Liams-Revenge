@@ -64,9 +64,34 @@ export default function Overview() {
             and spent a week home on pediatrician's orders.
           </p>
           <p className="text-pretty">
-            I asked the school what happened. They told me it wasn't their program.
-            I asked the program what happened. They told me to talk to the school.
-            Neither entity investigated. Neither took responsibility. So I started digging.
+            The program filed an incident report the same day. It characterized my
+            kindergartener as the instigator, listed staff as "witnesses" who by
+            the report's own admission didn't see the event, concluded "no medical
+            treatment was necessary" without consulting a medical professional, and
+            never mentioned the other child's age, size, or grade. My son was
+            questioned in the same room as his attacker. The report was sent to me
+            as though it closed the matter.
+          </p>
+          <p className="text-pretty">
+            It didn't. I went to the school. The principal told me JCPRD is a
+            "separate entity" — not their program, not their responsibility. I went
+            to the district. An administrator offered a meeting, then canceled it
+            the next morning. I went back to the program. They directed me to the
+            school. Every person I spoke to said they care about student safety.
+            Not one of them said they'd look into what happened.
+          </p>
+          <p className="text-pretty">
+            I filed a police report. I filed a DCF complaint. I filed formal
+            grievances with both entities. I did every single thing the system
+            tells a parent to do. And when none of it produced an investigation,
+            an acknowledgment, or a single policy change — I started building this.
+          </p>
+          <p className="text-pretty font-medium text-text">
+            I'm not going away. And this isn't about anger. It's about reform.
+            Every document on this site is sourced. Every claim is grounded in
+            publicly available records, statutes, and policies. The goal isn't
+            punishment — it's to make sure the next family doesn't go through
+            what mine did.
           </p>
         </div>
 
