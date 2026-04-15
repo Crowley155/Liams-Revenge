@@ -79,7 +79,7 @@ export default function Sources() {
     <div className="space-y-6">
       <div className="relative -mx-4 sm:-mx-6 -mt-6 mb-2 overflow-hidden rounded-b-2xl">
         <img
-          src="./images/evidence-catalog.png"
+          src="/images/evidence-catalog.png"
           alt=""
           className="w-full h-40 sm:h-52 object-cover opacity-30"
         />

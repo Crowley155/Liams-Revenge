@@ -20,7 +20,7 @@ export default function Overview() {
       {/* Hero image */}
       <div className="relative -mx-4 sm:-mx-6 -mt-6 mb-6 overflow-hidden rounded-b-2xl">
         <img
-          src="./images/hero-briefing.png"
+          src="/images/hero-briefing.png"
           alt=""
           className="w-full h-56 sm:h-80 object-cover opacity-30"
         />
@@ -99,7 +99,7 @@ export default function Overview() {
 
         <div className="mt-8 sm:mt-10 bg-surface-alt border-l-4 border-accent rounded-r-xl p-6 sm:p-8 relative overflow-hidden">
           <img
-            src="./images/core-problem.png"
+            src="/images/core-problem.png"
             alt=""
             className="absolute inset-0 w-full h-full object-cover opacity-[0.06] pointer-events-none"
           />
@@ -132,7 +132,7 @@ export default function Overview() {
         <div className="border-t border-border/60 mb-10 sm:mb-14" />
         <div className="mb-6 rounded-xl overflow-hidden">
           <img
-            src="./images/manufactured-trust.png"
+            src="/images/manufactured-trust.png"
             alt=""
             className="w-full h-36 sm:h-48 object-cover opacity-25"
           />

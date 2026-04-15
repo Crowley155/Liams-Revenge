@@ -239,7 +239,7 @@ export default function NonCompliance() {
     <div className="space-y-8">
       <div className="relative -mx-4 sm:-mx-6 -mt-6 mb-4 overflow-hidden rounded-b-2xl">
         <img
-          src="./images/non-compliance-header.png"
+          src="/images/non-compliance-header.png"
           alt=""
           className="w-full h-44 sm:h-56 object-cover opacity-35"
         />

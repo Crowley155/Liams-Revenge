@@ -35,7 +35,7 @@ export default function Login() {
   return (
     <div className="relative flex items-center justify-center min-h-[60vh]">
       <img
-        src="./images/login-bg.png"
+        src="/images/login-bg.png"
         alt=""
         className="absolute inset-0 w-full h-full object-cover opacity-[0.06] pointer-events-none"
       />

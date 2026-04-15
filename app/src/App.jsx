@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import RequireAuth from './auth/RequireAuth';
 import { CaseProvider } from './data/useCase';
@@ -12,6 +12,7 @@ import Sources from './pages/Sources';
 import WhatsNext from './pages/WhatsNext';
 import PolicyReforms from './pages/PolicyReforms';
 import ProfileDetail from './pages/ProfileDetail';
+import Entities from './pages/Entities';
 import EntityDetail from './pages/EntityDetail';
 import MemberPreview from './pages/MemberPreview';
 
@@ -23,7 +24,7 @@ function IdentityRedirect() {
 export default function App() {
   return (
     <AuthProvider>
-      <HashRouter>
+      <BrowserRouter>
         <CaseProvider>
           <EvidencePanelProvider>
             <Routes>
@@ -39,6 +40,7 @@ export default function App() {
                   <Route path="people" element={<People />} />
                   <Route path="people/:id" element={<ProfileDetail />} />
                   <Route path="people/:id/identity" element={<IdentityRedirect />} />
+                  <Route path="entities" element={<Entities />} />
                   <Route path="entities/:id" element={<EntityDetail />} />
                   <Route path="entities/:entityId/members/:name" element={<MemberPreview />} />
                   <Route path="non-compliance" element={<NonCompliance />} />
@@ -48,7 +50,7 @@ export default function App() {
             </Routes>
           </EvidencePanelProvider>
         </CaseProvider>
-      </HashRouter>
+      </BrowserRouter>
     </AuthProvider>
   );
 }

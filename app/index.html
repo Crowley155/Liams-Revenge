@@ -3,16 +3,118 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>USDWatch — Crowley v. USD 232 / JCPRD</title>
+    <meta name="description" content="A parent-led accountability site documenting duty-of-care failures in a USD 232 after-school program operated by JCPRD on school property. Sourced evidence, policy analysis, and reform demands." />
+    <link rel="canonical" href="https://usdwatch.com/" />
+
+    <!-- Open Graph -->
+    <meta property="og:site_name" content="USDWatch" />
+    <meta property="og:title" content="USDWatch — Crowley v. USD 232 / JCPRD" />
+    <meta property="og:description" content="What parents are told vs. what actually happens. Duty-of-care failures documented with sourced evidence." />
+    <meta property="og:image" content="https://usdwatch.com/images/og-share.png" />
+    <meta property="og:url" content="https://usdwatch.com/" />
+    <meta property="og:type" content="website" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="USDWatch — Crowley v. USD 232 / JCPRD" />
+    <meta name="twitter:description" content="What parents are told vs. what actually happens. Duty-of-care failures documented with sourced evidence." />
+    <meta name="twitter:image" content="https://usdwatch.com/images/og-share.png" />
+
+    <!-- JSON-LD: WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "USDWatch",
+      "url": "https://usdwatch.com",
+      "description": "Parent-led accountability site documenting duty-of-care failures in a USD 232 / JCPRD after-school program. Sourced evidence, policy analysis, and reform demands.",
+      "potentialAction": {
+        "@type": "ReadAction",
+        "target": "https://usdwatch.com"
+      }
+    }
+    </script>
+
+    <!-- JSON-LD: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "USDWatch",
+      "url": "https://usdwatch.com",
+      "description": "Public accountability project focused on child safety, duty of care, and policy reform in Kansas public school programs."
+    }
+    </script>
+
+    <!-- JSON-LD: FAQPage — AEO gold. These are the questions people will ask. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What happened at Mize Elementary in USD 232?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "On April 2, 2026, a six-year-old was assaulted by a nine-year-old during a JCPRD-operated after-school program at Mize Elementary in the USD 232 school district. Five staff were outside. None witnessed the incident. The program's incident report concluded 'no medical treatment was necessary' — the child's pediatrician kept him home for a week and filed a DCF report as a mandatory reporter."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is JCPRD responsible for child safety in USD 232 after-school programs?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The lease agreement between USD 232 and JCPRD (Section 8d) requires JCPRD to follow all USD 232 board policies, rules, regulations, and standards. Kansas statute K.S.A. 72-1421(c) binds the district to the full KDHE childcare licensing chapter when they authorize a childcare facility on school property. Both entities share responsibility."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What is USDWatch?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "USDWatch is a parent-built accountability platform documenting duty-of-care failures in USD 232's relationship with JCPRD. Every claim is grounded in publicly available records, statutes, and policies. The site presents sourced evidence, identifies non-compliance with existing policies, and proposes specific reforms."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What policies did USD 232 and JCPRD violate?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Based on available records, multiple board policies were not followed: Policy KG (employee on duty when outside groups use the building), Policy JDDC (bullying prevention on school property), and Policy JDDB (mandatory reporting of assaults to law enforcement). KDHE childcare licensing regulations K.A.R. 28-4-437 requiring active supervision of children were also not met."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What reforms does USDWatch demand?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "USDWatch proposes reforms for both JCPRD and USD 232, including: affirming compliance with all board policies per the lease, enforcing age-appropriate grouping, active supervision standards per KDHE regulations, transparent incident reporting, and district oversight of third-party programs operating on school property."
+          }
+        }
+      ]
+    }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <title>Case Command Center — Crowley v. USD 232 / JCPRD</title>
-    <meta property="og:title" content="Case Command Center — Crowley v. USD 232 / JCPRD" />
-    <meta property="og:description" content="Duty of Care Briefing — What parents are told vs. what actually happens" />
-    <meta property="og:image" content="./images/og-share.png" />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="./images/og-share.png" />
+
+    <!-- GitHub Pages SPA redirect handler -->
+    <script>
+      (function () {
+        var sp = new URLSearchParams(location.search);
+        var path = sp.get('__spa_path');
+        if (path) {
+          sp.delete('__spa_path');
+          var remaining = sp.toString();
+          var newUrl = path + (remaining ? '?' + remaining : '');
+          history.replaceState(null, '', newUrl);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
