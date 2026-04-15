@@ -162,6 +162,64 @@ export async function dismissSocialProfile(personId, url) {
   return res.json();
 }
 
+// Entity CRUD & research
+export async function createEntity(data) {
+  const res = await authFetch(`${API_BASE}/api/entities`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Create entity failed: ${res.status}`);
+  return res.json();
+}
+
+export async function updateEntity(id, data) {
+  const res = await authFetch(`${API_BASE}/api/entities/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Update entity failed: ${res.status}`);
+  return res.json();
+}
+
+export async function startEntityResearch(entityId) {
+  const res = await authFetch(`${API_BASE}/api/entities/${entityId}/research`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Entity research failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchEntityFacts(entityId, category = '') {
+  const params = category ? `?category=${category}` : '';
+  const res = await authFetch(`${API_BASE}/api/entities/${entityId}/facts${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch entity facts: ${res.status}`);
+  return res.json();
+}
+
+export async function verifyEntityFact(entityId, factId) {
+  const res = await authFetch(`${API_BASE}/api/entities/${entityId}/facts/${factId}/verify`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Verify fact failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteEntityFact(entityId, factId) {
+  const res = await authFetch(`${API_BASE}/api/entities/${entityId}/facts/${factId}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Delete fact failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchEntityGraph() {
+  const res = await authFetch(`${API_BASE}/api/entities/graph`);
+  if (!res.ok) throw new Error(`Failed to fetch entity graph: ${res.status}`);
+  return res.json();
+}
+
 // KORA requests
 export async function generateKoraRequests() {
   const res = await authFetch(`${API_BASE}/api/kora/generate`, { method: 'POST' });

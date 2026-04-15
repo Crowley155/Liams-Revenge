@@ -10,6 +10,7 @@ const PUBLIC_NAV = [
 
 const PROTECTED_NAV = [
   { to: '/people', label: 'People' },
+  { to: '/entities', label: 'Entities' },
   { to: '/non-compliance', label: 'Non-Compliance' },
   { to: '/sources', label: 'Evidence Catalog' },
 ];

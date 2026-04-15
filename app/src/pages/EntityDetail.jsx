@@ -3,8 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import {
   fetchEntity, fetchEntityMembers, discoverMembers,
   acceptEntityMember, rejectEntityMember,
+  startEntityResearch, verifyEntityFact, deleteEntityFact,
+  updateEntity, getJobStatus,
 } from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
+import EntityGraph from '../components/EntityGraph';
 
 const TYPE_LABELS = {
   district: 'School District',
@@ -12,6 +15,8 @@ const TYPE_LABELS = {
   board: 'Board',
   agency: 'Agency',
   program: 'Program',
+  commission: 'Commission',
+  county: 'County',
 };
 
 const SOURCE_BADGE = {
@@ -33,6 +38,26 @@ function Initials({ name }) {
   );
 }
 
+const FACT_CATEGORIES = [
+  { value: '', label: 'All' },
+  { value: 'meeting_schedule', label: 'Meetings' },
+  { value: 'news', label: 'News' },
+  { value: 'social_complaint', label: 'Social' },
+  { value: 'public_commitment', label: 'Commitments' },
+  { value: 'oversight', label: 'Oversight' },
+  { value: 'regulatory_action', label: 'Regulatory' },
+  { value: 'records_info', label: 'Records' },
+];
+
+const REL_TYPE_LABELS = {
+  oversees: 'Oversees',
+  leases_to: 'Leases to',
+  funds: 'Funds',
+  regulates: 'Regulates',
+  parent_of: 'Parent of',
+  contracts_with: 'Contracts with',
+};
+
 export default function EntityDetail() {
   const { id } = useParams();
   const [entity, setEntity] = useState(null);
@@ -42,6 +67,11 @@ export default function EntityDetail() {
   const [launchingDiscover, setLaunchingDiscover] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
   const [discoveryPrompt, setDiscoveryPrompt] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
+  const [factFilter, setFactFilter] = useState('');
+  const [researchRunning, setResearchRunning] = useState(false);
+  const [researchJobId, setResearchJobId] = useState(null);
+  const [aliasInput, setAliasInput] = useState('');
 
   const reload = useCallback(() => {
     Promise.all([fetchEntity(id), fetchEntityMembers(id)])
@@ -65,6 +95,76 @@ export default function EntityDetail() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!researchJobId || !researchRunning) return;
+    const interval = setInterval(async () => {
+      try {
+        const job = await getJobStatus(researchJobId);
+        if (job.status === 'complete' || job.status === 'failed') {
+          setResearchRunning(false);
+          reload();
+        }
+      } catch {
+        setResearchRunning(false);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [researchJobId, researchRunning, reload]);
+
+  async function handleResearchEntity() {
+    setResearchRunning(true);
+    try {
+      const job = await startEntityResearch(id);
+      setResearchJobId(job.id);
+    } catch (e) {
+      setError(e.message);
+      setResearchRunning(false);
+    }
+  }
+
+  async function handleVerifyFact(factId) {
+    try {
+      await verifyEntityFact(id, factId);
+      reload();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function handleDeleteFact(factId) {
+    try {
+      await deleteEntityFact(id, factId);
+      reload();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function handleAddAlias() {
+    if (!aliasInput.trim()) return;
+    const existing = entity.aliases || [];
+    try {
+      const updated = await updateEntity(id, {
+        aliases: [...existing, { name: aliasInput.trim(), alias_type: 'acronym' }],
+      });
+      setEntity(updated);
+      setAliasInput('');
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function handleRemoveAlias(idx) {
+    const updated_aliases = [...(entity.aliases || [])];
+    updated_aliases.splice(idx, 1);
+    try {
+      const updated = await updateEntity(id, { aliases: updated_aliases });
+      setEntity(updated);
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
   if (loading) {
     return (
@@ -127,44 +227,260 @@ export default function EntityDetail() {
   const pendingMembers = (entity.members || []).filter((m) => m.status === 'pending');
   const acceptedMembers = (entity.members || []).filter((m) => m.status === 'accepted' && m.person_id);
 
+  const filteredFacts = (entity.facts || []).filter(
+    (f) => !factFilter || f.category === factFilter
+  );
+
+  const TABS = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'facts', label: `Facts (${entity.facts?.length || 0})` },
+    { key: 'relationships', label: `Relationships (${entity.relationships?.length || 0})` },
+    { key: 'graph', label: 'Graph' },
+    { key: 'members', label: `Members (${members.length})` },
+  ];
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-up">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
       <div>
-        <Link to="/people" className="text-xs text-text-dim hover:text-accent transition-colors mb-4 inline-block">
-          &larr; Back to People
+        <Link to="/entities" className="text-xs text-text-dim hover:text-accent transition-colors mb-4 inline-block">
+          &larr; Back to Entities
         </Link>
-        <h1 className="text-2xl font-bold">{entity.name}</h1>
-        <div className="flex items-center gap-3 mt-1 flex-wrap">
-          <span className="text-xs bg-surface-alt border border-border rounded-full px-3 py-1 text-text-dim">
-            {TYPE_LABELS[entity.type] || entity.type}
-          </span>
-          <span className="text-xs text-text-dim">{entity.state}</span>
-          {entity.website && (
-            <a href={entity.website} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:text-accent-hover transition-colors">
-              {entity.website} &rarr;
-            </a>
-          )}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">{entity.name}</h1>
+            <div className="flex items-center gap-3 mt-1 flex-wrap">
+              <span className="text-xs bg-surface-alt border border-border rounded-full px-3 py-1 text-text-dim">
+                {TYPE_LABELS[entity.type] || entity.type}
+              </span>
+              <span className="text-xs text-text-dim">{entity.state}</span>
+              {entity.website && (
+                <a href={entity.website} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:text-accent-hover transition-colors">
+                  {entity.website} &rarr;
+                </a>
+              )}
+              {entity.last_researched && (
+                <span className="text-[10px] text-success/80">
+                  Researched {new Date(entity.last_researched).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={handleResearchEntity}
+            disabled={researchRunning}
+            className="shrink-0 text-xs font-medium px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            {researchRunning && (
+              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            {researchRunning ? 'Researching...' : 'Research Entity'}
+          </button>
         </div>
         {entity.description && (
           <p className="text-sm text-text-dim leading-relaxed mt-3">{entity.description}</p>
         )}
+
+        {/* Aliases */}
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          {(entity.aliases || []).map((a, i) => (
+            <span
+              key={i}
+              className="text-[11px] px-2 py-0.5 bg-surface-alt border border-border rounded-full text-text-dim inline-flex items-center gap-1"
+            >
+              {a.name}
+              <button
+                onClick={() => handleRemoveAlias(i)}
+                className="text-text-dim/40 hover:text-danger transition-colors ml-0.5"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+          <div className="inline-flex items-center gap-1">
+            <input
+              className="text-[11px] px-2 py-0.5 bg-bg border border-border rounded-full w-28 text-text placeholder:text-text-dim/40 focus:outline-none focus:border-accent"
+              placeholder="Add alias..."
+              value={aliasInput}
+              onChange={(e) => setAliasInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddAlias()}
+            />
+          </div>
+        </div>
       </div>
 
-      {/* Key Policies */}
-      {entity.key_policies?.length > 0 && (
-        <section>
-          <h2 className="text-lg font-bold mb-3">Key Policies</h2>
-          <div className="space-y-2">
-            {entity.key_policies.map((p, i) => (
-              <div key={i} className="pl-4 border-l-2 border-accent/40">
-                <p className="text-sm text-text leading-relaxed">{p}</p>
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
+              activeTab === tab.key
+                ? 'border-accent text-accent'
+                : 'border-transparent text-text-dim hover:text-text'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab: Overview */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* Records Custodian */}
+          {entity.records_custodian?.email && (
+            <section className="bg-surface border border-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-2">Records Custodian</h3>
+              <div className="grid gap-1 text-xs text-text-dim">
+                {entity.records_custodian.name && <p><span className="text-text">{entity.records_custodian.name}</span> — {entity.records_custodian.title}</p>}
+                <p>{entity.records_custodian.email} {entity.records_custodian.phone && `| ${entity.records_custodian.phone}`}</p>
               </div>
-            ))}
-          </div>
-        </section>
+            </section>
+          )}
+
+          {entity.meeting_url && (
+            <section className="bg-surface border border-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-2">Meeting Schedule</h3>
+              <a href={entity.meeting_url} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:text-accent-hover">
+                {entity.meeting_url} &rarr;
+              </a>
+            </section>
+          )}
+
+          {entity.news_summary && (
+            <section className="bg-surface border border-border rounded-lg p-4">
+              <h3 className="text-sm font-semibold mb-2">News Summary</h3>
+              <p className="text-xs text-text-dim leading-relaxed">{entity.news_summary}</p>
+            </section>
+          )}
+
+          {entity.key_policies?.length > 0 && (
+            <section>
+              <h3 className="text-sm font-semibold mb-3">Key Policies</h3>
+              <div className="space-y-2">
+                {entity.key_policies.map((p, i) => (
+                  <div key={i} className="pl-4 border-l-2 border-accent/40">
+                    <p className="text-sm text-text leading-relaxed">{p}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
       )}
 
+      {/* Tab: Facts */}
+      {activeTab === 'facts' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            {FACT_CATEGORIES.map((cat) => (
+              <button
+                key={cat.value}
+                onClick={() => setFactFilter(cat.value)}
+                className={`text-[11px] px-2.5 py-1 rounded-full transition-colors ${
+                  factFilter === cat.value
+                    ? 'bg-accent/15 text-accent'
+                    : 'bg-surface-alt text-text-dim hover:text-text'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          {filteredFacts.length === 0 ? (
+            <p className="text-sm text-text-dim italic py-4">
+              {entity.facts?.length ? 'No facts in this category.' : 'No facts yet. Click "Research Entity" to discover intelligence.'}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {filteredFacts.map((fact) => (
+                <div
+                  key={fact.id}
+                  className="bg-surface border border-border rounded-lg p-4 group"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full shrink-0 mt-0.5 ${
+                      fact.verified ? 'bg-success/15 text-success' : 'bg-surface-alt text-text-dim'
+                    }`}>
+                      {fact.category.replace('_', ' ')}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-medium text-text">{fact.title}</h4>
+                      <p className="text-xs text-text-dim mt-1 leading-relaxed">{fact.summary}</p>
+                      <div className="flex items-center gap-3 mt-2 text-[10px] text-text-dim/60">
+                        {fact.source_url && (
+                          <a href={fact.source_url} target="_blank" rel="noopener noreferrer" className="text-accent/60 hover:text-accent">
+                            source &rarr;
+                          </a>
+                        )}
+                        {fact.source_date && <span>{fact.source_date}</span>}
+                        <span>conf: {(fact.confidence * 100).toFixed(0)}%</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      {!fact.verified && (
+                        <button
+                          onClick={() => handleVerifyFact(fact.id)}
+                          className="text-[10px] px-2 py-0.5 rounded bg-success/15 text-success hover:bg-success/30 transition-colors"
+                        >
+                          Verify
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDeleteFact(fact.id)}
+                        className="text-[10px] px-2 py-0.5 rounded bg-danger/10 text-danger hover:bg-danger/20 transition-colors"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab: Relationships */}
+      {activeTab === 'relationships' && (
+        <div className="space-y-3">
+          {(entity.relationships || []).length === 0 ? (
+            <p className="text-sm text-text-dim italic py-4">
+              No relationships discovered yet. Research this entity to map its organizational connections.
+            </p>
+          ) : (
+            entity.relationships.map((rel) => (
+              <Link
+                key={rel.id}
+                to={`/entities/${rel.target_entity_id}`}
+                className="flex items-center gap-3 bg-surface border border-border rounded-lg p-3 hover:border-accent/40 transition-all"
+              >
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent shrink-0">
+                  {REL_TYPE_LABELS[rel.relationship_type] || rel.relationship_type}
+                </span>
+                <span className="text-sm text-text flex-1">{rel.description || rel.target_entity_id}</span>
+                {rel.verified && (
+                  <span className="text-[10px] text-success">verified</span>
+                )}
+                <span className="text-text-dim text-xs">&rarr;</span>
+              </Link>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Tab: Graph */}
+      {activeTab === 'graph' && (
+        <div className="bg-surface border border-border rounded-lg overflow-hidden" style={{ height: 500 }}>
+          <EntityGraph entityId={id} />
+        </div>
+      )}
+
+      {/* Tab: Members */}
+      {activeTab === 'members' && (<>
       {/* Pending Review */}
       {pendingMembers.length > 0 && (
         <section className="animate-fade-up">
@@ -320,6 +636,7 @@ export default function EntityDetail() {
           </div>
         )}
       </section>
+      </>)}
     </div>
   );
 }
