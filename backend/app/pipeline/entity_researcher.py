@@ -43,22 +43,69 @@ from app.pipeline.tools.web_search import search_web, fetch_page
 logger = logging.getLogger(__name__)
 
 
+VALID_CATEGORIES = frozenset({
+    "meeting_schedule", "news", "social_complaint",
+    "public_commitment", "oversight", "regulatory_action", "records_info",
+})
+
+_CATEGORY_ALIASES: dict[str, str] = {
+    "meeting": "meeting_schedule", "meetings": "meeting_schedule",
+    "schedule": "meeting_schedule", "board_meeting": "meeting_schedule",
+    "social": "social_complaint", "complaint": "social_complaint",
+    "review": "social_complaint", "sentiment": "social_complaint",
+    "commitment": "public_commitment", "public_statement": "public_commitment",
+    "mission": "public_commitment", "initiative": "public_commitment",
+    "activities": "public_commitment", "programs": "public_commitment",
+    "regulatory": "regulatory_action", "regulation": "regulatory_action",
+    "violation": "regulatory_action", "enforcement": "regulatory_action",
+    "inspection": "regulatory_action", "audit": "regulatory_action",
+    "records": "records_info", "foia": "records_info",
+    "public_records": "records_info", "muckrock": "records_info",
+    "oversight_body": "oversight", "parent_agency": "oversight",
+    "jurisdiction": "oversight", "governance": "oversight",
+    "organization": "news", "membership": "news", "structure": "news",
+    "scope": "news", "history": "news", "leadership": "news",
+}
+
+MAX_FACTS_PER_DOCUMENT = 5
+
+
+def _normalize_category(raw: str) -> str:
+    """Map an LLM-produced category string to a valid taxonomy value."""
+    if not raw:
+        return "news"
+    cleaned = raw.lower().strip().replace(" ", "_")
+    if cleaned in VALID_CATEGORIES:
+        return cleaned
+    if cleaned in _CATEGORY_ALIASES:
+        return _CATEGORY_ALIASES[cleaned]
+    for alias, canonical in _CATEGORY_ALIASES.items():
+        if alias in cleaned or cleaned in alias:
+            return canonical
+    return "news"
+
+
 class ExtractEntityIntel(dspy.Signature):
-    """Extract actionable intelligence from a document about an organization.
+    """Extract the most important, actionable intelligence from a document
+    about an organization. Prioritize concrete, verifiable facts over
+    generic descriptions. Skip boilerplate mission statements and
+    marketing copy.
 
-    Focus on: leadership/board members, meeting schedules, oversight bodies,
-    records custodian contact info, public commitments, complaints,
-    regulatory actions, and organizational relationships.
-
-    Return a JSON list of facts, each with:
-      category, title, summary, source_date (if found)
+    Return at most 5 facts — only the highest-value findings.
     """
     document_text: str = dspy.InputField(desc="Webpage or article text (first 3000 chars)")
     entity_name: str = dspy.InputField()
     entity_context: str = dspy.InputField(desc="Entity type, state, aliases")
 
     facts: list[dict] = dspy.OutputField(
-        desc="List of {category, title, summary, source_date} dicts"
+        desc=(
+            "List of up to 5 high-value facts. Each dict has "
+            "{category, title, summary, source_date}. "
+            "category MUST be exactly one of: meeting_schedule | news | "
+            "social_complaint | public_commitment | oversight | "
+            "regulatory_action | records_info. "
+            "Prefer specific, verifiable claims over generic descriptions."
+        )
     )
     relationships: list[dict] = dspy.OutputField(
         desc=(
@@ -74,6 +121,25 @@ class ExtractEntityIntel(dspy.Signature):
         desc="{name, title, email, phone, address, submission_url} or empty dict"
     )
     meeting_url: str = dspy.OutputField(desc="URL for public meeting schedule/calendar, or empty string")
+
+
+class SynthesizeEntityIntel(dspy.Signature):
+    """Synthesize a concise executive summary from a list of researched facts
+    about an organization. Produce two outputs:
+
+    1. news_summary — a 2-4 paragraph narrative covering the most important
+       recent news, regulatory actions, complaints, and public commitments.
+    2. key_policies — a list of the organization's notable policies, positions,
+       or regulatory stances, each as a short sentence.
+
+    Only include information that is directly supported by the facts provided.
+    """
+    entity_name: str = dspy.InputField()
+    entity_context: str = dspy.InputField(desc="Entity type, state, aliases")
+    facts_json: str = dspy.InputField(desc="JSON array of {category, title, summary} dicts")
+
+    news_summary: str = dspy.OutputField(desc="2-4 paragraph executive narrative summary")
+    key_policies: list[str] = dspy.OutputField(desc="List of notable policies/positions as short sentences")
 
 
 def _build_search_queries(entity: Entity, anchor: EntityAnchor) -> dict[str, list[str]]:
@@ -130,8 +196,8 @@ def run_entity_research_pipeline(entity: Entity, job: ResearchJob) -> Entity:
     lm = dspy.LM(settings.collect_model, max_tokens=4096)
     queries = _build_search_queries(entity, anchor)
 
-    all_facts: list[EntityFact] = list(entity.facts)
-    all_rels: list[EntityRelationship] = list(entity.relationships)
+    all_facts: list[EntityFact] = []
+    all_rels: list[EntityRelationship] = []
     seen_urls: set[str] = set()
 
     # =======================================================================
@@ -188,6 +254,40 @@ def run_entity_research_pipeline(entity: Entity, job: ResearchJob) -> Entity:
 
     entity.facts = _deduplicate_facts(all_facts)
     entity.relationships = _deduplicate_relationships(all_rels)
+
+    # =======================================================================
+    # Phase 6: Synthesize — populate Overview tab fields
+    # =======================================================================
+    logger.info("Phase 6: SYNTHESIZE for %s (%d facts)", entity.name, len(entity.facts))
+    job.status = JobStatus.EXTRACTING
+    _persist_job(job)
+
+    high_conf_facts = [f for f in entity.facts if f.confidence >= 0.7]
+    if not high_conf_facts:
+        high_conf_facts = entity.facts[:30]
+
+    if high_conf_facts:
+        import json
+        facts_payload = json.dumps([
+            {"category": f.category, "title": f.title, "summary": f.summary}
+            for f in high_conf_facts[:40]
+        ])
+        try:
+            synthesizer = dspy.ChainOfThought(SynthesizeEntityIntel)
+            with dspy.context(lm=lm):
+                synth = synthesizer(
+                    entity_name=entity.name,
+                    entity_context=entity_context,
+                    facts_json=facts_payload,
+                )
+            if synth.news_summary and len(synth.news_summary) > 20:
+                entity.news_summary = synth.news_summary
+            if synth.key_policies:
+                entity.key_policies = synth.key_policies if isinstance(synth.key_policies, list) else []
+            logger.info("  Synthesis complete: summary=%d chars, %d policies",
+                        len(entity.news_summary or ""), len(entity.key_policies or []))
+        except Exception as e:
+            logger.warning("  Synthesis failed: %s", e)
 
     logger.info(
         "Entity research complete for %s: %d facts, %d relationships",
@@ -288,11 +388,11 @@ def _extract_from_document(
         return [], [], None, ""
 
     facts = []
-    for f in (result.facts or []):
+    for f in (result.facts or [])[:MAX_FACTS_PER_DOCUMENT]:
         if not isinstance(f, dict) or not f.get("title"):
             continue
         facts.append(EntityFact(
-            category=f.get("category", "news"),
+            category=_normalize_category(f.get("category", "")),
             title=f["title"],
             summary=f.get("summary", ""),
             source_url=url,
@@ -410,14 +510,36 @@ def _resolve_or_stub_entity(name: str, state: str) -> str:
 
 
 def _deduplicate_facts(facts: list[EntityFact]) -> list[EntityFact]:
-    """Remove near-duplicate facts by title similarity."""
-    seen_titles: set[str] = set()
-    unique = []
+    """Remove near-duplicate facts using title + summary content similarity."""
+    unique: list[EntityFact] = []
+    seen_keys: list[set[str]] = []
+
+    stop_words = {"the", "a", "an", "of", "for", "in", "on", "to", "and", "is", "was", "by", "with", "at", "from"}
+
+    def _tokens(text: str) -> set[str]:
+        return {w for w in re.sub(r"[^a-z0-9 ]", "", text.lower()).split() if w not in stop_words and len(w) > 2}
+
     for f in facts:
-        key = f.title.lower().strip()[:80]
-        if key not in seen_titles:
-            seen_titles.add(key)
+        fact_tokens = _tokens(f.title) | _tokens(f.summary or "")
+        if not fact_tokens:
             unique.append(f)
+            seen_keys.append(set())
+            continue
+
+        is_dup = False
+        for existing_tokens in seen_keys:
+            if not existing_tokens:
+                continue
+            overlap = fact_tokens & existing_tokens
+            similarity = len(overlap) / min(len(fact_tokens), len(existing_tokens)) if existing_tokens else 0
+            if similarity > 0.6:
+                is_dup = True
+                break
+
+        if not is_dup:
+            unique.append(f)
+            seen_keys.append(fact_tokens)
+
     return unique
 
 

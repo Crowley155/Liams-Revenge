@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   fetchEntity, fetchEntityMembers, discoverMembers,
@@ -39,8 +39,7 @@ function Initials({ name }) {
   );
 }
 
-const FACT_CATEGORIES = [
-  { value: '', label: 'All' },
+const CANONICAL_CATEGORIES = [
   { value: 'meeting_schedule', label: 'Meetings' },
   { value: 'news', label: 'News' },
   { value: 'social_complaint', label: 'Social' },
@@ -221,6 +220,27 @@ export default function EntityDetail() {
   const filteredFacts = (entity.facts || []).filter(
     (f) => !factFilter || f.category === factFilter
   );
+
+  const factCategories = useMemo(() => {
+    const facts = entity?.facts || [];
+    const counts = {};
+    for (const f of facts) {
+      counts[f.category] = (counts[f.category] || 0) + 1;
+    }
+    const canonicalValues = new Set(CANONICAL_CATEGORIES.map((c) => c.value));
+    const pills = [{ value: '', label: 'All', count: facts.length }];
+    for (const cat of CANONICAL_CATEGORIES) {
+      if (counts[cat.value]) {
+        pills.push({ ...cat, count: counts[cat.value] });
+      }
+    }
+    for (const [cat, count] of Object.entries(counts)) {
+      if (!canonicalValues.has(cat)) {
+        pills.push({ value: cat, label: cat.replace(/_/g, ' '), count });
+      }
+    }
+    return pills;
+  }, [entity?.facts]);
 
   const TABS = [
     { key: 'overview', label: 'Overview' },
@@ -412,7 +432,7 @@ export default function EntityDetail() {
       {activeTab === 'facts' && (
         <div className="space-y-4">
           <div className="flex items-center gap-2 flex-wrap">
-            {FACT_CATEGORIES.map((cat) => (
+            {factCategories.map((cat) => (
               <button
                 key={cat.value}
                 onClick={() => setFactFilter(cat.value)}
@@ -423,6 +443,7 @@ export default function EntityDetail() {
                 }`}
               >
                 {cat.label}
+                <span className="ml-1 opacity-60">({cat.count})</span>
               </button>
             ))}
           </div>
