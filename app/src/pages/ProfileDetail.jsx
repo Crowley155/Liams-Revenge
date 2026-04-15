@@ -149,10 +149,12 @@ export default function ProfileDetail() {
   }, [id]);
 
   const { job, isRunning, isDone, error: jobError, start: startJob } = useResearchJob({
+    onPoll: reload,
     onComplete: reload,
   });
 
   const { job: enrichJob, isRunning: enrichRunning, isDone: enrichDone, error: enrichJobError, start: startEnrichJob } = useResearchJob({
+    onPoll: reload,
     onComplete: reload,
   });
 

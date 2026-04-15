@@ -4,7 +4,7 @@ import {
   fetchEntity, fetchEntityMembers, discoverMembers,
   acceptEntityMember, rejectEntityMember,
   startEntityResearch, verifyEntityFact, deleteEntityFact,
-  updateEntity, getJobStatus,
+  updateEntity,
 } from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
 import EntityGraph from '../components/EntityGraph';
@@ -69,9 +69,8 @@ export default function EntityDetail() {
   const [discoveryPrompt, setDiscoveryPrompt] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [factFilter, setFactFilter] = useState('');
-  const [researchRunning, setResearchRunning] = useState(false);
-  const [researchJobId, setResearchJobId] = useState(null);
   const [aliasInput, setAliasInput] = useState('');
+  const [launching, setLaunching] = useState(false);
 
   const reload = useCallback(() => {
     Promise.all([fetchEntity(id), fetchEntityMembers(id)])
@@ -79,7 +78,13 @@ export default function EntityDetail() {
       .catch(() => {});
   }, [id]);
 
+  const { job: researchJob, isRunning: researchRunning, isDone: researchDone, error: researchError, start: startResearchJob } = useResearchJob({
+    onPoll: reload,
+    onComplete: reload,
+  });
+
   const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover, reset: resetDiscover } = useResearchJob({
+    onPoll: reload,
     onComplete: () => {
       setTimeout(() => {
         reload();
@@ -96,30 +101,15 @@ export default function EntityDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  useEffect(() => {
-    if (!researchJobId || !researchRunning) return;
-    const interval = setInterval(async () => {
-      try {
-        const job = await getJobStatus(researchJobId);
-        if (job.status === 'complete' || job.status === 'failed') {
-          setResearchRunning(false);
-          reload();
-        }
-      } catch {
-        setResearchRunning(false);
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [researchJobId, researchRunning, reload]);
-
   async function handleResearchEntity() {
-    setResearchRunning(true);
+    setLaunching(true);
     try {
       const job = await startEntityResearch(id);
-      setResearchJobId(job.id);
+      startResearchJob(job.id);
     } catch (e) {
       setError(e.message);
-      setResearchRunning(false);
+    } finally {
+      setLaunching(false);
     }
   }
 
@@ -266,16 +256,28 @@ export default function EntityDetail() {
               )}
             </div>
           </div>
-          <button
-            onClick={handleResearchEntity}
-            disabled={researchRunning}
-            className="shrink-0 text-xs font-medium px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {researchRunning && (
-              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center gap-3 shrink-0">
+            <button
+              onClick={handleResearchEntity}
+              disabled={launching || researchRunning}
+              className="text-xs font-medium px-4 py-2 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {launching ? 'Starting...' : researchRunning ? 'Researching...' : entity.last_researched ? 'Re-research' : 'Research Entity'}
+            </button>
+            {researchRunning && researchJob && (
+              <span className="text-xs text-text-dim flex items-center gap-2">
+                <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                {researchJob.status} {researchJob.facts_found > 0 && `\u2014 ${researchJob.facts_found} facts`}
+              </span>
             )}
-            {researchRunning ? 'Researching...' : 'Research Entity'}
-          </button>
+            {researchDone && researchJob?.status === 'complete' && (
+              <span className="text-xs text-success">Done — {researchJob.facts_found} facts found</span>
+            )}
+            {researchDone && researchJob?.status === 'failed' && (
+              <span className="text-xs text-danger">Failed: {researchJob.error || 'unknown'}</span>
+            )}
+            {researchError && <span className="text-xs text-danger">{researchError}</span>}
+          </div>
         </div>
         {entity.description && (
           <p className="text-sm text-text-dim leading-relaxed mt-3">{entity.description}</p>
