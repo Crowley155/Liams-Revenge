@@ -1,13 +1,19 @@
 """
-Entities API — CRUD for organizations and member discovery.
+Entities API — CRUD for organizations, member discovery, and entity research.
 
-GET  /api/entities                — list all entities
-GET  /api/entities/{id}           — single entity with member list
-POST /api/entities                — create entity
-POST /api/entities/{id}/discover  — discover members via pipeline (prompt-guided)
-GET  /api/entities/{id}/members   — accepted Person records linked to entity
-POST /api/entities/{id}/members/accept  — accept a pending member
-POST /api/entities/{id}/members/reject  — reject a pending member
+GET    /api/entities                          — list all entities
+GET    /api/entities/graph                    — all entities + relationships for graph viz
+GET    /api/entities/{id}                     — single entity with member list
+POST   /api/entities                          — create entity
+PATCH  /api/entities/{id}                     — partial update
+POST   /api/entities/{id}/research            — kick off entity research pipeline
+POST   /api/entities/{id}/discover            — discover members via pipeline (prompt-guided)
+GET    /api/entities/{id}/members             — accepted Person records linked to entity
+POST   /api/entities/{id}/members/accept      — accept a pending member
+POST   /api/entities/{id}/members/reject      — reject a pending member
+GET    /api/entities/{id}/facts               — list entity facts (filterable by category)
+DELETE /api/entities/{id}/facts/{fact_id}      — remove a fact
+POST   /api/entities/{id}/facts/{fact_id}/verify — mark a fact as verified
 """
 from __future__ import annotations
 
@@ -15,12 +21,14 @@ import logging
 import re
 import uuid
 from datetime import datetime
+from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from app.models import (
-    Entity, EntityCreate, EntityMember, Person, PersonSource,
+    Entity, EntityAlias, EntityCreate, EntityFact, EntityMember,
+    EntityRelationship, EntityUpdate, Person, PersonSource,
     ResearchJob, JobStatus, SocialProfile, Fact, ProfileIntelItem,
 )
 from app.api._store import entities, profiles, jobs
@@ -33,6 +41,33 @@ router = APIRouter(tags=["entities"])
 @router.get("/entities", response_model=list[Entity])
 async def list_entities():
     return list(entities.values())
+
+
+@router.get("/entities/graph")
+async def get_entity_graph(_user: dict = Depends(get_current_user)):
+    """Return all entities with their relationships for graph visualization."""
+    all_ents = list(entities.values())
+    nodes = []
+    edges = []
+    for ent in all_ents:
+        nodes.append({
+            "id": ent.id,
+            "name": ent.name,
+            "type": ent.type,
+            "state": ent.state,
+            "member_count": len([m for m in ent.members if m.status == "accepted"]),
+            "fact_count": len(ent.facts),
+            "website": ent.website,
+        })
+        for rel in ent.relationships:
+            edges.append({
+                "source": ent.id,
+                "target": rel.target_entity_id,
+                "relationship_type": rel.relationship_type,
+                "description": rel.description,
+                "verified": rel.verified,
+            })
+    return {"nodes": nodes, "edges": edges}
 
 
 @router.get("/entities/{entity_id}", response_model=Entity)
@@ -52,10 +87,130 @@ async def create_entity(req: EntityCreate, _user: dict = Depends(get_current_use
         state=req.state,
         website=req.website,
         description=req.description,
+        aliases=req.aliases,
+        meeting_url=req.meeting_url,
     )
     entities[ent.id] = ent
-    logger.info("Created entity %s: %s", ent.id, ent.name)
+    logger.info("Created entity %s: %s (aliases: %s)", ent.id, ent.name, [a.name for a in ent.aliases])
     return ent
+
+
+@router.patch("/entities/{entity_id}", response_model=Entity)
+async def update_entity(entity_id: str, req: EntityUpdate, _user: dict = Depends(get_current_user)):
+    ent = entities.get(entity_id)
+    if not ent:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    update_data = req.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(ent, field, value)
+
+    ent.updated_at = datetime.utcnow()
+    entities[entity_id] = ent
+    logger.info("Updated entity %s: %s (fields: %s)", entity_id, ent.name, list(update_data.keys()))
+    return ent
+
+
+@router.get("/entities/{entity_id}/facts", response_model=list[EntityFact])
+async def list_entity_facts(
+    entity_id: str,
+    category: Optional[str] = Query(None),
+    _user: dict = Depends(get_current_user),
+):
+    ent = entities.get(entity_id)
+    if not ent:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    facts = ent.facts
+    if category:
+        facts = [f for f in facts if f.category == category]
+    return facts
+
+
+@router.delete("/entities/{entity_id}/facts/{fact_id}")
+async def delete_entity_fact(entity_id: str, fact_id: str, _user: dict = Depends(get_current_user)):
+    ent = entities.get(entity_id)
+    if not ent:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    original_len = len(ent.facts)
+    ent.facts = [f for f in ent.facts if f.id != fact_id]
+    if len(ent.facts) == original_len:
+        raise HTTPException(status_code=404, detail="Fact not found")
+    ent.updated_at = datetime.utcnow()
+    entities[entity_id] = ent
+    return {"status": "deleted", "fact_id": fact_id}
+
+
+@router.post("/entities/{entity_id}/facts/{fact_id}/verify", response_model=EntityFact)
+async def verify_entity_fact(entity_id: str, fact_id: str, _user: dict = Depends(get_current_user)):
+    ent = entities.get(entity_id)
+    if not ent:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    fact = next((f for f in ent.facts if f.id == fact_id), None)
+    if not fact:
+        raise HTTPException(status_code=404, detail="Fact not found")
+    fact.verified = True
+    ent.updated_at = datetime.utcnow()
+    entities[entity_id] = ent
+    return fact
+
+
+@router.post("/entities/{entity_id}/research", response_model=ResearchJob)
+async def research_entity(entity_id: str, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
+    """Kick off the entity research pipeline (website crawl, news, social, oversight, records)."""
+    ent = entities.get(entity_id)
+    if not ent:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    job_id = str(uuid.uuid4())[:8]
+    job = ResearchJob(id=job_id, person_id=entity_id)
+    jobs[job_id] = job
+
+    bg.add_task(_run_entity_research, entity_id, job)
+
+    logger.info("Entity research job %s started for %s (%s)", job_id, entity_id, ent.name)
+    return job
+
+
+def _run_entity_research(entity_id: str, job: ResearchJob):
+    """Background task: run the full entity research pipeline."""
+    try:
+        from app.pipeline.entity_researcher import run_entity_research_pipeline
+
+        ent = entities.get(entity_id)
+        if not ent:
+            raise ValueError(f"Entity {entity_id} not found")
+
+        job.status = JobStatus.SEARCHING
+        job.started_at = datetime.utcnow()
+        jobs[job.id] = job
+
+        updated_entity = run_entity_research_pipeline(ent, job)
+
+        updated_entity.last_researched = datetime.utcnow()
+        updated_entity.updated_at = datetime.utcnow()
+        entities[entity_id] = updated_entity
+
+        job.status = JobStatus.COMPLETE
+        job.completed_at = datetime.utcnow()
+        job.facts_found = len(updated_entity.facts)
+        jobs[job.id] = job
+
+        logger.info(
+            "Entity research complete for %s: %d facts, %d relationships",
+            ent.name, len(updated_entity.facts), len(updated_entity.relationships),
+        )
+    except Exception as e:
+        logger.exception("Entity research failed for %s", entity_id)
+        job.status = JobStatus.FAILED
+        job.error = str(e)
+        job.completed_at = datetime.utcnow()
+        jobs[job.id] = job
+    finally:
+        try:
+            from langfuse import get_client
+            get_client().flush()
+        except Exception:
+            pass
 
 
 @router.get("/entities/{entity_id}/members", response_model=list[Person])

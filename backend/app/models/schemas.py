@@ -135,6 +135,38 @@ class IdentityAnchor(BaseModel):
         )
 
 
+class EntityAnchor(BaseModel):
+    """Composite identity fingerprint for entity disambiguation.
+    Parallel to IdentityAnchor for persons."""
+    canonical_name: str
+    aliases: list[str] = Field(default_factory=list)
+    state: str = "KS"
+    entity_type: str = "district"
+    website_domain: Optional[str] = None
+    parent_jurisdiction: Optional[str] = None
+    known_member_names: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_entity(cls, entity: "Entity") -> "EntityAnchor":
+        domain = None
+        if entity.website:
+            from urllib.parse import urlparse
+            try:
+                domain = urlparse(entity.website).netloc.replace("www.", "")
+            except Exception:
+                pass
+        return cls(
+            canonical_name=entity.name,
+            aliases=[a.name for a in entity.aliases],
+            state=entity.state,
+            entity_type=entity.type,
+            website_domain=domain,
+            known_member_names=[
+                m.discovered_name for m in entity.members if m.discovered_name
+            ],
+        )
+
+
 class PersonCreate(BaseModel):
     """Input to kick off research on a person."""
     name: str
@@ -237,20 +269,63 @@ class RecordsCustodian(BaseModel):
     notes: str = ""
 
 
+class EntityAlias(BaseModel):
+    """Alternative name for an entity (acronym, abbreviation, former name, colloquial)."""
+    name: str
+    alias_type: str = Field(
+        default="acronym",
+        description="acronym | abbreviation | former_name | colloquial | legal_name",
+    )
+
+
+class EntityFact(BaseModel):
+    """A discovered piece of intelligence about an entity."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    category: str = Field(
+        description="meeting_schedule | news | social_complaint | public_commitment | oversight | regulatory_action | records_info",
+    )
+    title: str
+    summary: str
+    source_url: Optional[str] = None
+    source_date: Optional[str] = None
+    raw_text: Optional[str] = None
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    verified: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EntityRelationship(BaseModel):
+    """A directed relationship between two entities."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    target_entity_id: str
+    relationship_type: str = Field(
+        description="oversees | leases_to | funds | regulates | parent_of | contracts_with",
+    )
+    description: str = ""
+    source_url: Optional[str] = None
+    verified: bool = False
+
+
 class Entity(BaseModel):
     """An organization/board/agency — like a CRM Account record."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     name: str
     type: str = Field(
         default="district",
-        description="district | department | board | agency | program",
+        description="district | department | board | agency | program | commission | county",
     )
     state: str = "KS"
     website: Optional[str] = None
     description: str = ""
+    aliases: list[EntityAlias] = Field(default_factory=list)
     members: list[EntityMember] = Field(default_factory=list)
     key_policies: list[str] = Field(default_factory=list)
     records_custodian: Optional[RecordsCustodian] = None
+    facts: list[EntityFact] = Field(default_factory=list)
+    relationships: list[EntityRelationship] = Field(default_factory=list)
+    meeting_url: Optional[str] = None
+    news_summary: Optional[str] = None
+    last_researched: Optional[datetime] = None
     metadata: dict = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -263,6 +338,21 @@ class EntityCreate(BaseModel):
     state: str = "KS"
     website: Optional[str] = None
     description: str = ""
+    aliases: list[EntityAlias] = Field(default_factory=list)
+    meeting_url: Optional[str] = None
+
+
+class EntityUpdate(BaseModel):
+    """Partial update for an entity."""
+    name: Optional[str] = None
+    type: Optional[str] = None
+    state: Optional[str] = None
+    website: Optional[str] = None
+    description: Optional[str] = None
+    aliases: Optional[list[EntityAlias]] = None
+    meeting_url: Optional[str] = None
+    key_policies: Optional[list[str]] = None
+    records_custodian: Optional[RecordsCustodian] = None
 
 
 class Person(BaseModel):

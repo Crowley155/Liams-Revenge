@@ -1,23 +1,28 @@
 """
 Disambiguator — identity verification for research pipeline.
 
-Solves the "wrong person" problem: when you search for "Will Crowley USD 232",
-search engines return results for EVERY Will Crowley. This module gates
-documents and facts, ensuring only data about the TARGET person survives.
+Solves the "wrong person/entity" problem: when you search for "Will Crowley USD 232"
+or "JCPRD", search engines return results for EVERY match. This module gates
+documents and facts, ensuring only data about the TARGET survives.
 
-Two levels of checking:
+Person-level checking:
   1. Document-level: "Is this document about our person?"
   2. Fact-level: "Is this specific fact about our person?"
+
+Entity-level checking (added for entity research pipeline):
+  1. Multi-signal pre-filter (fast, no LLM): name similarity + geo + domain + type + co-occurrence
+  2. LLM verification for ambiguous cases only (composite score 0.50–0.84)
 """
 from __future__ import annotations
 
 import json
 import logging
+import re
 from urllib.parse import urlparse
 
 import dspy
 
-from app.models import IdentityAnchor
+from app.models import IdentityAnchor, EntityAnchor
 
 logger = logging.getLogger(__name__)
 
@@ -70,16 +75,42 @@ class VerifyFactIdentity(dspy.Signature):
     confidence: float = dspy.OutputField(desc="0.0-1.0")
 
 
+class CheckEntityDocumentIdentity(dspy.Signature):
+    """Determine if a document/webpage is about the specific entity we're researching,
+    or about a different entity with a similar name (possibly in another state/jurisdiction).
+
+    Consider: geographic location, entity type, website domain, known members,
+    and parent jurisdiction. Err on the side of REJECTING ambiguous matches.
+    """
+    document_text: str = dspy.InputField(desc="First 2000 chars of the document")
+    entity_name: str = dspy.InputField()
+    entity_anchor: str = dspy.InputField(
+        desc="JSON of known facts: canonical_name, aliases, state, entity_type, website_domain, known_member_names"
+    )
+
+    is_same_entity: bool = dspy.OutputField(
+        desc="True ONLY if the document clearly refers to the target entity. False if ambiguous or different entity."
+    )
+    confidence: float = dspy.OutputField(desc="0.0-1.0")
+    reasoning: str = dspy.OutputField()
+
+
 # ---------------------------------------------------------------------------
 # Module
 # ---------------------------------------------------------------------------
 
 class Disambiguator(dspy.Module):
-    """Identity verification gate for the research pipeline."""
+    """Identity verification gate for the research pipeline.
+    Handles both person-level and entity-level disambiguation."""
 
     def __init__(self):
         self.check_doc = dspy.ChainOfThought(CheckDocumentIdentity)
         self.check_fact = dspy.Predict(VerifyFactIdentity)
+        self.check_entity_doc = dspy.ChainOfThought(CheckEntityDocumentIdentity)
+
+    # ------------------------------------------------------------------
+    # Person-level
+    # ------------------------------------------------------------------
 
     def check_document(
         self,
@@ -146,6 +177,56 @@ class Disambiguator(dspy.Module):
             logger.warning("  Fact identity check failed: %s", e)
             return True, 0.5
 
+    # ------------------------------------------------------------------
+    # Entity-level
+    # ------------------------------------------------------------------
+
+    def check_entity_document(
+        self,
+        document_text: str,
+        entity_name: str,
+        anchor: EntityAnchor,
+        source_url: str = "",
+    ) -> tuple[bool, float, str]:
+        """Check if a document is about the target entity.
+
+        Uses trusted-domain fast path first, then multi-signal pre-filter.
+        Only falls through to LLM for ambiguous composite scores (0.30-0.84).
+        """
+        if _is_trusted_entity_domain(source_url, anchor):
+            logger.info("  Trusted entity domain %s — skipping identity check", source_url[:60])
+            return True, 0.95, "Trusted entity domain"
+
+        score = score_entity_match(
+            document_text[:2000], source_url, anchor
+        )
+
+        if score >= 0.85:
+            logger.info("  Entity pre-filter ACCEPT (%.2f) for %s", score, entity_name)
+            return True, score, "High-confidence pre-filter match"
+
+        if score < 0.30:
+            logger.info("  Entity pre-filter REJECT (%.2f) for %s", score, entity_name)
+            return False, score, "Low-confidence pre-filter — likely different entity"
+
+        try:
+            result = self.check_entity_doc(
+                document_text=document_text[:2000],
+                entity_name=entity_name,
+                entity_anchor=anchor.model_dump_json(),
+            )
+            is_same = bool(result.is_same_entity)
+            conf = float(result.confidence)
+            reasoning = str(result.reasoning)
+            logger.info(
+                "  Entity LLM check: %s (%.2f) — %s",
+                "ACCEPT" if is_same else "REJECT", conf, reasoning[:120],
+            )
+            return is_same, conf, reasoning
+        except Exception as e:
+            logger.warning("  Entity identity check failed (allowing): %s", e)
+            return True, 0.5, f"Check failed: {e}"
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -180,6 +261,117 @@ def _is_trusted_domain(url: str, organization: str) -> bool:
         return True
 
     return False
+
+
+def _is_trusted_entity_domain(url: str, anchor: EntityAnchor) -> bool:
+    """Check if a URL belongs to the target entity's known website domain."""
+    if not url or not anchor.website_domain:
+        return False
+    try:
+        host = urlparse(url).netloc.lower().replace("www.", "")
+    except Exception:
+        return False
+    return anchor.website_domain in host
+
+
+# ---------------------------------------------------------------------------
+# Multi-signal entity scoring (fast pre-filter, no LLM)
+# ---------------------------------------------------------------------------
+
+def _name_similarity(text: str, anchor: EntityAnchor) -> float:
+    """Score 0-1 based on how many entity names appear in the text."""
+    text_lower = text.lower()
+    all_names = [n for n in
+                 [anchor.canonical_name.lower()] + [a.lower() for a in anchor.aliases]
+                 if n.strip()]
+    if not all_names:
+        return 0.0
+    hits = sum(1 for n in all_names if n in text_lower)
+    return min(hits / max(len(all_names), 1), 1.0)
+
+
+def _geographic_match(text: str, anchor: EntityAnchor) -> float:
+    """Score 0-1 based on state/jurisdiction mentions."""
+    if not anchor.state or not anchor.state.strip():
+        return 0.0
+    text_lower = text.lower()
+    score = 0.0
+    state_names = {
+        "KS": "kansas", "MO": "missouri", "CA": "california", "TX": "texas",
+        "NY": "new york", "FL": "florida", "IL": "illinois", "OH": "ohio",
+        "PA": "pennsylvania", "GA": "georgia", "NC": "north carolina",
+        "MI": "michigan", "NJ": "new jersey", "VA": "virginia",
+        "WA": "washington", "AZ": "arizona", "MA": "massachusetts",
+        "TN": "tennessee", "IN": "indiana", "MD": "maryland",
+        "WI": "wisconsin", "CO": "colorado", "MN": "minnesota",
+        "SC": "south carolina", "AL": "alabama", "LA": "louisiana",
+        "KY": "kentucky", "OR": "oregon", "OK": "oklahoma",
+        "CT": "connecticut", "UT": "utah", "IA": "iowa",
+        "NV": "nevada", "AR": "arkansas", "MS": "mississippi",
+        "NE": "nebraska", "NM": "new mexico", "WV": "west virginia",
+        "ID": "idaho", "HI": "hawaii", "NH": "new hampshire",
+        "ME": "maine", "MT": "montana", "RI": "rhode island",
+        "DE": "delaware", "SD": "south dakota", "ND": "north dakota",
+        "AK": "alaska", "VT": "vermont", "WY": "wyoming", "DC": "district of columbia",
+    }
+    state_code = anchor.state.upper()
+    state_full = state_names.get(state_code, "")
+    if state_full and state_full in text_lower:
+        score += 0.6
+    elif re.search(r'\b' + re.escape(state_code) + r'\b', text, re.IGNORECASE):
+        score += 0.6
+    if anchor.parent_jurisdiction and anchor.parent_jurisdiction.lower() in text_lower:
+        score += 0.4
+    return min(score, 1.0)
+
+
+def _domain_match(source_url: str, anchor: EntityAnchor) -> float:
+    """Score 0 or 1 based on website domain match."""
+    if not source_url or not anchor.website_domain:
+        return 0.0
+    try:
+        host = urlparse(source_url).netloc.lower().replace("www.", "")
+    except Exception:
+        return 0.0
+    return 1.0 if anchor.website_domain in host else 0.0
+
+
+def _member_cooccurrence(text: str, anchor: EntityAnchor) -> float:
+    """Score 0-1 based on how many known member names appear in the text."""
+    names = [n for n in anchor.known_member_names if n.strip()]
+    if not names:
+        return 0.0
+    text_lower = text.lower()
+    hits = sum(1 for name in names if name.lower() in text_lower)
+    return min(hits / max(len(names), 1), 1.0)
+
+
+def score_entity_match(
+    document_text: str,
+    source_url: str,
+    anchor: EntityAnchor,
+) -> float:
+    """Composite multi-signal scorer for entity disambiguation.
+
+    Returns 0.0-1.0.  >=0.85 auto-accept, <0.30 auto-reject, else LLM.
+    Weights: name 0.35, geo 0.20, domain 0.25, co-occurrence 0.20.
+    """
+    name_score = _name_similarity(document_text, anchor)
+    geo_score = _geographic_match(document_text, anchor)
+    domain_score = _domain_match(source_url, anchor)
+    member_score = _member_cooccurrence(document_text, anchor)
+
+    composite = (
+        0.35 * name_score
+        + 0.20 * geo_score
+        + 0.25 * domain_score
+        + 0.20 * member_score
+    )
+    logger.debug(
+        "  Entity match scores — name: %.2f, geo: %.2f, domain: %.2f, member: %.2f → composite: %.2f",
+        name_score, geo_score, domain_score, member_score, composite,
+    )
+    return composite
 
 
 def build_anchor_from_request(
