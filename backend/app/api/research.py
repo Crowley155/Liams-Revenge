@@ -124,3 +124,20 @@ async def get_job_status(job_id: str, _user: dict = Depends(get_current_user)):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+
+@router.post("/research/{job_id}/cancel", response_model=ResearchJob)
+async def cancel_job(job_id: str, _user: dict = Depends(get_current_user)):
+    """Mark a running research job as failed/cancelled. The background task
+    checks job.status on each phase boundary and aborts if it sees FAILED."""
+    job = jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status in (JobStatus.COMPLETE, JobStatus.FAILED):
+        raise HTTPException(status_code=400, detail=f"Job already {job.status.value}")
+    job.status = JobStatus.FAILED
+    job.error = "Cancelled by user"
+    job.completed_at = datetime.utcnow()
+    jobs[job.id] = job
+    logger.info("Job %s cancelled by user", job_id)
+    return job

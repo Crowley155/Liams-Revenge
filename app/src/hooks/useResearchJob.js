@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getJobStatus } from '../api/client';
+import { getJobStatus, cancelJob as cancelJobApi } from '../api/client';
 
 const TERMINAL = new Set(['complete', 'failed']);
 const POLL_MS = 2000;
@@ -62,6 +62,16 @@ export default function useResearchJob({ onComplete, onPoll } = {}) {
     setError(null);
   }, []);
 
+  const cancel = useCallback(async () => {
+    if (!jobId) return;
+    try {
+      const data = await cancelJobApi(jobId);
+      setJob(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [jobId]);
+
   return {
     job,
     isRunning: !!jobId && job && !TERMINAL.has(job.status),
@@ -69,5 +79,6 @@ export default function useResearchJob({ onComplete, onPoll } = {}) {
     error,
     start,
     reset,
+    cancel,
   };
 }

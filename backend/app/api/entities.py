@@ -41,7 +41,7 @@ router = APIRouter(tags=["entities"])
 
 
 @router.get("/entities", response_model=list[Entity])
-async def list_entities():
+async def list_entities(_user: dict = Depends(get_current_user)):
     return list(entities.values())
 
 

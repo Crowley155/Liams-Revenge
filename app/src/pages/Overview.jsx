@@ -4,9 +4,10 @@ import { useCase } from '../data/useCase';
 import DocLink from '../components/DocLink';
 import { useAuth } from '../auth/AuthContext';
 import {
-  generateKoraRequests, fetchKoraRequests, markKoraSent,
+  generateKoraRequests, fetchKoraRequests, markKoraSent, updateKoraRequest,
   uploadDocument, fetchDocuments, fetchEntities, getJobStatus,
 } from '../api/client';
+import { printDocument } from '../utils/printPdf';
 
 export default function Overview() {
   const data = useCase();
@@ -411,6 +412,24 @@ function KoraSection() {
         </div>
       )}
 
+      {/* Status pipeline summary */}
+      {koraRequests.length > 0 && (
+        <div className="flex items-center gap-1 text-[11px]">
+          {['draft', 'sent', 'partial', 'fulfilled', 'denied'].map((s, i, arr) => {
+            const count = koraRequests.filter((r) => r.status === s).length;
+            if (count === 0 && s !== 'draft' && s !== 'sent') return null;
+            return (
+              <span key={s} className="flex items-center gap-1">
+                {i > 0 && <span className="text-text-dim/30 mx-1">&rarr;</span>}
+                <span className={`px-2.5 py-1 rounded-full font-medium ${STATUS_COLORS[s]}`}>
+                  {s} ({count})
+                </span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* Entity filter chips */}
       {entities.length > 0 && koraRequests.length > 0 && (
         <div className="flex gap-2 flex-wrap">
@@ -496,12 +515,49 @@ function KoraSection() {
                       >
                         {copied === req.id ? 'Copied!' : 'Copy Letter'}
                       </button>
+                      <button
+                        onClick={() => printDocument({
+                          title: req.subject || 'KORA Request',
+                          body: (req.letter_text || req.records_description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'),
+                          meta: {
+                            'Status': req.status,
+                            'Category': CATEGORY_LABELS[req.record_category] || req.record_category,
+                            'Entity': entityNames.join(', '),
+                            ...(req.sent_at ? { 'Sent': new Date(req.sent_at).toLocaleDateString() } : {}),
+                          },
+                        })}
+                        className="text-[11px] font-medium px-3 py-1 rounded bg-surface-alt text-text-dim hover:text-text hover:bg-border/40 transition-colors"
+                      >
+                        Download PDF
+                      </button>
                       {req.status === 'draft' && (
                         <button
                           onClick={() => handleMarkSent(req)}
                           className="text-[11px] font-medium px-3 py-1 rounded bg-success/15 text-success hover:bg-success/30 transition-colors"
                         >
                           Mark as Sent
+                        </button>
+                      )}
+                      {req.status === 'sent' && (
+                        <button
+                          onClick={async () => {
+                            const updated = await updateKoraRequest(req.id, { status: 'fulfilled' });
+                            setKoraRequests((prev) => prev.map((r) => r.id === updated.id ? updated : r));
+                          }}
+                          className="text-[11px] font-medium px-3 py-1 rounded bg-success/15 text-success hover:bg-success/30 transition-colors"
+                        >
+                          Mark Fulfilled
+                        </button>
+                      )}
+                      {req.status === 'sent' && (
+                        <button
+                          onClick={async () => {
+                            const updated = await updateKoraRequest(req.id, { status: 'denied' });
+                            setKoraRequests((prev) => prev.map((r) => r.id === updated.id ? updated : r));
+                          }}
+                          className="text-[11px] font-medium px-3 py-1 rounded bg-danger/15 text-danger hover:bg-danger/30 transition-colors"
+                        >
+                          Mark Denied
                         </button>
                       )}
                     </div>

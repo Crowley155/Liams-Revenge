@@ -81,6 +81,18 @@ class BrainstormRecordCategories(dspy.Signature):
     )
 
 
+def _resolve_custodian(
+    entity_ids: list[str],
+    entities_by_id: dict[str, Entity],
+) -> RecordsCustodian | None:
+    """Pick the records custodian from the first entity that has one."""
+    for eid in entity_ids:
+        ent = entities_by_id.get(eid)
+        if ent and ent.records_custodian and ent.records_custodian.name:
+            return ent.records_custodian
+    return None
+
+
 def _load_case_data() -> dict:
     """Load case-data.json from the standard locations."""
     for p in [
@@ -239,6 +251,7 @@ def generate_kora_requests(
             evidence_gap_ids=rd.get("evidence_gap_ids", []),
             record_category=rd.get("record_category", ""),
         )
+        req.custodian = _resolve_custodian(req.entity_ids, entities_by_id)
         req.letter_text = _render_letter(req, entities_by_id)
         all_requests.append(req)
 
@@ -277,6 +290,7 @@ def generate_kora_requests(
             evidence_gap_ids=[],
             record_category=rd.get("record_category", ""),
         )
+        req.custodian = _resolve_custodian(req.entity_ids, entities_by_id)
         req.letter_text = _render_letter(req, entities_by_id)
         all_requests.append(req)
 

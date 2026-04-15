@@ -42,10 +42,22 @@ from app.pipeline.tools.web_search import fetch_page
 logger = logging.getLogger(__name__)
 
 
+class PipelineCancelled(Exception):
+    pass
+
+
 def _persist_job(job: "ResearchJob"):
     """Write job state back to SQLite so the status API reflects changes."""
     from app.api._store import jobs as _jobs_store
     _jobs_store[job.id] = job
+
+
+def _check_cancelled(job: "ResearchJob"):
+    """Re-read job from DB; raise if user cancelled via the API."""
+    from app.api._store import jobs as _jobs_store
+    fresh = _jobs_store.get(job.id)
+    if fresh and fresh.status == JobStatus.FAILED:
+        raise PipelineCancelled(fresh.error or "Cancelled")
 logging.basicConfig(level=logging.INFO)
 
 try:
@@ -195,6 +207,8 @@ def _run_pipeline_phases(
     _persist_job(job)
     logger.info("Pass 1 complete: %d documents collected", len(documents))
 
+    _check_cancelled(job)
+
     # =======================================================================
     # PASS 2: DISAMBIGUATE (reasoning model)
     # =======================================================================
@@ -231,6 +245,8 @@ def _run_pipeline_phases(
         sum(1 for f in all_facts if f.tier == ConfidenceTier.D_REJECTED),
     )
 
+    _check_cancelled(job)
+
     # =======================================================================
     # PASS 3: SYNTHESIZE (reasoning model)
     # =======================================================================
@@ -246,7 +262,9 @@ def _run_pipeline_phases(
 
         job.status = JobStatus.VALIDATING
         _persist_job(job)
-        _pass3_validate(profile_facts)
+
+        url_to_text = {doc.get("url", ""): doc["text"] for doc in accepted_docs if doc.get("url")}
+        _pass3_validate(profile_facts, url_to_text)
 
     job.status = JobStatus.COMPLETE
     job.completed_at = datetime.utcnow()
@@ -511,20 +529,26 @@ def _pass3_synthesize(
 
 
 @observe(name="pass3-validate")
-def _pass3_validate(facts: list[Fact]):
-    """Cross-check high-confidence facts against source text."""
+def _pass3_validate(facts: list[Fact], url_to_text: dict[str, str] | None = None):
+    """Cross-check high-confidence facts against actual source document text."""
     validator = FactValidator()
     validated = 0
+    url_to_text = url_to_text or {}
 
     for fact in facts:
-        if fact.confidence >= 0.7 and fact.source_title:
-            try:
-                vr = validator(claim=fact.content, source_text=fact.source_title)
-                fact.verified = bool(vr.is_verified)
-                fact.confidence = float(vr.confidence)
-                validated += 1
-            except Exception as e:
-                logger.warning("  Validation failed: %s", e)
+        if fact.confidence < 0.7:
+            continue
+        source_text = url_to_text.get(fact.source_url or "", "")
+        if not source_text:
+            continue
+        source_excerpt = source_text[:4000]
+        try:
+            vr = validator(claim=fact.content, source_text=source_excerpt)
+            fact.verified = bool(vr.is_verified)
+            fact.confidence = float(vr.confidence)
+            validated += 1
+        except Exception as e:
+            logger.warning("  Validation failed: %s", e)
 
     logger.info("  Validated %d facts", validated)
 

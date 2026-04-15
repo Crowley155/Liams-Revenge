@@ -42,17 +42,6 @@ from app.pipeline.tools.web_search import search_web, fetch_page
 
 logger = logging.getLogger(__name__)
 
-try:
-    from langfuse import observe
-    _HAS_OBSERVE = True
-except ImportError:
-    _HAS_OBSERVE = False
-
-    def observe(**kwargs):
-        def decorator(fn):
-            return fn
-        return decorator
-
 
 class ExtractEntityIntel(dspy.Signature):
     """Extract actionable intelligence from a document about an organization.

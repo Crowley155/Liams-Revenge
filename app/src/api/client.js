@@ -14,21 +14,19 @@ function authFetch(url, options = {}) {
   });
 }
 
-// --- Public endpoints (no auth required) ---
+// --- Protected endpoints ---
 
 export async function fetchProfiles() {
-  const res = await fetch(`${API_BASE}/api/profiles`);
+  const res = await authFetch(`${API_BASE}/api/profiles`);
   if (!res.ok) throw new Error(`Failed to fetch profiles: ${res.status}`);
   return res.json();
 }
 
 export async function fetchEntities() {
-  const res = await fetch(`${API_BASE}/api/entities`);
+  const res = await authFetch(`${API_BASE}/api/entities`);
   if (!res.ok) throw new Error(`Failed to fetch entities: ${res.status}`);
   return res.json();
 }
-
-// --- Protected endpoints ---
 
 export async function fetchProfile(id) {
   const res = await authFetch(`${API_BASE}/api/profiles/${id}`);
@@ -67,6 +65,12 @@ export async function startResearch(personCreate) {
 export async function getJobStatus(jobId) {
   const res = await authFetch(`${API_BASE}/api/research/${jobId}`);
   if (!res.ok) throw new Error(`Job not found: ${res.status}`);
+  return res.json();
+}
+
+export async function cancelJob(jobId) {
+  const res = await authFetch(`${API_BASE}/api/research/${jobId}/cancel`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Cancel failed: ${res.status}`);
   return res.json();
 }
 
@@ -118,27 +122,11 @@ export async function updateIdentity(personId, data) {
   return res.json();
 }
 
-export async function confirmIdentity(personId) {
-  const res = await authFetch(`${API_BASE}/api/profiles/${personId}/confirm-identity`, {
-    method: 'POST',
-  });
-  if (!res.ok) throw new Error(`Confirm failed: ${res.status}`);
-  return res.json();
-}
-
 export async function resetResearch(personId) {
   const res = await authFetch(`${API_BASE}/api/profiles/${personId}/research`, {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error(`Reset failed: ${res.status}`);
-  return res.json();
-}
-
-export async function deleteProfile(personId) {
-  const res = await authFetch(`${API_BASE}/api/profiles/${personId}`, {
-    method: 'DELETE',
-  });
-  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
   return res.json();
 }
 
@@ -188,13 +176,6 @@ export async function startEntityResearch(entityId) {
     method: 'POST',
   });
   if (!res.ok) throw new Error(`Entity research failed: ${res.status}`);
-  return res.json();
-}
-
-export async function fetchEntityFacts(entityId, category = '') {
-  const params = category ? `?category=${category}` : '';
-  const res = await authFetch(`${API_BASE}/api/entities/${entityId}/facts${params}`);
-  if (!res.ok) throw new Error(`Failed to fetch entity facts: ${res.status}`);
   return res.json();
 }
 

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import RequireAuth from './auth/RequireAuth';
 import { CaseProvider } from './data/useCase';
@@ -15,11 +15,9 @@ import ProfileDetail from './pages/ProfileDetail';
 import Entities from './pages/Entities';
 import EntityDetail from './pages/EntityDetail';
 import MemberPreview from './pages/MemberPreview';
-
-function IdentityRedirect() {
-  const { id } = useParams();
-  return <Navigate to={`/people/${id}`} replace />;
-}
+import Timeline from './pages/Timeline';
+import Contradictions from './pages/Contradictions';
+import EvidenceGaps from './pages/EvidenceGaps';
 
 export default function App() {
   return (
@@ -39,11 +37,13 @@ export default function App() {
                 <Route element={<RequireAuth />}>
                   <Route path="people" element={<People />} />
                   <Route path="people/:id" element={<ProfileDetail />} />
-                  <Route path="people/:id/identity" element={<IdentityRedirect />} />
                   <Route path="entities" element={<Entities />} />
                   <Route path="entities/:id" element={<EntityDetail />} />
                   <Route path="entities/:entityId/members/:name" element={<MemberPreview />} />
                   <Route path="non-compliance" element={<NonCompliance />} />
+                  <Route path="contradictions" element={<Contradictions />} />
+                  <Route path="evidence-gaps" element={<EvidenceGaps />} />
+                  <Route path="timeline" element={<Timeline />} />
                   <Route path="sources" element={<Sources />} />
                 </Route>
               </Route>

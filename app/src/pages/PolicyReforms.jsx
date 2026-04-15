@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import DocLink from '../components/DocLink';
 
 const SECTIONS = [
   {
@@ -210,7 +211,9 @@ export default function PolicyReforms() {
                   </span>
                   <div className="flex-1 min-w-0">
                     <p className="text-[15px] font-semibold">{reform.title}</p>
-                    <p className="text-xs text-text-dim/70 mt-1">{reform.basis}</p>
+                    <p className="text-xs text-text-dim/70 mt-1">
+                      {reform.basisId ? <DocLink id={reform.basisId}>{reform.basis}</DocLink> : reform.basis}
+                    </p>
                   </div>
                   <span className="text-text-dim text-xs mt-1 shrink-0">
                     {isExpanded ? '▲' : '▼'}

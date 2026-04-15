@@ -8,6 +8,7 @@ import {
 } from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
 import EntityGraph from '../components/EntityGraph';
+import { printDocument } from '../utils/printPdf';
 
 const TYPE_LABELS = {
   district: 'School District',
@@ -78,12 +79,12 @@ export default function EntityDetail() {
       .catch(() => {});
   }, [id]);
 
-  const { job: researchJob, isRunning: researchRunning, isDone: researchDone, error: researchError, start: startResearchJob } = useResearchJob({
+  const { job: researchJob, isRunning: researchRunning, isDone: researchDone, error: researchError, start: startResearchJob, cancel: cancelResearch } = useResearchJob({
     onPoll: reload,
     onComplete: reload,
   });
 
-  const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover, reset: resetDiscover } = useResearchJob({
+  const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover, reset: resetDiscover, cancel: cancelDiscover } = useResearchJob({
     onPoll: reload,
     onComplete: () => {
       setTimeout(() => {
@@ -168,8 +169,8 @@ export default function EntityDetail() {
     return (
       <div className="text-center py-20 space-y-4">
         <p className="text-danger text-sm">{error || 'Entity not found'}</p>
-        <Link to="/people" className="text-accent hover:text-accent-hover text-sm">
-          &larr; Back to People
+        <Link to="/entities" className="text-accent hover:text-accent-hover text-sm">
+          &larr; Back to Entities
         </Link>
       </div>
     );
@@ -264,6 +265,40 @@ export default function EntityDetail() {
             >
               {launching ? 'Starting...' : researchRunning ? 'Researching...' : entity.last_researched ? 'Re-research' : 'Research Entity'}
             </button>
+            {entity.facts?.length > 0 && (
+              <button
+                onClick={() => {
+                  const sections = [];
+                  if (entity.description) sections.push(entity.description);
+                  if (entity.news_summary) sections.push('\n\nNEWS SUMMARY:\n' + entity.news_summary);
+                  if (entity.key_policies?.length) sections.push('\n\nKEY POLICIES:\n' + entity.key_policies.map((p) => `• ${p}`).join('\n'));
+                  if (entity.relationships?.length) sections.push('\n\nRELATIONSHIPS:\n' + entity.relationships.map((r) => `• ${REL_TYPE_LABELS[r.relationship_type] || r.relationship_type}: ${r.description || r.target_entity_id}`).join('\n'));
+                  sections.push(`\n\nFACTS (${entity.facts.length}):\n` + entity.facts.map((f) => `[${f.category}] ${f.title || ''} — ${f.summary || ''} (conf: ${Math.round((f.confidence || 0) * 100)}%)`).join('\n'));
+                  printDocument({
+                    title: `Entity Research — ${entity.name}`,
+                    body: sections.join('').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'),
+                    meta: {
+                      'Entity': entity.name,
+                      'Type': TYPE_LABELS[entity.type] || entity.type,
+                      'State': entity.state,
+                      'Facts': `${entity.facts.length}`,
+                      'Generated': new Date().toLocaleDateString(),
+                    },
+                  });
+                }}
+                className="text-[10px] font-medium px-3 py-1.5 rounded-lg bg-surface-alt text-text-dim hover:text-text hover:bg-border/40 transition-colors"
+              >
+                Export PDF
+              </button>
+            )}
+            {researchRunning && (
+              <button
+                onClick={cancelResearch}
+                className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-danger/15 text-danger hover:bg-danger/25 transition-colors"
+              >
+                Cancel
+              </button>
+            )}
             {researchRunning && researchJob && (
               <span className="text-xs text-text-dim flex items-center gap-2">
                 <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />

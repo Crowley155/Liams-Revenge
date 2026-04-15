@@ -8,6 +8,7 @@ import {
 } from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
 import DocLink from '../components/DocLink';
+import { printDocument } from '../utils/printPdf';
 import EditableField from '../components/EditableField';
 import ConfidenceBar from '../components/ConfidenceBar';
 import SourceBadge from '../components/SourceBadge';
@@ -148,12 +149,12 @@ export default function ProfileDetail() {
     fetchProfile(id).then(setProfile).catch(() => {});
   }, [id]);
 
-  const { job, isRunning, isDone, error: jobError, start: startJob } = useResearchJob({
+  const { job, isRunning, isDone, error: jobError, start: startJob, cancel: cancelJob } = useResearchJob({
     onPoll: reload,
     onComplete: reload,
   });
 
-  const { job: enrichJob, isRunning: enrichRunning, isDone: enrichDone, error: enrichJobError, start: startEnrichJob } = useResearchJob({
+  const { job: enrichJob, isRunning: enrichRunning, isDone: enrichDone, error: enrichJobError, start: startEnrichJob, cancel: cancelEnrich } = useResearchJob({
     onPoll: reload,
     onComplete: reload,
   });
@@ -316,6 +317,14 @@ export default function ProfileDetail() {
               >
                 {enriching ? 'Starting...' : enrichRunning ? 'Enriching...' : profile.enriched_at ? 'Re-discover Profiles' : 'Find Profiles'}
               </button>
+              {isRunning && (
+                <button
+                  onClick={cancelJob}
+                  className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-danger/15 text-danger hover:bg-danger/25 transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
               {isRunning && job && (
                 <span className="text-xs text-text-dim flex items-center gap-2">
                   <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
@@ -329,6 +338,14 @@ export default function ProfileDetail() {
                 <span className="text-xs text-danger">Failed: {job.error || 'unknown error'}</span>
               )}
               {jobError && <span className="text-xs text-danger">{jobError}</span>}
+              {enrichRunning && (
+                <button
+                  onClick={cancelEnrich}
+                  className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-danger/15 text-danger hover:bg-danger/25 transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
               {enrichRunning && enrichJob && (
                 <span className="text-xs text-text-dim flex items-center gap-2">
                   <span className="w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
@@ -622,7 +639,33 @@ export default function ProfileDetail() {
       {/* Battle Card Summary */}
       {bc && (
         <div className="bg-surface border border-accent/30 rounded-xl p-6" style={{ boxShadow: 'var(--shadow-elevated)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-accent mb-3">Battle Card <InfoTip tip="AI-synthesized summary of this person based on all researched facts. The 'so what' of everything we know." /></h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-accent">Battle Card <InfoTip tip="AI-synthesized summary of this person based on all researched facts. The 'so what' of everything we know." /></h2>
+            <button
+              onClick={() => {
+                const sections = [];
+                if (bc.summary) sections.push(bc.summary);
+                if (bc.key_positions?.length) sections.push('\n\nKEY POSITIONS:\n' + bc.key_positions.map((p) => `• ${p}`).join('\n'));
+                if (bc.contradictions?.length) sections.push('\n\nCONTRADICTIONS:\n' + bc.contradictions.map((c) => `• ${c}`).join('\n'));
+                if (bc.organizational_ties?.length) sections.push('\n\nORGANIZATIONAL TIES:\n' + bc.organizational_ties.join(', '));
+                if (bc.action_items?.length) sections.push('\n\nACTION ITEMS:\n' + bc.action_items.map((a) => `• ${a}`).join('\n'));
+                if (facts.length) sections.push(`\n\nFACTS (${facts.length}):\n` + facts.map((f) => `[${f.category}] ${f.content} (conf: ${Math.round(f.confidence * 100)}%)`).join('\n'));
+                printDocument({
+                  title: `Battle Card — ${profile.name}`,
+                  body: sections.join('').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'),
+                  meta: {
+                    'Name': profile.name,
+                    'Role': `${profile.role} — ${profile.organization}`,
+                    'Facts': `${facts.length}`,
+                    'Generated': new Date().toLocaleDateString(),
+                  },
+                });
+              }}
+              className="text-[10px] font-medium px-3 py-1 rounded bg-surface-alt text-text-dim hover:text-text hover:bg-border/40 transition-colors"
+            >
+              Download PDF
+            </button>
+          </div>
           <p className="text-sm text-text leading-relaxed">{bc.summary}</p>
         </div>
       )}

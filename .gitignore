@@ -5,3 +5,16 @@ lease-extracted.pdf
 *.local
 .DS_Store
 backend/data/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/

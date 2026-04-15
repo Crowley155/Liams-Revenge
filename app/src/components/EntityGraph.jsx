@@ -143,13 +143,25 @@ export default function EntityGraph({ entityId }) {
 
     node.append('text')
       .attr('text-anchor', 'middle')
-      .attr('dy', '.35em')
+      .attr('dy', '-0.2em')
       .attr('font-size', (d) => d.isFocus ? '10px' : '8px')
       .attr('font-weight', (d) => d.isFocus ? 'bold' : 'normal')
       .attr('fill', (d) => TYPE_COLORS[d.type] || '#6c8aff')
       .text((d) => {
         const name = d.name || d.id;
-        return name.length > 12 ? name.slice(0, 11) + '…' : name;
+        return name.length > 14 ? name.slice(0, 13) + '…' : name;
+      });
+
+    node.append('text')
+      .attr('text-anchor', 'middle')
+      .attr('dy', '1.1em')
+      .attr('font-size', '7px')
+      .attr('fill', '#8b8fa4')
+      .text((d) => {
+        const parts = [];
+        if (d.member_count) parts.push(`${d.member_count}m`);
+        if (d.fact_count) parts.push(`${d.fact_count}f`);
+        return parts.join(' · ') || d.type;
       });
 
     node.append('title')

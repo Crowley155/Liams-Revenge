@@ -33,7 +33,7 @@ function Initials({ name, color }) {
   );
 }
 
-function PersonCard({ person, onResearchDone }) {
+function PersonCard({ person, onResearchDone, onError }) {
   const [quotesOpen, setQuotesOpen] = useState(false);
   const [launching, setLaunching] = useState(false);
   const orgColor = ORG_COLORS[person.organization] || '#6c8aff';
@@ -61,7 +61,7 @@ function PersonCard({ person, onResearchDone }) {
       });
       startJob(j.id);
     } catch (err) {
-      console.error('Research failed', err);
+      onError?.(err.message || 'Research failed');
     } finally {
       setLaunching(false);
     }
@@ -157,12 +157,14 @@ export default function People() {
   const [entities, setEntities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
+  const [error, setError] = useState(null);
 
   const load = () => {
     setLoading(true);
+    setError(null);
     Promise.all([fetchProfiles(), fetchEntities()])
       .then(([p, e]) => { setPeople(p); setEntities(e); })
-      .catch(() => { setPeople([]); setEntities([]); })
+      .catch((err) => { setPeople([]); setEntities([]); setError(err.message || 'Failed to load data'); })
       .finally(() => setLoading(false));
   };
 
@@ -170,11 +172,12 @@ export default function People() {
 
   const handleSeed = async () => {
     setSeeding(true);
+    setError(null);
     try {
       await seedData();
       load();
     } catch (e) {
-      console.error('Seed failed', e);
+      setError(e.message || 'Failed to import case data');
     } finally {
       setSeeding(false);
     }
@@ -203,6 +206,12 @@ export default function People() {
 
   return (
     <div className="space-y-8">
+      {error && (
+        <div className="bg-danger/10 border border-danger/30 rounded-lg px-4 py-3 flex items-start justify-between gap-3">
+          <p className="text-xs text-danger leading-relaxed">{error}</p>
+          <button onClick={() => setError(null)} className="text-danger/60 hover:text-danger text-sm shrink-0">&times;</button>
+        </div>
+      )}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold mb-1">Who's Who</h1>
@@ -243,7 +252,7 @@ export default function People() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {members.map((p) => (
-                <PersonCard key={p.id} person={p} onResearchDone={load} />
+                <PersonCard key={p.id} person={p} onResearchDone={load} onError={setError} />
               ))}
             </div>
           </section>
@@ -261,7 +270,7 @@ export default function People() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {unaffiliated.map((p) => (
-              <PersonCard key={p.id} person={p} onResearchDone={load} />
+              <PersonCard key={p.id} person={p} onResearchDone={load} onError={setError} />
             ))}
           </div>
         </section>

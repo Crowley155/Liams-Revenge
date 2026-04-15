@@ -22,7 +22,7 @@ router = APIRouter(tags=["profiles"])
 
 
 @router.get("/profiles", response_model=list[Person])
-async def list_profiles():
+async def list_profiles(_user: dict = Depends(get_current_user)):
     """Return all completed profiles."""
     return list(profiles.values())
 

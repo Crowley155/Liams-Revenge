@@ -12,6 +12,9 @@ const PROTECTED_NAV = [
   { to: '/people', label: 'People' },
   { to: '/entities', label: 'Entities' },
   { to: '/non-compliance', label: 'Non-Compliance' },
+  { to: '/contradictions', label: 'Contradictions' },
+  { to: '/evidence-gaps', label: 'Evidence Gaps' },
+  { to: '/timeline', label: 'Timeline' },
   { to: '/sources', label: 'Evidence Catalog' },
 ];
 
