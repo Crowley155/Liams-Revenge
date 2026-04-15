@@ -27,6 +27,7 @@ results to the correct entity (critical when aliases are common names).
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 
 import dspy
@@ -71,7 +72,14 @@ class ExtractEntityIntel(dspy.Signature):
         desc="List of {category, title, summary, source_date} dicts"
     )
     relationships: list[dict] = dspy.OutputField(
-        desc="List of {target_entity_name, relationship_type, description} dicts"
+        desc=(
+            "List of ORGANIZATIONAL relationships ONLY. Each dict has "
+            "{target_entity_name, relationship_type, description}. "
+            "target_entity_name must be a government body, agency, board, district, "
+            "department, or other organization — NEVER a person's name. "
+            "Valid relationship_type: oversees | leases_to | funds | regulates | "
+            "parent_of | contracts_with | related_to"
+        )
     )
     records_custodian: dict = dspy.OutputField(
         desc="{name, title, email, phone, address, submission_url} or empty dict"
@@ -307,8 +315,11 @@ def _extract_from_document(
     for r in (result.relationships or []):
         if not isinstance(r, dict) or not r.get("target_entity_name"):
             continue
+        target_id = _resolve_or_stub_entity(r["target_entity_name"], entity.state)
+        if not target_id:
+            continue
         rels.append(EntityRelationship(
-            target_entity_id=_resolve_or_stub_entity(r["target_entity_name"], entity.state),
+            target_entity_id=target_id,
             relationship_type=r.get("relationship_type", "related_to"),
             description=r.get("description", ""),
             source_url=url,
@@ -326,24 +337,82 @@ def _extract_from_document(
     return facts, rels, custodian, meeting
 
 
-def _resolve_or_stub_entity(name: str, state: str) -> str:
-    """Look up an entity by name or create a stub. Returns entity ID."""
-    from app.api._store import entities as _entities_store
+_PERSON_NAME_PATTERN = re.compile(
+    r"^(Dr\.?\s+|Mr\.?\s+|Mrs\.?\s+|Ms\.?\s+|Prof\.?\s+|Rev\.?\s+|Hon\.?\s+)?"
+    r"[A-Z][a-z]+\s+"
+    r"([A-Z]\.?\s+)?"
+    r"[A-Z][a-z]+"
+    r"(,?\s+(Jr\.?|Sr\.?|II|III|IV|Esq\.?))?$"
+)
 
+_ORG_KEYWORDS = {
+    "district", "department", "board", "agency", "commission", "county",
+    "authority", "office", "division", "bureau", "council", "committee",
+    "association", "foundation", "institute", "center", "school",
+    "university", "college", "state", "city", "town", "park",
+    "recreation", "services", "administration",
+}
+
+
+def _looks_like_person_name(name: str) -> bool:
+    """Heuristic: reject names that look like individual people, not organizations."""
+    if _PERSON_NAME_PATTERN.match(name.strip()):
+        words_lower = {w.lower().rstrip(".,") for w in name.split()}
+        if not words_lower & _ORG_KEYWORDS:
+            return True
+    parts = name.split()
+    if 2 <= len(parts) <= 3 and all(p[0].isupper() and p[1:].islower() for p in parts if len(p) > 1):
+        words_lower = {w.lower() for w in parts}
+        if not words_lower & _ORG_KEYWORDS:
+            return True
+    return False
+
+
+def _fuzzy_entity_match(name: str, entities_store) -> str | None:
+    """Match by normalized name, aliases, or substring containment."""
     name_lower = name.lower().strip()
-    for eid, ent in _entities_store.items():
-        if ent.name.lower().strip() == name_lower:
+    name_words = set(name_lower.split())
+
+    for eid, ent in entities_store.items():
+        ent_lower = ent.name.lower().strip()
+        if ent_lower == name_lower:
             return eid
         for alias in ent.aliases:
             if alias.name.lower().strip() == name_lower:
                 return eid
+        if name_lower in ent_lower or ent_lower in name_lower:
+            return eid
+        ent_words = set(ent_lower.split())
+        overlap = name_words & ent_words - {"of", "the", "and", "for", "in", "at"}
+        if len(overlap) >= 2 and len(overlap) / max(len(name_words), len(ent_words)) > 0.5:
+            return eid
+
+    return None
+
+
+def _resolve_or_stub_entity(name: str, state: str) -> str:
+    """Look up an entity by name/alias/fuzzy match, or create a stub.
+    Rejects names that look like individual people. Returns entity ID or empty string."""
+    from app.api._store import entities as _entities_store
+
+    if not name or len(name.strip()) < 3:
+        return ""
+
+    if _looks_like_person_name(name):
+        logger.info("  Skipping relationship target '%s' — looks like a person name", name)
+        return ""
+
+    match_id = _fuzzy_entity_match(name, _entities_store)
+    if match_id:
+        return match_id
 
     import uuid
+    from app.models import EntityType
     stub = Entity(
         id=str(uuid.uuid4())[:8],
         name=name,
         state=state,
-        type="agency",
+        type=EntityType.AGENCY,
         description="Auto-discovered via entity research pipeline",
     )
     _entities_store[stub.id] = stub

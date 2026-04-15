@@ -6,6 +6,8 @@ GET    /api/entities/graph                    — all entities + relationships f
 GET    /api/entities/{id}                     — single entity with member list
 POST   /api/entities                          — create entity
 PATCH  /api/entities/{id}                     — partial update
+DELETE /api/entities/{id}                     — delete an entity (cleans up relationships + person refs)
+DELETE /api/entities/stubs                    — bulk-delete auto-discovered stub entities
 POST   /api/entities/{id}/research            — kick off entity research pipeline
 POST   /api/entities/{id}/discover            — discover members via pipeline (prompt-guided)
 GET    /api/entities/{id}/members             — accepted Person records linked to entity
@@ -70,6 +72,57 @@ async def get_entity_graph(_user: dict = Depends(get_current_user)):
     return {"nodes": nodes, "edges": edges}
 
 
+@router.delete("/entities/stubs")
+async def delete_stub_entities(_user: dict = Depends(get_current_user)):
+    """Bulk-delete auto-discovered stub entities that have no facts, no members, and no custodian.
+    Cleans up dangling relationship pointers and person entity_ids."""
+    deleted_ids: list[str] = []
+    for eid, ent in list(entities.items()):
+        is_stub = (
+            ent.description.startswith("Auto-discovered")
+            and not ent.facts
+            and not ent.members
+            and not ent.records_custodian
+        )
+        if is_stub:
+            deleted_ids.append(eid)
+            entities.pop(eid)
+
+    if deleted_ids:
+        _scrub_deleted_entity_refs(deleted_ids)
+
+    logger.info("Bulk stub cleanup: removed %d entities", len(deleted_ids))
+    return {"deleted": len(deleted_ids), "ids": deleted_ids}
+
+
+@router.delete("/entities/{entity_id}")
+async def delete_entity(entity_id: str, _user: dict = Depends(get_current_user)):
+    """Delete an entity and clean up all references (relationships, person entity_ids)."""
+    ent = entities.get(entity_id)
+    if not ent:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    entities.pop(entity_id)
+    _scrub_deleted_entity_refs([entity_id])
+    logger.info("Deleted entity %s: %s", entity_id, ent.name)
+    return {"status": "deleted", "id": entity_id, "name": ent.name}
+
+
+def _scrub_deleted_entity_refs(deleted_ids: list[str]):
+    """Remove references to deleted entities from other entities' relationships and person records."""
+    deleted_set = set(deleted_ids)
+
+    for eid, ent in entities.items():
+        original_len = len(ent.relationships)
+        ent.relationships = [r for r in ent.relationships if r.target_entity_id not in deleted_set]
+        if len(ent.relationships) != original_len:
+            entities[eid] = ent
+
+    for p in profiles.values():
+        if any(eid in deleted_set for eid in p.entity_ids):
+            p.entity_ids = [eid for eid in p.entity_ids if eid not in deleted_set]
+            profiles[p.id] = p
+
+
 @router.get("/entities/{entity_id}", response_model=Entity)
 async def get_entity(entity_id: str, _user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
@@ -80,6 +133,19 @@ async def get_entity(entity_id: str, _user: dict = Depends(get_current_user)):
 
 @router.post("/entities", response_model=Entity)
 async def create_entity(req: EntityCreate, _user: dict = Depends(get_current_user)):
+    req_lower = req.name.lower().strip()
+    for existing in entities.values():
+        if existing.name.lower().strip() == req_lower:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Entity '{existing.name}' already exists (id={existing.id})",
+            )
+        if any(a.name.lower().strip() == req_lower for a in existing.aliases):
+            raise HTTPException(
+                status_code=409,
+                detail=f"'{req.name}' matches an alias of entity '{existing.name}' (id={existing.id})",
+            )
+
     ent = Entity(
         id=str(uuid.uuid4())[:8],
         name=req.name,

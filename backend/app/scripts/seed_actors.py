@@ -16,7 +16,7 @@ from pathlib import Path
 
 from app.models import (
     Person, PersonSource, CuratedQuote, ContactInfo,
-    Entity, EntityMember,
+    Entity, EntityMember, EntityType,
 )
 from app.api._store import profiles, entities
 
@@ -27,17 +27,17 @@ CASE_DATA_PATH = Path("/app/case-data/case-data.json")
 
 ORG_ENTITY_MAP: dict[str, dict] = {
     "USD 232": {
-        "type": "district",
+        "type": EntityType.DISTRICT,
         "description": "De Soto USD 232 school district, Johnson County, Kansas",
         "website": "https://www.usd232.org",
     },
     "JCPRD": {
-        "type": "department",
+        "type": EntityType.DEPARTMENT,
         "description": "Johnson County Park & Recreation District — operates before/after-school care programs in USD 232 buildings under a lease agreement",
         "website": "https://www.jcprd.com",
     },
     "Family": {
-        "type": "program",
+        "type": EntityType.PROGRAM,
         "description": "Family members directly involved in the case",
     },
 }
@@ -134,7 +134,7 @@ def _get_or_create_entity(org_name: str) -> Entity:
     ent = Entity(
         id=org_name.lower().replace(" ", "-"),
         name=org_name,
-        type=info.get("type", "program"),
+        type=info.get("type", EntityType.PROGRAM),
         description=info.get("description", ""),
         website=info.get("website"),
     )

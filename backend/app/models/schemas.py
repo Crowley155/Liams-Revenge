@@ -24,6 +24,16 @@ class JobStatus(str, Enum):
     FAILED = "failed"
 
 
+class EntityType(str, Enum):
+    DISTRICT = "district"
+    DEPARTMENT = "department"
+    BOARD = "board"
+    AGENCY = "agency"
+    PROGRAM = "program"
+    COMMISSION = "commission"
+    COUNTY = "county"
+
+
 class PersonSource(str, Enum):
     MANUAL = "manual"
     PIPELINE = "pipeline"
@@ -141,7 +151,7 @@ class EntityAnchor(BaseModel):
     canonical_name: str
     aliases: list[str] = Field(default_factory=list)
     state: str = "KS"
-    entity_type: str = "district"
+    entity_type: EntityType = EntityType.DISTRICT
     website_domain: Optional[str] = None
     parent_jurisdiction: Optional[str] = None
     known_member_names: list[str] = Field(default_factory=list)
@@ -310,10 +320,7 @@ class Entity(BaseModel):
     """An organization/board/agency — like a CRM Account record."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     name: str
-    type: str = Field(
-        default="district",
-        description="district | department | board | agency | program | commission | county",
-    )
+    type: EntityType = EntityType.DISTRICT
     state: str = "KS"
     website: Optional[str] = None
     description: str = ""
@@ -334,7 +341,7 @@ class Entity(BaseModel):
 class EntityCreate(BaseModel):
     """Input to create an entity."""
     name: str
-    type: str = "district"
+    type: EntityType = EntityType.DISTRICT
     state: str = "KS"
     website: Optional[str] = None
     description: str = ""
@@ -345,7 +352,7 @@ class EntityCreate(BaseModel):
 class EntityUpdate(BaseModel):
     """Partial update for an entity."""
     name: Optional[str] = None
-    type: Optional[str] = None
+    type: Optional[EntityType] = None
     state: Optional[str] = None
     website: Optional[str] = None
     description: Optional[str] = None
