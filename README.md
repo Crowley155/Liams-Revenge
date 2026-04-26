@@ -20,7 +20,7 @@ Live at [usdwatch.com](https://usdwatch.com)
   - Root directory: `app`
   - Build command: `npm run build`
   - Build output directory: `dist`
-  - Required env: `VITE_API_URL`, `VITE_CLERK_PUBLISHABLE_KEY`
+  - Required env: `PUBLIC_API_URL`, `PUBLIC_CLERK_PUBLISHABLE_KEY`
   - Public trust pages: `/trust` and `/privacy`
   - `trust.usdwatch.com` should use a Cloudflare Redirect Rule to point to `/trust`, or a dedicated Pages project if you want it fully separate.
 - **Backend:** Railway or another long-running API host
@@ -56,7 +56,7 @@ For a Cloudflare-style production build:
 
 ```bash
 cd app
-VITE_API_URL=https://your-backend.example.com npm run build
+PUBLIC_API_URL=https://your-backend.example.com npm run build
 ```
 
 ## Environment Variables
@@ -77,10 +77,10 @@ VITE_API_URL=https://your-backend.example.com npm run build
 | `QDRANT_URL` / `QDRANT_API_KEY` | Backend | Optional vector storage |
 | `REDIS_URL` | Backend | Optional cache |
 | `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Backend | Optional tracing |
-| `VITE_API_URL` | Frontend | Public FastAPI URL |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Frontend | Clerk publishable key |
-| `VITE_CLERK_JWT_TEMPLATE` | Frontend | Optional Clerk JWT template name |
-| `VITE_ALLOW_DEV_AUTH` | Frontend | Enables local dev sign-in fallback |
+| `PUBLIC_API_URL` | Frontend | Public FastAPI URL |
+| `PUBLIC_CLERK_PUBLISHABLE_KEY` | Frontend | Clerk publishable key |
+| `PUBLIC_CLERK_JWT_TEMPLATE` | Frontend | Optional Clerk JWT template name |
+| `PUBLIC_ALLOW_DEV_AUTH` | Frontend | Enables local dev sign-in fallback |
 
 ## Case Data
 

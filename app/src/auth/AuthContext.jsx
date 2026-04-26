@@ -7,11 +7,22 @@ import {
 } from '@clerk/clerk-react';
 import { setAuthTokenGetter } from '../api/client';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE =
+  import.meta.env.PUBLIC_API_URL ||
+  import.meta.env.VITE_API_URL ||
+  'http://localhost:8000';
 const DEV_TOKEN_KEY = 'usdwatch_dev_token';
-const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
-const CLERK_TEMPLATE = import.meta.env.VITE_CLERK_JWT_TEMPLATE || undefined;
-const DEV_AUTH_ENABLED = import.meta.env.VITE_ALLOW_DEV_AUTH === 'true';
+const CLERK_KEY =
+  import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
+  '';
+const CLERK_TEMPLATE =
+  import.meta.env.PUBLIC_CLERK_JWT_TEMPLATE ||
+  import.meta.env.VITE_CLERK_JWT_TEMPLATE ||
+  undefined;
+const DEV_AUTH_ENABLED =
+  import.meta.env.PUBLIC_ALLOW_DEV_AUTH === 'true' ||
+  import.meta.env.VITE_ALLOW_DEV_AUTH === 'true';
 
 export const clerkEnabled = Boolean(CLERK_KEY);
 
