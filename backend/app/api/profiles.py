@@ -15,29 +15,29 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.models import Person, PersonSource
 from app.api._store import profiles
-from app.api.deps import get_current_user
+from app.api.deps import can_access_workspace, get_current_user, scoped_items
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["profiles"])
 
 
 @router.get("/profiles", response_model=list[Person])
-async def list_profiles(_user: dict = Depends(get_current_user)):
+async def list_profiles(user: dict = Depends(get_current_user)):
     """Return all completed profiles."""
-    return list(profiles.values())
+    return scoped_items(list(profiles.values()), user)
 
 
 @router.get("/profiles/{person_id}", response_model=Person)
-async def get_profile(person_id: str, _user: dict = Depends(get_current_user)):
+async def get_profile(person_id: str, user: dict = Depends(get_current_user)):
     """Return a single profile by ID."""
     person = profiles.get(person_id)
-    if not person:
+    if not person or not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Profile not found")
     return person
 
 
 @router.delete("/profiles/{person_id}/research", response_model=Person)
-async def reset_research(person_id: str, _user: dict = Depends(get_current_user)):
+async def reset_research(person_id: str, user: dict = Depends(get_current_user)):
     """
     Nuke ALL pipeline/enrichment-derived data. Preserves only seed and
     manually-entered fields: name, role, org, location, curated_bio,
@@ -45,7 +45,7 @@ async def reset_research(person_id: str, _user: dict = Depends(get_current_user)
     negative_anchors.
     """
     person = profiles.get(person_id)
-    if not person:
+    if not person or not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Profile not found")
 
     # Research fields
@@ -76,13 +76,13 @@ async def reset_research(person_id: str, _user: dict = Depends(get_current_user)
 
 
 @router.delete("/profiles/{person_id}")
-async def delete_profile(person_id: str, _user: dict = Depends(get_current_user)):
+async def delete_profile(person_id: str, user: dict = Depends(get_current_user)):
     """
     Fully delete a person from the store.
     Re-run /api/seed to recreate seeded actors.
     """
     person = profiles.get(person_id)
-    if not person:
+    if not person or not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Profile not found")
 
     profiles.pop(person_id, None)

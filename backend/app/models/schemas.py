@@ -24,6 +24,38 @@ class JobStatus(str, Enum):
     FAILED = "failed"
 
 
+class WorkspaceType(str, Enum):
+    PERSONAL = "personal"
+    ORGANIZATION = "organization"
+
+
+class WorkspacePlan(str, Enum):
+    FREE = "free"
+    ORGANIZATION = "organization"
+    PREMIUM = "premium"
+    ADMIN = "admin"
+
+
+class CaseStatus(str, Enum):
+    ACTIVE = "active"
+    ARCHIVED = "archived"
+    DEMO = "demo"
+
+
+class EvaluationStatus(str, Enum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
+class EvidenceStrength(str, Enum):
+    STRONG = "strong"
+    MIXED = "mixed"
+    THIN = "thin"
+    UNKNOWN = "unknown"
+
+
 class EntityType(str, Enum):
     DISTRICT = "district"
     DEPARTMENT = "department"
@@ -45,6 +77,166 @@ class ConfidenceTier(str, Enum):
     B_PROBABLE = "probable"
     C_UNCERTAIN = "uncertain"
     D_REJECTED = "rejected"
+
+
+# ---------------------------------------------------------------------------
+# Multi-tenant case/product models
+# ---------------------------------------------------------------------------
+
+class Workspace(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    name: str = "Personal workspace"
+    type: WorkspaceType = WorkspaceType.PERSONAL
+    plan: WorkspacePlan = WorkspacePlan.FREE
+    owner_user_id: str = ""
+    clerk_org_id: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AppUser(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    clerk_user_id: str
+    email: str = ""
+    role: str = "member"
+    workspace_id: str
+    org_workspace_id: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EntitlementSnapshot(BaseModel):
+    plan: WorkspacePlan = WorkspacePlan.FREE
+    max_active_cases: int = 1
+    max_documents_per_case: int = 5
+    evaluation_refresh_days: int = 30
+    premium_review: bool = False
+    organization_workspace: bool = False
+
+
+class CaseIntake(BaseModel):
+    state: str = "KS"
+    district: str = ""
+    school: str = ""
+    issue_type: str = "special_education"
+    incident_date: Optional[str] = None
+    narrative: str = ""
+    desired_outcome: str = ""
+    student_age: Optional[int] = None
+    urgent: bool = False
+
+
+class CaseCreate(BaseModel):
+    title: str
+    state: str = "KS"
+    district: str = ""
+    school: str = ""
+    issue_type: str = "special_education"
+    incident_date: Optional[str] = None
+    narrative: str = ""
+    desired_outcome: str = ""
+    student_age: Optional[int] = None
+    urgent: bool = False
+
+
+class CaseRecord(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str
+    title: str
+    status: CaseStatus = CaseStatus.ACTIVE
+    intake: CaseIntake = Field(default_factory=CaseIntake)
+    summary: str = ""
+    created_by: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class EvaluationIssueArea(BaseModel):
+    area: str
+    severity: str = "medium"
+    why_it_matters: str = ""
+    policy_refs: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class EvaluationTimelineEvent(BaseModel):
+    date: str = ""
+    label: str
+    detail: str = ""
+    source_doc_id: str = ""
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class EvaluationGap(BaseModel):
+    gap: str
+    why_it_matters: str = ""
+    suggested_source: str = ""
+    priority: str = "medium"
+
+
+class RecommendedRecord(BaseModel):
+    title: str
+    custodian: str = ""
+    record_type: str = ""
+    reason: str = ""
+    request_language: str = ""
+    priority: str = "medium"
+
+
+class CaseEvaluationResult(BaseModel):
+    executive_summary: str = ""
+    likely_claims: list[str] = Field(default_factory=list)
+    issue_areas: list[EvaluationIssueArea] = Field(default_factory=list)
+    timeline: list[EvaluationTimelineEvent] = Field(default_factory=list)
+    evidence_strength: EvidenceStrength = EvidenceStrength.UNKNOWN
+    gaps: list[EvaluationGap] = Field(default_factory=list)
+    recommended_records: list[RecommendedRecord] = Field(default_factory=list)
+    next_steps: list[str] = Field(default_factory=list)
+    risk_flags: list[str] = Field(default_factory=list)
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class CaseEvaluation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str
+    case_id: str
+    status: EvaluationStatus = EvaluationStatus.QUEUED
+    model_tier: str = "free"
+    workflow_steps: list[str] = Field(default_factory=list)
+    result: Optional[CaseEvaluationResult] = None
+    error: Optional[str] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AgentRun(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str
+    case_id: str
+    evaluation_id: str
+    agent_id: str
+    status: str = "queued"
+    model_id: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cached: bool = False
+    error: Optional[str] = None
+    data: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+
+
+class UsageEvent(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str
+    event_type: str
+    case_id: str = ""
+    quantity: int = 1
+    data: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +371,7 @@ class EntityAnchor(BaseModel):
 
 class PersonCreate(BaseModel):
     """Input to kick off research on a person."""
+    case_id: str = "crowley-v-usd232"
     name: str
     role: str
     organization: str
@@ -319,6 +512,8 @@ class EntityRelationship(BaseModel):
 class Entity(BaseModel):
     """An organization/board/agency — like a CRM Account record."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str = "demo"
+    case_id: str = "crowley-v-usd232"
     name: str
     type: EntityType = EntityType.DISTRICT
     state: str = "KS"
@@ -365,6 +560,8 @@ class EntityUpdate(BaseModel):
 class Person(BaseModel):
     """A fully researched person with their battle card."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str = "demo"
+    case_id: str = "crowley-v-usd232"
     name: str
     role: str
     organization: str
@@ -403,6 +600,8 @@ class Person(BaseModel):
 class ResearchJob(BaseModel):
     """Tracks async research pipeline execution."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str = "demo"
+    case_id: str = "crowley-v-usd232"
     person_id: str
     status: JobStatus = JobStatus.PENDING
     started_at: Optional[datetime] = None
@@ -422,6 +621,7 @@ class ResearchJob(BaseModel):
 class KoraRequest(BaseModel):
     """A generated KORA (Kansas Open Records Act) request."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str = "demo"
     case_id: str = "crowley-v-usd232"
     entity_ids: list[str] = Field(default_factory=list, description="Target agencies — plural, e.g. lease involves both USD 232 + JCPRD")
     custodian: Optional[RecordsCustodian] = None
@@ -451,6 +651,7 @@ class KoraRequest(BaseModel):
 class CaseDocument(BaseModel):
     """An uploaded document (PDF, image, Word, email, etc.) ingested into Qdrant."""
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str = "demo"
     case_id: str = "crowley-v-usd232"
     filename: str = ""
     file_type: str = Field(default="", description="pdf | image | docx | eml | txt")

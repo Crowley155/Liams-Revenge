@@ -19,7 +19,7 @@ from typing import Optional
 
 from app.models import KoraRequest, ResearchJob, JobStatus
 from app.api._store import kora_requests, jobs
-from app.api.deps import get_current_user
+from app.api.deps import can_access_workspace, get_current_user, scoped_items
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["kora"])
@@ -37,6 +37,8 @@ def _run_kora_generation(job: ResearchJob):
         requests = generate_kora_requests()
 
         for req in requests:
+            req.workspace_id = job.workspace_id
+            req.case_id = job.case_id
             kora_requests[req.id] = req
 
         job.status = JobStatus.COMPLETE
@@ -61,10 +63,10 @@ def _run_kora_generation(job: ResearchJob):
 
 
 @router.post("/kora/generate", response_model=ResearchJob)
-async def generate_kora(bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
+async def generate_kora(bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Generate KORA requests for the entire case. Runs async."""
     job_id = str(uuid.uuid4())[:8]
-    job = ResearchJob(id=job_id, person_id="kora-generation")
+    job = ResearchJob(id=job_id, workspace_id=user["workspace_id"], person_id="kora-generation")
     jobs[job_id] = job
 
     bg.add_task(_run_kora_generation, job)
@@ -78,10 +80,10 @@ async def list_kora_requests(
     entity_id: str = "",
     status: str = "",
     category: str = "",
-    _user: dict = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
 ):
     """List KORA requests with optional filters."""
-    reqs = list(kora_requests.values())
+    reqs = scoped_items(list(kora_requests.values()), user)
     if entity_id:
         reqs = [r for r in reqs if entity_id in r.entity_ids]
     if status:
@@ -93,9 +95,9 @@ async def list_kora_requests(
 
 
 @router.get("/kora/requests/{request_id}", response_model=KoraRequest)
-async def get_kora_request(request_id: str, _user: dict = Depends(get_current_user)):
+async def get_kora_request(request_id: str, user: dict = Depends(get_current_user)):
     req = kora_requests.get(request_id)
-    if not req:
+    if not req or not can_access_workspace(user, req.workspace_id):
         raise HTTPException(status_code=404, detail="KORA request not found")
     return req
 
@@ -110,10 +112,10 @@ class KoraRequestUpdate(BaseModel):
 
 
 @router.put("/kora/requests/{request_id}", response_model=KoraRequest)
-async def update_kora_request(request_id: str, body: KoraRequestUpdate, _user: dict = Depends(get_current_user)):
+async def update_kora_request(request_id: str, body: KoraRequestUpdate, user: dict = Depends(get_current_user)):
     """Edit a KORA request (subject, description, status, etc.)."""
     req = kora_requests.get(request_id)
-    if not req:
+    if not req or not can_access_workspace(user, req.workspace_id):
         raise HTTPException(status_code=404, detail="KORA request not found")
 
     if body.subject is not None:
@@ -141,10 +143,10 @@ async def update_kora_request(request_id: str, body: KoraRequestUpdate, _user: d
 
 
 @router.post("/kora/requests/{request_id}/mark-sent", response_model=KoraRequest)
-async def mark_sent(request_id: str, _user: dict = Depends(get_current_user)):
+async def mark_sent(request_id: str, user: dict = Depends(get_current_user)):
     """Mark a KORA request as sent."""
     req = kora_requests.get(request_id)
-    if not req:
+    if not req or not can_access_workspace(user, req.workspace_id):
         raise HTTPException(status_code=404, detail="KORA request not found")
 
     req.status = "sent"

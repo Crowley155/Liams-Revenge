@@ -1,26 +1,25 @@
 """
-Auth API — login endpoint.
+Auth API.
 
-POST /api/auth/login  — email + password → JWT access token
+Interactive sign-in is handled by Clerk in the React app. The backend exposes
+session introspection and keeps the old login path as an explicit 410 so stale
+clients fail loudly instead of minting local JWTs.
 """
 from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+import uuid
 
 import bcrypt
-import jwt
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+from app.api.deps import get_current_user
 from app.db import _connect
-from app.api.deps import JWT_SECRET, JWT_ALGORITHM
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-ACCESS_TOKEN_EXPIRE_HOURS = int(os.getenv("ACCESS_TOKEN_EXPIRE_HOURS", "24"))
 
 
 class LoginRequest(BaseModel):
@@ -28,70 +27,30 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-
-
 def _hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
-def _verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+@router.post("/login")
+async def login(_body: LoginRequest):
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Local JWT login has been replaced by Clerk. Use the Clerk session token.",
+    )
 
 
-def _create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=ACCESS_TOKEN_EXPIRE_HOURS))
-    to_encode["exp"] = expire
-    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+@router.get("/me")
+async def me(user: dict = Depends(get_current_user)):
+    return user
 
-
-@router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest):
-    if not JWT_SECRET:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="JWT_SECRET not configured",
-        )
-
-    conn = _connect()
-    try:
-        row = conn.execute(
-            "SELECT id, email, password, role FROM users WHERE email = ?",
-            (body.email.lower().strip(),),
-        ).fetchone()
-    finally:
-        conn.close()
-
-    if not row or not _verify_password(body.password, row["password"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
-
-    token = _create_access_token({
-        "sub": row["id"],
-        "email": row["email"],
-        "role": row["role"],
-    })
-
-    logger.info("Login successful for %s (role=%s)", row["email"], row["role"])
-    return TokenResponse(access_token=token)
-
-
-# ---------------------------------------------------------------------------
-# Admin seeding — called once at startup from main.py
-# ---------------------------------------------------------------------------
 
 def seed_admin_user() -> None:
-    """Create the admin user from env vars if it doesn't already exist."""
+    """Preserve the legacy admin seed row for local migration continuity."""
     email = os.getenv("ADMIN_EMAIL", "").strip().lower()
     password = os.getenv("ADMIN_PASSWORD", "").strip()
 
     if not email or not password:
-        logger.info("ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping admin seed")
+        logger.info("ADMIN_EMAIL / ADMIN_PASSWORD not set - skipping admin seed")
         return
 
     conn = _connect()
@@ -101,12 +60,10 @@ def seed_admin_user() -> None:
             logger.info("Admin user %s already exists", email)
             return
 
-        import uuid
         user_id = str(uuid.uuid4())[:8]
-        hashed = _hash_password(password)
         conn.execute(
-            "INSERT INTO users (id, email, password, role) VALUES (?, ?, ?, ?)",
-            (user_id, email, hashed, "admin"),
+            "INSERT INTO users (id, email, password, role, data) VALUES (?, ?, ?, ?, ?)",
+            (user_id, email, _hash_password(password), "admin", "{}"),
         )
         conn.commit()
         logger.info("Admin user seeded: %s (id=%s)", email, user_id)

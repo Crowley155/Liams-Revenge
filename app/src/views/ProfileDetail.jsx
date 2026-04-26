@@ -143,7 +143,7 @@ export default function ProfileDetail() {
   const [enriching, setEnriching] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [resetting, setResetting] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [_saving, setSaving] = useState(false);
 
   const reload = useCallback(() => {
     fetchProfile(id).then(setProfile).catch(() => {});

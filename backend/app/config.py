@@ -64,6 +64,32 @@ class Settings:
         default_factory=lambda: _env("REDIS_URL")
     )
 
+    clerk_issuer: str | None = field(
+        default_factory=lambda: _env("CLERK_ISSUER")
+    )
+    clerk_jwks_url: str | None = field(
+        default_factory=lambda: _env("CLERK_JWKS_URL")
+    )
+
+    deepinfra_api_key: str | None = field(
+        default_factory=lambda: _env("DEEPINFRA_API_KEY")
+    )
+    deepinfra_extraction_model: str = field(
+        default_factory=lambda: _env("DEEPINFRA_EXTRACTION_MODEL", "nvidia/NVIDIA-Nemotron-Nano-9B-v2")
+    )
+    deepinfra_reasoning_model: str = field(
+        default_factory=lambda: _env("DEEPINFRA_REASONING_MODEL", "nvidia/Nemotron-3-Nano-30B-A3B")
+    )
+    deepinfra_premium_model: str = field(
+        default_factory=lambda: _env("DEEPINFRA_PREMIUM_MODEL", "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B")
+    )
+    deepinfra_fallback_model: str = field(
+        default_factory=lambda: _env("DEEPINFRA_FALLBACK_MODEL", "meta-llama/Llama-3.3-70B-Instruct-Turbo")
+    )
+    enable_agent_os: bool = field(
+        default_factory=lambda: _env("ENABLE_AGENT_OS", "false").lower() == "true"
+    )
+
     pdl_api_key: str | None = field(
         default_factory=lambda: _env("PDL_API_KEY")
     )
@@ -118,6 +144,10 @@ class Settings:
     @property
     def has_redis(self) -> bool:
         return bool(self.redis_url)
+
+    @property
+    def has_deepinfra(self) -> bool:
+        return bool(self.deepinfra_api_key)
 
 
 settings = Settings()

@@ -4,12 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "astro dev",
+    "build": "astro build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "astro preview"
   },
   "dependencies": {
+    "@astrojs/react": "^4.4.2",
+    "@clerk/clerk-react": "^5.54.2",
+    "astro": "^5.16.1",
     "d3": "^7.9.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",

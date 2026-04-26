@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { UserButton } from '@clerk/clerk-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../auth/AuthContext';
+import { clerkEnabled, useAuth } from '../auth/AuthContext';
 
 const PUBLIC_NAV = [
   { to: '/', label: 'Overview' },
@@ -9,6 +10,11 @@ const PUBLIC_NAV = [
 ];
 
 const PROTECTED_NAV = [
+  { to: '/evaluate', label: 'Evaluate' },
+  { to: '/cases', label: 'Cases' },
+];
+
+const ADMIN_NAV = [
   { to: '/people', label: 'People' },
   { to: '/entities', label: 'Entities' },
   { to: '/non-compliance', label: 'Non-Compliance' },
@@ -22,11 +28,13 @@ export default function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated, user, logout } = useAuth();
+  const { isAuthenticated, user, workspace, logout } = useAuth();
+
+  const navItems = isAuthenticated
+    ? [...PUBLIC_NAV, ...PROTECTED_NAV, ...(user?.role === 'admin' ? ADMIN_NAV : [])]
+    : PUBLIC_NAV;
 
   const closeMenu = () => setMenuOpen(false);
-
-  const NAV = isAuthenticated ? [...PUBLIC_NAV, ...PROTECTED_NAV] : PUBLIC_NAV;
 
   const handleLogout = () => {
     logout();
@@ -39,12 +47,11 @@ export default function Layout() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex items-center justify-between h-14">
             <h1 className="text-sm font-bold tracking-wide text-accent uppercase">
-              Case Command Center
+              USDWatch
             </h1>
 
-            {/* Desktop nav */}
             <nav className="hidden sm:flex items-center gap-1">
-              {NAV.map(({ to, label }) => (
+              {navItems.map(({ to, label }) => (
                 <NavLink
                   key={to}
                   to={to}
@@ -63,7 +70,9 @@ export default function Layout() {
 
               <span className="w-px h-5 bg-border mx-1" />
 
-              {isAuthenticated ? (
+              {isAuthenticated && clerkEnabled ? (
+                <UserButton afterSignOutUrl="/" />
+              ) : isAuthenticated ? (
                 <button
                   onClick={handleLogout}
                   className="px-3 py-2 text-xs font-medium text-text-dim hover:text-text hover:bg-surface-alt rounded-md transition-colors"
@@ -87,7 +96,6 @@ export default function Layout() {
               )}
             </nav>
 
-            {/* Mobile hamburger */}
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="sm:hidden p-2 text-text-dim hover:text-text"
@@ -106,11 +114,10 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* Mobile menu dropdown */}
         {menuOpen && (
           <div className="sm:hidden border-t border-border bg-surface-alt">
             <div className="px-4 py-2 space-y-1">
-              {NAV.map(({ to, label }) => {
+              {navItems.map(({ to, label }) => {
                 const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
                 return (
                   <NavLink
@@ -163,7 +170,11 @@ export default function Layout() {
           </a>
         </p>
         <p className="text-[11px] text-text-dim/60">
-          Crowley v. USD 232 / JCPRD — Public Advocacy Resource
+          {workspace?.name || 'Free case evaluation'} - Public Advocacy Resource
+        </p>
+        <p className="text-[11px] text-text-dim/60 flex items-center justify-center gap-3">
+          <a href="/trust" className="hover:text-text transition-colors">Trust</a>
+          <a href="/privacy" className="hover:text-text transition-colors">Privacy & Disclosures</a>
         </p>
       </footer>
     </div>

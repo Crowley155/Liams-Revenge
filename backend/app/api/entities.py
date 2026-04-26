@@ -34,21 +34,21 @@ from app.models import (
     ResearchJob, JobStatus, SocialProfile, Fact, ProfileIntelItem,
 )
 from app.api._store import entities, profiles, jobs
-from app.api.deps import get_current_user
+from app.api.deps import can_access_workspace, get_current_user, scoped_items
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["entities"])
 
 
 @router.get("/entities", response_model=list[Entity])
-async def list_entities(_user: dict = Depends(get_current_user)):
-    return list(entities.values())
+async def list_entities(user: dict = Depends(get_current_user)):
+    return scoped_items(list(entities.values()), user)
 
 
 @router.get("/entities/graph")
-async def get_entity_graph(_user: dict = Depends(get_current_user)):
+async def get_entity_graph(user: dict = Depends(get_current_user)):
     """Return all entities with their relationships for graph visualization."""
-    all_ents = list(entities.values())
+    all_ents = scoped_items(list(entities.values()), user)
     nodes = []
     edges = []
     for ent in all_ents:
@@ -73,11 +73,13 @@ async def get_entity_graph(_user: dict = Depends(get_current_user)):
 
 
 @router.delete("/entities/stubs")
-async def delete_stub_entities(_user: dict = Depends(get_current_user)):
+async def delete_stub_entities(user: dict = Depends(get_current_user)):
     """Bulk-delete auto-discovered stub entities that have no facts, no members, and no custodian.
     Cleans up dangling relationship pointers and person entity_ids."""
     deleted_ids: list[str] = []
     for eid, ent in list(entities.items()):
+        if not can_access_workspace(user, ent.workspace_id):
+            continue
         is_stub = (
             ent.description.startswith("Auto-discovered")
             and not ent.facts
@@ -96,10 +98,10 @@ async def delete_stub_entities(_user: dict = Depends(get_current_user)):
 
 
 @router.delete("/entities/{entity_id}")
-async def delete_entity(entity_id: str, _user: dict = Depends(get_current_user)):
+async def delete_entity(entity_id: str, user: dict = Depends(get_current_user)):
     """Delete an entity and clean up all references (relationships, person entity_ids)."""
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
     entities.pop(entity_id)
     _scrub_deleted_entity_refs([entity_id])
@@ -124,17 +126,17 @@ def _scrub_deleted_entity_refs(deleted_ids: list[str]):
 
 
 @router.get("/entities/{entity_id}", response_model=Entity)
-async def get_entity(entity_id: str, _user: dict = Depends(get_current_user)):
+async def get_entity(entity_id: str, user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
     return ent
 
 
 @router.post("/entities", response_model=Entity)
-async def create_entity(req: EntityCreate, _user: dict = Depends(get_current_user)):
+async def create_entity(req: EntityCreate, user: dict = Depends(get_current_user)):
     req_lower = req.name.lower().strip()
-    for existing in entities.values():
+    for existing in scoped_items(list(entities.values()), user):
         if existing.name.lower().strip() == req_lower:
             raise HTTPException(
                 status_code=409,
@@ -148,6 +150,7 @@ async def create_entity(req: EntityCreate, _user: dict = Depends(get_current_use
 
     ent = Entity(
         id=str(uuid.uuid4())[:8],
+        workspace_id=user["workspace_id"],
         name=req.name,
         type=req.type,
         state=req.state,
@@ -162,9 +165,9 @@ async def create_entity(req: EntityCreate, _user: dict = Depends(get_current_use
 
 
 @router.patch("/entities/{entity_id}", response_model=Entity)
-async def update_entity(entity_id: str, req: EntityUpdate, _user: dict = Depends(get_current_user)):
+async def update_entity(entity_id: str, req: EntityUpdate, user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
 
     update_data = req.model_dump(exclude_unset=True)
@@ -181,10 +184,10 @@ async def update_entity(entity_id: str, req: EntityUpdate, _user: dict = Depends
 async def list_entity_facts(
     entity_id: str,
     category: Optional[str] = Query(None),
-    _user: dict = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
 ):
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
     facts = ent.facts
     if category:
@@ -193,9 +196,9 @@ async def list_entity_facts(
 
 
 @router.delete("/entities/{entity_id}/facts/{fact_id}")
-async def delete_entity_fact(entity_id: str, fact_id: str, _user: dict = Depends(get_current_user)):
+async def delete_entity_fact(entity_id: str, fact_id: str, user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
     original_len = len(ent.facts)
     ent.facts = [f for f in ent.facts if f.id != fact_id]
@@ -207,9 +210,9 @@ async def delete_entity_fact(entity_id: str, fact_id: str, _user: dict = Depends
 
 
 @router.post("/entities/{entity_id}/facts/{fact_id}/verify", response_model=EntityFact)
-async def verify_entity_fact(entity_id: str, fact_id: str, _user: dict = Depends(get_current_user)):
+async def verify_entity_fact(entity_id: str, fact_id: str, user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
     fact = next((f for f in ent.facts if f.id == fact_id), None)
     if not fact:
@@ -221,14 +224,14 @@ async def verify_entity_fact(entity_id: str, fact_id: str, _user: dict = Depends
 
 
 @router.post("/entities/{entity_id}/research", response_model=ResearchJob)
-async def research_entity(entity_id: str, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
+async def research_entity(entity_id: str, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Kick off the entity research pipeline (website crawl, news, social, oversight, records)."""
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
 
     job_id = str(uuid.uuid4())[:8]
-    job = ResearchJob(id=job_id, person_id=entity_id)
+    job = ResearchJob(id=job_id, workspace_id=ent.workspace_id, case_id=ent.case_id, person_id=entity_id)
     jobs[job_id] = job
 
     bg.add_task(_run_entity_research, entity_id, job)
@@ -280,12 +283,12 @@ def _run_entity_research(entity_id: str, job: ResearchJob):
 
 
 @router.get("/entities/{entity_id}/members", response_model=list[Person])
-async def get_entity_members(entity_id: str, _user: dict = Depends(get_current_user)):
+async def get_entity_members(entity_id: str, user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
     accepted_ids = {m.person_id for m in ent.members if m.status == "accepted" and m.person_id}
-    return [p for p in profiles.values() if p.id in accepted_ids]
+    return [p for p in scoped_items(list(profiles.values()), user) if p.id in accepted_ids]
 
 
 def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
@@ -413,18 +416,22 @@ def _normalize_name(name: str) -> str:
     return " ".join(parts).strip()
 
 
-def _find_person_by_name_org(name: str, org: str) -> Person | None:
+def _find_person_by_name_org(name: str, org: str, workspace_id: str) -> Person | None:
     """Match by normalized name + organization. Falls back to name-only if unambiguous."""
     norm_name = _normalize_name(name)
     org_lower = org.lower().strip()
 
     for p in profiles.values():
-        if _normalize_name(p.name) == norm_name and p.organization.lower().strip() == org_lower:
+        if (
+            p.workspace_id == workspace_id
+            and _normalize_name(p.name) == norm_name
+            and p.organization.lower().strip() == org_lower
+        ):
             return p
 
     name_only_matches = [
         p for p in profiles.values()
-        if _normalize_name(p.name) == norm_name
+        if p.workspace_id == workspace_id and _normalize_name(p.name) == norm_name
     ]
     if len(name_only_matches) == 1:
         return name_only_matches[0]
@@ -441,16 +448,16 @@ class MemberAction(BaseModel):
 
 
 @router.post("/entities/{entity_id}/discover", response_model=ResearchJob)
-async def discover_members(entity_id: str, body: DiscoverRequest, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
+async def discover_members(entity_id: str, body: DiscoverRequest, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
 
     if not body.prompt.strip():
         raise HTTPException(status_code=400, detail="Discovery prompt is required")
 
     job_id = str(uuid.uuid4())[:8]
-    job = ResearchJob(id=job_id, person_id=entity_id)
+    job = ResearchJob(id=job_id, workspace_id=ent.workspace_id, case_id=ent.case_id, person_id=entity_id)
     jobs[job_id] = job
 
     bg.add_task(_run_discovery, entity_id, job, body.prompt.strip())
@@ -460,10 +467,10 @@ async def discover_members(entity_id: str, body: DiscoverRequest, bg: Background
 
 
 @router.post("/entities/{entity_id}/members/accept", response_model=Entity)
-async def accept_member(entity_id: str, body: MemberAction, _user: dict = Depends(get_current_user)):
+async def accept_member(entity_id: str, body: MemberAction, user: dict = Depends(get_current_user)):
     """Accept a pending discovered member — creates or links a Person record."""
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
 
     member = next(
@@ -474,7 +481,7 @@ async def accept_member(entity_id: str, body: MemberAction, _user: dict = Depend
     if not member:
         raise HTTPException(status_code=404, detail="Pending member not found")
 
-    existing = _find_person_by_name_org(member.discovered_name, ent.name)
+    existing = _find_person_by_name_org(member.discovered_name, ent.name, ent.workspace_id)
     if existing:
         person = existing
         if entity_id not in person.entity_ids:
@@ -484,6 +491,8 @@ async def accept_member(entity_id: str, body: MemberAction, _user: dict = Depend
     else:
         person = Person(
             id=str(uuid.uuid4())[:8],
+            workspace_id=ent.workspace_id,
+            case_id=ent.case_id,
             name=member.discovered_name,
             role=member.role,
             organization=ent.name,
@@ -554,10 +563,10 @@ def _merge_preview_data(person: Person, preview: dict | None) -> None:
 
 
 @router.post("/entities/{entity_id}/members/reject", response_model=Entity)
-async def reject_member(entity_id: str, body: MemberAction, _user: dict = Depends(get_current_user)):
+async def reject_member(entity_id: str, body: MemberAction, user: dict = Depends(get_current_user)):
     """Reject a pending discovered member — keeps the record to prevent re-suggestion."""
     ent = entities.get(entity_id)
-    if not ent:
+    if not ent or not can_access_workspace(user, ent.workspace_id):
         raise HTTPException(status_code=404, detail="Entity not found")
 
     member = next(

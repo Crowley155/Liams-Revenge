@@ -16,7 +16,7 @@ from typing import Optional
 
 from app.models import CaseDocument
 from app.api._store import case_documents
-from app.api.deps import get_current_user
+from app.api.deps import can_access_workspace, get_current_user, scoped_items
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["documents"])
@@ -51,7 +51,7 @@ def _process_document(doc: CaseDocument, content: bytes):
             entity_ids=doc.entity_ids,
             person_ids=doc.person_ids,
             source=doc.source,
-            metadata={"filename": doc.filename, "case_id": doc.case_id},
+    metadata={"filename": doc.filename, "case_id": doc.case_id},
         )
         doc.qdrant_point_ids = point_ids
         doc.status = "indexed"
@@ -143,8 +143,9 @@ async def upload_document(
     entity_ids: Optional[str] = Form(default=""),
     person_ids: Optional[str] = Form(default=""),
     kora_request_id: Optional[str] = Form(default=""),
+    case_id: Optional[str] = Form(default="crowley-v-usd232"),
     source: Optional[str] = Form(default="manual_upload"),
-    _user: dict = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
 ):
     """Upload a document for processing. Returns immediately; processing runs in background."""
     content = await file.read()
@@ -156,6 +157,8 @@ async def upload_document(
 
     doc = CaseDocument(
         id=str(uuid.uuid4())[:8],
+        workspace_id=user["workspace_id"],
+        case_id=case_id or "crowley-v-usd232",
         filename=file.filename or "unknown",
         file_size=len(content),
         entity_ids=ent_ids,
@@ -172,9 +175,9 @@ async def upload_document(
 
 
 @router.get("/documents", response_model=list[CaseDocument])
-async def list_documents(entity_id: str = "", status: str = "", _user: dict = Depends(get_current_user)):
+async def list_documents(entity_id: str = "", status: str = "", user: dict = Depends(get_current_user)):
     """List uploaded documents, optionally filtered."""
-    docs = list(case_documents.values())
+    docs = scoped_items(list(case_documents.values()), user)
     if entity_id:
         docs = [d for d in docs if entity_id in d.entity_ids]
     if status:
@@ -184,8 +187,8 @@ async def list_documents(entity_id: str = "", status: str = "", _user: dict = De
 
 
 @router.get("/documents/{doc_id}", response_model=CaseDocument)
-async def get_document(doc_id: str, _user: dict = Depends(get_current_user)):
+async def get_document(doc_id: str, user: dict = Depends(get_current_user)):
     doc = case_documents.get(doc_id)
-    if not doc:
+    if not doc or not can_access_workspace(user, doc.workspace_id):
         raise HTTPException(status_code=404, detail="Document not found")
     return doc

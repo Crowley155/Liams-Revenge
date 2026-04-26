@@ -14,17 +14,21 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from app.models import PersonCreate, Person, PersonSource, ResearchJob, JobStatus
 from app.api._store import jobs, profiles
-from app.api.deps import get_current_user
+from app.api.deps import can_access_workspace, get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["research"])
 
 
-def _find_person_by_name_org(name: str, org: str) -> Person | None:
+def _find_person_by_name_org(name: str, org: str, workspace_id: str) -> Person | None:
     name_lower = name.lower().strip()
     org_lower = org.lower().strip()
     for p in profiles.values():
-        if p.name.lower().strip() == name_lower and p.organization.lower().strip() == org_lower:
+        if (
+            p.workspace_id == workspace_id
+            and p.name.lower().strip() == name_lower
+            and p.organization.lower().strip() == org_lower
+        ):
             return p
     return None
 
@@ -73,6 +77,8 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
             logger.info("Enriched existing person %s (%s)", existing.name, existing.id)
         else:
             person.source = PersonSource.PIPELINE
+            person.workspace_id = job.workspace_id
+            person.case_id = job.case_id
             profiles[person.id] = person
 
     except Exception as e:
@@ -90,21 +96,21 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
 
 
 @router.post("/research", response_model=ResearchJob)
-async def start_research(request: PersonCreate, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
+async def start_research(request: PersonCreate, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Kick off a research pipeline for a person. Returns a job you can poll."""
     existing: Person | None = None
 
     if request.person_id:
         existing = profiles.get(request.person_id)
-        if not existing:
+        if not existing or not can_access_workspace(user, existing.workspace_id):
             raise HTTPException(status_code=404, detail=f"Person {request.person_id} not found")
     else:
-        existing = _find_person_by_name_org(request.name, request.organization)
+        existing = _find_person_by_name_org(request.name, request.organization, user["workspace_id"])
 
     job_id = str(uuid.uuid4())[:8]
     person_id = existing.id if existing else str(uuid.uuid4())[:8]
 
-    job = ResearchJob(id=job_id, person_id=person_id)
+    job = ResearchJob(id=job_id, workspace_id=user["workspace_id"], case_id=request.case_id, person_id=person_id)
     jobs[job_id] = job
 
     bg.add_task(_run_job, request, job, existing)
@@ -118,20 +124,20 @@ async def start_research(request: PersonCreate, bg: BackgroundTasks, _user: dict
 
 
 @router.get("/research/{job_id}", response_model=ResearchJob)
-async def get_job_status(job_id: str, _user: dict = Depends(get_current_user)):
+async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
     """Check the status of a research job."""
     job = jobs.get(job_id)
-    if not job:
+    if not job or not can_access_workspace(user, job.workspace_id):
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
 
 @router.post("/research/{job_id}/cancel", response_model=ResearchJob)
-async def cancel_job(job_id: str, _user: dict = Depends(get_current_user)):
+async def cancel_job(job_id: str, user: dict = Depends(get_current_user)):
     """Mark a running research job as failed/cancelled. The background task
     checks job.status on each phase boundary and aborts if it sees FAILED."""
     job = jobs.get(job_id)
-    if not job:
+    if not job or not can_access_workspace(user, job.workspace_id):
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status in (JobStatus.COMPLETE, JobStatus.FAILED):
         raise HTTPException(status_code=400, detail=f"Job already {job.status.value}")

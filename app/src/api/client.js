@@ -1,17 +1,20 @@
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 const TOKEN_KEY = 'usdwatch_token';
 
-function authFetch(url, options = {}) {
-  const token = localStorage.getItem(TOKEN_KEY);
+let authTokenGetter = async () => localStorage.getItem(TOKEN_KEY);
+
+export function setAuthTokenGetter(getter) {
+  authTokenGetter = getter || (async () => localStorage.getItem(TOKEN_KEY));
+}
+
+async function authFetch(url, options = {}) {
+  const token = await authTokenGetter();
   const headers = { ...options.headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  return fetch(url, { ...options, headers }).then((res) => {
-    if (res.status === 401) {
-      localStorage.removeItem(TOKEN_KEY);
-    }
-    return res;
-  });
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) localStorage.removeItem(TOKEN_KEY);
+  return res;
 }
 
 // --- Protected endpoints ---
@@ -239,7 +242,7 @@ export async function uploadDocument(file, { entityIds = [], personIds = [], kor
   form.append('person_ids', personIds.join(','));
   form.append('kora_request_id', koraRequestId);
   form.append('source', source);
-  const token = localStorage.getItem(TOKEN_KEY);
+  const token = await authTokenGetter();
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const res = await fetch(`${API_BASE}/api/documents/upload`, { method: 'POST', body: form, headers });
@@ -254,5 +257,84 @@ export async function fetchDocuments(entityId = '') {
   const params = entityId ? `?entity_id=${entityId}` : '';
   const res = await authFetch(`${API_BASE}/api/documents${params}`);
   if (!res.ok) throw new Error(`Failed to fetch documents: ${res.status}`);
+  return res.json();
+}
+
+// Workspaces and case evaluations
+export async function fetchWorkspace() {
+  const res = await authFetch(`${API_BASE}/api/workspace`);
+  if (!res.ok) throw new Error(`Failed to fetch workspace: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCases() {
+  const res = await authFetch(`${API_BASE}/api/cases`);
+  if (!res.ok) throw new Error(`Failed to fetch cases: ${res.status}`);
+  return res.json();
+}
+
+export async function createCase(data) {
+  const res = await authFetch(`${API_BASE}/api/cases`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Create case failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchCase(caseId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}`);
+  if (!res.ok) throw new Error(`Case not found: ${res.status}`);
+  return res.json();
+}
+
+export async function uploadCaseDocument(caseId, file) {
+  const form = new FormData();
+  form.append('file', file);
+  const token = await authTokenGetter();
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/cases/${caseId}/documents`, {
+    method: 'POST',
+    body: form,
+    headers,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Document upload failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchCaseDocuments(caseId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/documents`);
+  if (!res.ok) throw new Error(`Failed to fetch case documents: ${res.status}`);
+  return res.json();
+}
+
+export async function startCaseEvaluation(caseId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/evaluations`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Evaluation failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchLatestEvaluation(caseId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/evaluations/latest`);
+  if (!res.ok) throw new Error(`Failed to fetch evaluation: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCaseEvaluation(caseId, evaluationId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/evaluations/${evaluationId}`);
+  if (!res.ok) throw new Error(`Evaluation not found: ${res.status}`);
   return res.json();
 }

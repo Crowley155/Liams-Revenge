@@ -94,9 +94,10 @@ export default function WhatsNext() {
           our department" — start contributing.
         </p>
         <p className="text-[15px] leading-relaxed text-text/90">
-          This tool will be free. Not freemium. Not "free with a catch." Free —
-          because the system is already stacked against families and adding a
-          paywall to justice is the last thing anyone needs.
+          The base promise is a free case evaluation: enough to understand your
+          evidence, gaps, records targets, and next steps without a credit card.
+          Organization plans fund the infrastructure so families can still start
+          without paying at the moment they need help.
         </p>
         <p className="text-base font-semibold text-accent">
           If you're a parent fighting the same fight — you're not alone.

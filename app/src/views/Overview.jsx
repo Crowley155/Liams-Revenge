@@ -415,7 +415,7 @@ function KoraSection() {
       {/* Status pipeline summary */}
       {koraRequests.length > 0 && (
         <div className="flex items-center gap-1 text-[11px]">
-          {['draft', 'sent', 'partial', 'fulfilled', 'denied'].map((s, i, arr) => {
+          {['draft', 'sent', 'partial', 'fulfilled', 'denied'].map((s, i) => {
             const count = koraRequests.filter((r) => r.status === s).length;
             if (count === 0 && s !== 'draft' && s !== 'sent') return null;
             return (
@@ -698,4 +698,3 @@ function EvidenceCluster({ title, intro, items }) {
     </div>
   );
 }
-

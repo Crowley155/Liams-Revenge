@@ -201,7 +201,7 @@ export default function MemberPreview() {
           <div className="space-y-2">
             {sourceUrls.map((url, i) => {
               let hostname = url;
-              try { hostname = new URL(url).hostname.replace('www.', ''); } catch {}
+              try { hostname = new URL(url).hostname.replace('www.', ''); } catch { hostname = url; }
               return (
                 <a
                   key={i}

@@ -20,7 +20,7 @@ from app.models import (
     Address, SocialProfile, Employment, Education,
 )
 from app.api._store import profiles, jobs
-from app.api.deps import get_current_user
+from app.api.deps import can_access_workspace, get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["enrichment"])
@@ -73,14 +73,14 @@ def _run_enrichment(person_id: str, job: ResearchJob):
 
 
 @router.post("/enrich/{person_id}", response_model=ResearchJob)
-async def start_enrichment(person_id: str, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
+async def start_enrichment(person_id: str, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Kick off identity enrichment for a person. Returns a job to poll."""
     person = profiles.get(person_id)
-    if not person:
+    if not person or not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Person not found")
 
     job_id = str(uuid.uuid4())[:8]
-    job = ResearchJob(id=job_id, person_id=person_id)
+    job = ResearchJob(id=job_id, workspace_id=person.workspace_id, case_id=person.case_id, person_id=person_id)
     jobs[job_id] = job
 
     bg.add_task(_run_enrichment, person_id, job)
@@ -90,10 +90,10 @@ async def start_enrichment(person_id: str, bg: BackgroundTasks, _user: dict = De
 
 
 @router.put("/profiles/{person_id}/identity", response_model=Person)
-async def update_identity(person_id: str, update: IdentityUpdate, _user: dict = Depends(get_current_user)):
+async def update_identity(person_id: str, update: IdentityUpdate, user: dict = Depends(get_current_user)):
     """Manually update identity enrichment fields for a person."""
     person = profiles.get(person_id)
-    if not person:
+    if not person or not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Person not found")
 
     if update.city is not None:
@@ -145,7 +145,7 @@ async def update_identity(person_id: str, update: IdentityUpdate, _user: dict = 
 
 
 @router.post("/clay-callback/{person_id}")
-async def clay_callback(person_id: str, request: Request, _user: dict = Depends(get_current_user)):
+async def clay_callback(person_id: str, request: Request, user: dict = Depends(get_current_user)):
     """
     Receives enriched data from Clay's outbound HTTP API column.
     Clay POSTs the full enriched row here after its enrichment pipeline completes.
@@ -153,7 +153,7 @@ async def clay_callback(person_id: str, request: Request, _user: dict = Depends(
     from app.pipeline.enrichment.clay_worker import parse_clay_response
 
     person = profiles.get(person_id)
-    if not person:
+    if not person or not can_access_workspace(user, person.workspace_id):
         logger.warning("Clay callback for unknown person_id: %s", person_id)
         raise HTTPException(status_code=404, detail="Person not found")
 
@@ -276,13 +276,13 @@ class SocialProfileAction(BaseModel):
 
 
 @router.post("/profiles/{person_id}/social-profiles/confirm", response_model=Person)
-async def confirm_social_profile(person_id: str, body: SocialProfileAction, bg: BackgroundTasks, _user: dict = Depends(get_current_user)):
+async def confirm_social_profile(person_id: str, body: SocialProfileAction, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     """
     Confirm a discovered social profile. Sets status to 'confirmed', then
     scrapes + LLM-extracts data from that profile and merges into the person.
     """
     person = profiles.get(person_id)
-    if not person:
+    if not person or not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Person not found")
 
     sp = next((s for s in person.social_profiles if s.url == body.url), None)
@@ -361,13 +361,13 @@ def _scrape_confirmed_profile(person_id: str, profile_url: str):
 
 
 @router.post("/profiles/{person_id}/social-profiles/dismiss", response_model=Person)
-async def dismiss_social_profile(person_id: str, body: SocialProfileAction, _user: dict = Depends(get_current_user)):
+async def dismiss_social_profile(person_id: str, body: SocialProfileAction, user: dict = Depends(get_current_user)):
     """
     Dismiss a social profile. Removes the profile and cascade-deletes any
     data (employment, education, addresses, intel) sourced from its URL.
     """
     person = profiles.get(person_id)
-    if not person:
+    if not person or not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Person not found")
 
     sp = next((s for s in person.social_profiles if s.url == body.url), None)

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import init_db, migrate_json_to_sqlite
-from app.api import research, profiles, entities, enrichment, kora, documents, auth
+from app.api import agent_os, auth, cases, documents, enrichment, entities, kora, profiles, research
 from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -82,12 +82,14 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api")
+app.include_router(cases.router, prefix="/api")
 app.include_router(research.router, prefix="/api")
 app.include_router(profiles.router, prefix="/api")
 app.include_router(entities.router, prefix="/api")
 app.include_router(enrichment.router, prefix="/api")
 app.include_router(kora.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
+app.include_router(agent_os.router, prefix="/api")
 
 
 @app.get("/health")
@@ -103,6 +105,8 @@ async def health():
         "pdl": settings.has_pdl,
         "qdrant": settings.has_qdrant,
         "db": "sqlite",
+        "agent_runtime": "agno",
+        "agent_os": os.getenv("ENABLE_AGENT_OS", "false").lower() == "true",
     }
 
 
@@ -140,6 +144,7 @@ async def startup_ingest():
     """Run seed + evidence ingestion on app startup."""
     from app.api.auth import seed_admin_user
     seed_admin_user()
+    cases.seed_demo_case()
 
     from app.scripts.seed_actors import seed
     seed()

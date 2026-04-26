@@ -83,7 +83,7 @@ export default function EntityDetail() {
     onComplete: reload,
   });
 
-  const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover, reset: resetDiscover, cancel: cancelDiscover } = useResearchJob({
+  const { job: discoverJob, isRunning: discovering, isDone: discoverDone, error: discoverError, start: startDiscover, reset: resetDiscover } = useResearchJob({
     onPoll: reload,
     onComplete: () => {
       setTimeout(() => {
@@ -156,6 +156,27 @@ export default function EntityDetail() {
     }
   }
 
+  const factCategories = useMemo(() => {
+    const facts = entity?.facts || [];
+    const counts = {};
+    for (const f of facts) {
+      counts[f.category] = (counts[f.category] || 0) + 1;
+    }
+    const canonicalValues = new Set(CANONICAL_CATEGORIES.map((c) => c.value));
+    const pills = [{ value: '', label: 'All', count: facts.length }];
+    for (const cat of CANONICAL_CATEGORIES) {
+      if (counts[cat.value]) {
+        pills.push({ ...cat, count: counts[cat.value] });
+      }
+    }
+    for (const [cat, count] of Object.entries(counts)) {
+      if (!canonicalValues.has(cat)) {
+        pills.push({ value: cat, label: cat.replace(/_/g, ' '), count });
+      }
+    }
+    return pills;
+  }, [entity?.facts]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -215,32 +236,9 @@ export default function EntityDetail() {
   }
 
   const pendingMembers = (entity.members || []).filter((m) => m.status === 'pending');
-  const acceptedMembers = (entity.members || []).filter((m) => m.status === 'accepted' && m.person_id);
-
   const filteredFacts = (entity.facts || []).filter(
     (f) => !factFilter || f.category === factFilter
   );
-
-  const factCategories = useMemo(() => {
-    const facts = entity?.facts || [];
-    const counts = {};
-    for (const f of facts) {
-      counts[f.category] = (counts[f.category] || 0) + 1;
-    }
-    const canonicalValues = new Set(CANONICAL_CATEGORIES.map((c) => c.value));
-    const pills = [{ value: '', label: 'All', count: facts.length }];
-    for (const cat of CANONICAL_CATEGORIES) {
-      if (counts[cat.value]) {
-        pills.push({ ...cat, count: counts[cat.value] });
-      }
-    }
-    for (const [cat, count] of Object.entries(counts)) {
-      if (!canonicalValues.has(cat)) {
-        pills.push({ value: cat, label: cat.replace(/_/g, ' '), count });
-      }
-    }
-    return pills;
-  }, [entity?.facts]);
 
   const TABS = [
     { key: 'overview', label: 'Overview' },

@@ -1,69 +1,143 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  ClerkProvider,
+  useAuth as useClerkAuth,
+  useOrganization,
+  useUser,
+} from '@clerk/clerk-react';
+import { setAuthTokenGetter } from '../api/client';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const TOKEN_KEY = 'usdwatch_token';
+const DEV_TOKEN_KEY = 'usdwatch_dev_token';
+const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || '';
+const CLERK_TEMPLATE = import.meta.env.VITE_CLERK_JWT_TEMPLATE || undefined;
+const DEV_AUTH_ENABLED = import.meta.env.VITE_ALLOW_DEV_AUTH === 'true';
+
+export const clerkEnabled = Boolean(CLERK_KEY);
 
 const AuthContext = createContext(null);
 
-function decodePayload(token) {
-  try {
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(base64));
-  } catch {
-    return null;
-  }
-}
-
-function isTokenExpired(token) {
-  const payload = decodePayload(token);
-  if (!payload?.exp) return true;
-  return Date.now() / 1000 > payload.exp;
-}
-
-export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => {
-    const stored = localStorage.getItem(TOKEN_KEY);
-    if (stored && !isTokenExpired(stored)) return stored;
-    localStorage.removeItem(TOKEN_KEY);
-    return null;
+async function fetchWorkspace(token) {
+  if (!token) return null;
+  const res = await fetch(`${API_BASE}/api/workspace`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
+  if (!res.ok) return null;
+  return res.json();
+}
 
-  const user = token ? decodePayload(token) : null;
-  const isAuthenticated = !!token && !isTokenExpired(token);
+function ClerkBackedAuth({ children }) {
+  const { getToken, isLoaded, isSignedIn, signOut } = useClerkAuth();
+  const { user: clerkUser } = useUser();
+  const { organization } = useOrganization();
+  const [workspaceState, setWorkspaceState] = useState(null);
 
   useEffect(() => {
-    if (token && isTokenExpired(token)) {
-      localStorage.removeItem(TOKEN_KEY);
-      setToken(null);
+    setAuthTokenGetter(async () => {
+      if (!isSignedIn) return null;
+      return getToken({ template: CLERK_TEMPLATE });
+    });
+    return () => setAuthTokenGetter(null);
+  }, [getToken, isSignedIn]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadWorkspace() {
+      if (!isSignedIn) {
+        setWorkspaceState(null);
+        return;
+      }
+      const token = await getToken({ template: CLERK_TEMPLATE });
+      const data = await fetchWorkspace(token);
+      if (!cancelled) setWorkspaceState(data);
     }
+    if (isLoaded) loadWorkspace();
+    return () => {
+      cancelled = true;
+    };
+  }, [getToken, isLoaded, isSignedIn, organization?.id]);
+
+  const logout = useCallback(() => signOut({ redirectUrl: '/' }), [signOut]);
+
+  const value = useMemo(() => ({
+    loading: !isLoaded,
+    isAuthenticated: Boolean(isSignedIn),
+    clerkEnabled: true,
+    user: workspaceState?.user || {
+      id: clerkUser?.id,
+      email: clerkUser?.primaryEmailAddress?.emailAddress || '',
+    },
+    workspace: workspaceState?.workspace || null,
+    entitlements: workspaceState?.entitlements || null,
+    login: async () => {},
+    logout,
+  }), [clerkUser?.id, clerkUser?.primaryEmailAddress?.emailAddress, isLoaded, isSignedIn, logout, workspaceState]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+function DevAuthProvider({ children }) {
+  const [token, setToken] = useState(() => localStorage.getItem(DEV_TOKEN_KEY));
+  const [workspaceState, setWorkspaceState] = useState(null);
+
+  useEffect(() => {
+    setAuthTokenGetter(async () => token || null);
+    return () => setAuthTokenGetter(null);
   }, [token]);
 
-  const login = useCallback(async (email, password) => {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Login failed');
+  useEffect(() => {
+    let cancelled = false;
+    async function loadWorkspace() {
+      if (!token) {
+        setWorkspaceState(null);
+        return;
+      }
+      const data = await fetchWorkspace(token);
+      if (!cancelled) setWorkspaceState(data);
     }
+    loadWorkspace();
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
-    const { access_token } = await res.json();
-    localStorage.setItem(TOKEN_KEY, access_token);
-    setToken(access_token);
+  const login = useCallback(async (email) => {
+    if (!DEV_AUTH_ENABLED) {
+      throw new Error('Clerk is not configured for this environment.');
+    }
+    const nextToken = `dev:${email || 'dev@example.com'}`;
+    localStorage.setItem(DEV_TOKEN_KEY, nextToken);
+    setToken(nextToken);
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(DEV_TOKEN_KEY);
     setToken(null);
   }, []);
 
+  const value = useMemo(() => ({
+    loading: false,
+    isAuthenticated: Boolean(token),
+    clerkEnabled: false,
+    user: workspaceState?.user || (token ? { email: token.replace('dev:', '') } : null),
+    workspace: workspaceState?.workspace || null,
+    entitlements: workspaceState?.entitlements || null,
+    login,
+    logout,
+  }), [login, logout, token, workspaceState]);
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function AuthProvider({ children }) {
+  if (!clerkEnabled) {
+    return <DevAuthProvider>{children}</DevAuthProvider>;
+  }
+
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout }}>
-      {children}
-    </AuthContext.Provider>
+    <ClerkProvider publishableKey={CLERK_KEY} afterSignOutUrl="/">
+      <ClerkBackedAuth>{children}</ClerkBackedAuth>
+    </ClerkProvider>
   );
 }
 

@@ -1,51 +1,34 @@
 # USDWatch
 
-**Evidence-backed public accountability for families navigating institutional failure in public school systems.**
+Evidence-backed public accountability for families navigating institutional failure in public school systems.
 
-USDWatch combines public-facing advocacy — sourced narrative, policy reform proposals, non-compliance evidence — with a private case intelligence layer: agentic research pipelines, entity mapping, KORA letter generation, and document intake. The goal is reform, not punishment. The platform is designed to be replicable for other families facing similar situations.
+USDWatch combines public advocacy with a private case intelligence layer: Clerk-authenticated workspaces, free case evaluation, document intake, records-request recommendations, and an Agno-backed evaluation workflow. The goal is reform, not punishment. The base product promise is a free case evaluation, with organization plans funding heavier infrastructure.
 
 Live at [usdwatch.com](https://usdwatch.com)
 
----
-
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│                   React Frontend                     │
-│  (Vite + React 19 + React Router + Tailwind v4)     │
-│                                                      │
-│  Public: Overview · Policy Reforms · What's Next     │
-│  Auth'd: People · Entities · Evidence · KORA · etc.  │
-└────────────────────────┬────────────────────────────┘
-                         │ HTTPS
-┌────────────────────────▼────────────────────────────┐
-│                   FastAPI Backend                     │
-│  (Python 3.12 · DSPy · LiteLLM · SQLite WAL)        │
-│                                                      │
-│  Pipelines:                                          │
-│    Person Research (3-pass: collect → disambiguate    │
-│      → synthesize)                                   │
-│    Entity Research (5-phase: website → news →         │
-│      social → oversight → records)                   │
-│    Member Discovery (search + LLM extraction)        │
-│    Identity Enrichment (PDL / SerpAPI / social)      │
-│    KORA Letter Generation (case-data → LLM → draft)  │
-│    Document Intake (parse → chunk → embed)           │
-│                                                      │
-│  Storage:                                            │
-│    SQLite (profiles, entities, jobs, KORA, docs)     │
-│    Qdrant (vector search, dedup, evidence)           │
-│    Redis (optional, SerpAPI cache)                   │
-└─────────────────────────────────────────────────────┘
-```
+- **Frontend:** Astro static site in `app/`, deployed to Cloudflare Pages. React islands keep the existing case workspace and evaluation UI working during the migration.
+- **Auth:** Clerk session JWTs from the frontend, verified by FastAPI through Clerk JWKS.
+- **Backend:** FastAPI with SQLite WAL persistence, tenant-scoped cases/documents/jobs/evaluations, and protected admin/demo data.
+- **Agent runtime:** Agno workflow with DeepInfra model routing. Defaults use NVIDIA Nemotron Nano for extraction, Nemotron 3 Nano for reasoning, Nemotron 3 Super for premium review, and Llama 3.3 70B as fallback.
+- **Storage:** SQLite for app records, Qdrant for vector evidence, Redis for optional caching.
 
 ## Deployment
 
-- **Frontend:** GitHub Pages (auto-deploys on push to `main`)
-- **Backend:** Railway (Docker, `Dockerfile.prod`, auto-deploys on push)
-- **Qdrant:** Railway (Docker, persistent volume)
-- **Redis:** Railway (optional)
+- **Frontend:** Cloudflare Pages
+  - Root directory: `app`
+  - Build command: `npm run build`
+  - Build output directory: `dist`
+  - Required env: `VITE_API_URL`, `VITE_CLERK_PUBLISHABLE_KEY`
+  - Public trust pages: `/trust` and `/privacy`
+  - `trust.usdwatch.com` should use a Cloudflare Redirect Rule to point to `/trust`, or a dedicated Pages project if you want it fully separate.
+- **Backend:** Railway or another long-running API host
+  - Dockerfile: `Dockerfile.prod`
+  - Required env: `CLERK_ISSUER` or `CLERK_JWKS_URL`
+  - Recommended env: `DEEPINFRA_API_KEY`, `USDWATCH_ADMIN_EMAILS`, search/vector/cache keys as needed
+
+Cloudflare Pages hosts the Astro frontend only. The FastAPI/Agno backend still needs a server runtime.
 
 ## Local Development
 
@@ -54,38 +37,54 @@ Live at [usdwatch.com](https://usdwatch.com)
 ```bash
 cd backend
 cp .env.example .env
-# Fill in API keys (at minimum: an LLM provider key + JWT_SECRET + ADMIN_EMAIL/PASSWORD)
-pip install -e .
+pip install -e .[dev]
 uvicorn app.main:app --reload
 ```
+
+For local dev without Clerk, set `ALLOW_DEV_AUTH=true` and use a bearer token like `dev:parent@example.com`.
 
 ### Frontend
 
 ```bash
 cd app
+cp .env.example .env
 npm install
-# For local dev against localhost backend:
 npm run dev
-# For production build:
-VITE_API_URL=https://your-backend.railway.app npm run build
 ```
 
-### Required Environment Variables
+For a Cloudflare-style production build:
 
-| Variable | Required | Notes |
-|----------|----------|-------|
-| `JWT_SECRET` | Yes | Signs auth tokens |
-| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Yes | Seeded on startup |
-| LLM provider key (e.g. `OPENAI_API_KEY`) | Yes | Used via LiteLLM |
-| `SERPAPI_KEY` | Recommended | Powers web search in pipelines |
-| `QDRANT_URL` | Recommended | Vector storage for documents |
-| `REDIS_URL` | Optional | SerpAPI result caching |
-| `PDL_API_KEY` | Optional | People Data Labs enrichment |
-| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Optional | LLM observability |
+```bash
+cd app
+VITE_API_URL=https://your-backend.example.com npm run build
+```
+
+## Environment Variables
+
+| Variable | Scope | Notes |
+| --- | --- | --- |
+| `CLERK_ISSUER` | Backend | Clerk issuer URL used to derive JWKS |
+| `CLERK_JWKS_URL` | Backend | Optional JWKS override |
+| `USDWATCH_ADMIN_EMAILS` | Backend | Comma-separated admin emails for demo/admin case access |
+| `ALLOW_DEV_AUTH` | Backend | Enables `Authorization: Bearer dev:user@example.com` locally |
+| `DEEPINFRA_API_KEY` | Backend | Enables Agno + DeepInfra model calls |
+| `DEEPINFRA_EXTRACTION_MODEL` | Backend | Defaults to `nvidia/NVIDIA-Nemotron-Nano-9B-v2` |
+| `DEEPINFRA_REASONING_MODEL` | Backend | Defaults to `nvidia/Nemotron-3-Nano-30B-A3B` |
+| `DEEPINFRA_PREMIUM_MODEL` | Backend | Defaults to `nvidia/NVIDIA-Nemotron-3-Super-120B-A12B` |
+| `DEEPINFRA_FALLBACK_MODEL` | Backend | Defaults to `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
+| `ENABLE_AGENT_OS` | Backend | Disabled by default; protected admin status endpoint only |
+| `SERPAPI_KEY` | Backend | Optional search pipeline input |
+| `QDRANT_URL` / `QDRANT_API_KEY` | Backend | Optional vector storage |
+| `REDIS_URL` | Backend | Optional cache |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Backend | Optional tracing |
+| `VITE_API_URL` | Frontend | Public FastAPI URL |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Frontend | Clerk publishable key |
+| `VITE_CLERK_JWT_TEMPLATE` | Frontend | Optional Clerk JWT template name |
+| `VITE_ALLOW_DEV_AUTH` | Frontend | Enables local dev sign-in fallback |
 
 ## Case Data
 
-The platform is anchored to `data/case-data.json`, which contains actors (people involved in the case), evidence documents, and case metadata. This file is copied into the Docker image at build time and ingested on startup.
+The existing Crowley v. USD 232 / JCPRD material is preserved as a seeded admin/demo case. New user-created cases are scoped to a personal workspace by default; Clerk organizations map to paid organization workspaces.
 
 ## License
 

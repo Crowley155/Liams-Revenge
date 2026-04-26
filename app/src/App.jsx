@@ -4,20 +4,23 @@ import RequireAuth from './auth/RequireAuth';
 import { CaseProvider } from './data/useCase';
 import { EvidencePanelProvider } from './components/EvidencePanel';
 import Layout from './components/Layout';
-import Login from './pages/Login';
-import Overview from './pages/Overview';
-import People from './pages/People';
-import NonCompliance from './pages/NonCompliance';
-import Sources from './pages/Sources';
-import WhatsNext from './pages/WhatsNext';
-import PolicyReforms from './pages/PolicyReforms';
-import ProfileDetail from './pages/ProfileDetail';
-import Entities from './pages/Entities';
-import EntityDetail from './pages/EntityDetail';
-import MemberPreview from './pages/MemberPreview';
-import Timeline from './pages/Timeline';
-import Contradictions from './pages/Contradictions';
-import EvidenceGaps from './pages/EvidenceGaps';
+import Login from './views/Login';
+import Overview from './views/Overview';
+import People from './views/People';
+import NonCompliance from './views/NonCompliance';
+import Sources from './views/Sources';
+import WhatsNext from './views/WhatsNext';
+import PolicyReforms from './views/PolicyReforms';
+import ProfileDetail from './views/ProfileDetail';
+import Entities from './views/Entities';
+import EntityDetail from './views/EntityDetail';
+import MemberPreview from './views/MemberPreview';
+import Timeline from './views/Timeline';
+import Contradictions from './views/Contradictions';
+import EvidenceGaps from './views/EvidenceGaps';
+import EvaluateCase from './views/EvaluateCase';
+import Cases from './views/Cases';
+import CaseDetail from './views/CaseDetail';
 
 export default function App() {
   return (
@@ -35,6 +38,9 @@ export default function App() {
 
                 {/* Protected routes */}
                 <Route element={<RequireAuth />}>
+                  <Route path="evaluate" element={<EvaluateCase />} />
+                  <Route path="cases" element={<Cases />} />
+                  <Route path="cases/:id" element={<CaseDetail />} />
                   <Route path="people" element={<People />} />
                   <Route path="people/:id" element={<ProfileDetail />} />
                   <Route path="entities" element={<Entities />} />

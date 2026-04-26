@@ -22,6 +22,13 @@ DB_PATH = DB_DIR / "usdwatch.db"
 _write_lock = Lock()
 
 
+def _ensure_column(conn: sqlite3.Connection, table: str, name: str, definition: str) -> None:
+    """Add a column when upgrading an existing SQLite file in-place."""
+    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if name not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+
+
 def _connect() -> sqlite3.Connection:
     DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=15)
@@ -38,6 +45,8 @@ def init_db():
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS persons (
             id   TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL DEFAULT 'demo',
+            case_id TEXT NOT NULL DEFAULT 'crowley-v-usd232',
             name TEXT NOT NULL,
             organization TEXT NOT NULL DEFAULT '',
             state TEXT NOT NULL DEFAULT 'KS',
@@ -49,6 +58,8 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS entities (
             id   TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL DEFAULT 'demo',
+            case_id TEXT NOT NULL DEFAULT 'crowley-v-usd232',
             name TEXT NOT NULL,
             type TEXT NOT NULL DEFAULT 'district',
             data TEXT NOT NULL
@@ -56,6 +67,8 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS jobs (
             id        TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL DEFAULT 'demo',
+            case_id   TEXT NOT NULL DEFAULT 'crowley-v-usd232',
             person_id TEXT,
             status    TEXT NOT NULL DEFAULT 'pending',
             data      TEXT NOT NULL
@@ -65,6 +78,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS kora_requests (
             id        TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL DEFAULT 'demo',
             case_id   TEXT NOT NULL DEFAULT 'crowley-v-usd232',
             status    TEXT NOT NULL DEFAULT 'draft',
             record_category TEXT NOT NULL DEFAULT '',
@@ -75,6 +89,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS case_documents (
             id        TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL DEFAULT 'demo',
             case_id   TEXT NOT NULL DEFAULT 'crowley-v-usd232',
             filename  TEXT NOT NULL DEFAULT '',
             status    TEXT NOT NULL DEFAULT 'processing',
@@ -88,9 +103,83 @@ def init_db():
             email      TEXT NOT NULL UNIQUE,
             password   TEXT NOT NULL,
             role       TEXT NOT NULL DEFAULT 'admin',
+            clerk_user_id TEXT,
+            workspace_id TEXT NOT NULL DEFAULT '',
+            data       TEXT NOT NULL DEFAULT '{}',
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+        CREATE TABLE IF NOT EXISTS workspaces (
+            id TEXT PRIMARY KEY,
+            clerk_org_id TEXT NOT NULL DEFAULT '',
+            owner_user_id TEXT NOT NULL DEFAULT '',
+            type TEXT NOT NULL DEFAULT 'personal',
+            plan TEXT NOT NULL DEFAULT 'free',
+            data TEXT NOT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_workspaces_clerk_org ON workspaces(clerk_org_id) WHERE clerk_org_id != '';
+
+        CREATE TABLE IF NOT EXISTS cases (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            title TEXT NOT NULL DEFAULT '',
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_cases_workspace ON cases(workspace_id);
+
+        CREATE TABLE IF NOT EXISTS case_evaluations (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            case_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'queued',
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_evals_case ON case_evaluations(workspace_id, case_id);
+
+        CREATE TABLE IF NOT EXISTS agent_runs (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            case_id TEXT NOT NULL,
+            evaluation_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'queued',
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_agent_runs_eval ON agent_runs(evaluation_id);
+
+        CREATE TABLE IF NOT EXISTS usage_events (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            case_id TEXT NOT NULL DEFAULT '',
+            event_type TEXT NOT NULL,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_usage_workspace ON usage_events(workspace_id, event_type);
+    """)
+
+    for table in ("persons", "entities", "jobs"):
+        _ensure_column(conn, table, "workspace_id", "TEXT NOT NULL DEFAULT 'demo'")
+        _ensure_column(conn, table, "case_id", "TEXT NOT NULL DEFAULT 'crowley-v-usd232'")
+    for table in ("kora_requests", "case_documents"):
+        _ensure_column(conn, table, "workspace_id", "TEXT NOT NULL DEFAULT 'demo'")
+    for name, definition in (
+        ("clerk_user_id", "TEXT"),
+        ("workspace_id", "TEXT NOT NULL DEFAULT ''"),
+        ("data", "TEXT NOT NULL DEFAULT '{}'"),
+    ):
+        _ensure_column(conn, "users", name, definition)
+
+    conn.executescript("""
+        CREATE INDEX IF NOT EXISTS idx_persons_workspace ON persons(workspace_id, case_id);
+        CREATE INDEX IF NOT EXISTS idx_entities_workspace ON entities(workspace_id, case_id);
+        CREATE INDEX IF NOT EXISTS idx_jobs_workspace ON jobs(workspace_id, case_id);
+        CREATE INDEX IF NOT EXISTS idx_kora_workspace ON kora_requests(workspace_id, case_id);
+        CREATE INDEX IF NOT EXISTS idx_docs_workspace ON case_documents(workspace_id, case_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_user ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL AND clerk_user_id != '';
     """)
     conn.commit()
     conn.close()
