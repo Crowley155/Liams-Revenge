@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <script>
+      // GitHub Pages SPA fallback — preserves path for BrowserRouter
+      var seg = location.pathname.split('/').length;
+      var path = location.pathname + location.search + location.hash;
+      location.replace(
+        location.origin + '/?__spa_path=' + encodeURIComponent(path)
+      );
+    </script>
+  </head>
+  <body></body>
+</html>
