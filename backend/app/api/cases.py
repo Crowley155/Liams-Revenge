@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import logging
+import json
+import os
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 
@@ -27,14 +30,11 @@ from app.services.workspaces import entitlements_for_workspace
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["cases"])
-
-
-def _is_admin(user: dict) -> bool:
-    return user.get("role") == "admin"
+CASE_DATA_PATH = Path(os.getenv("CASE_DATA_PATH", "/app/case-data/case-data.json"))
 
 
 def _visible_case(case: CaseRecord, user: dict) -> bool:
-    return case.workspace_id == user["workspace_id"] or _is_admin(user)
+    return case.workspace_id == user["workspace_id"]
 
 
 def _get_case(case_id: str, user: dict) -> CaseRecord:
@@ -51,6 +51,35 @@ def _case_docs(case: CaseRecord) -> list[CaseDocument]:
     ]
     docs.sort(key=lambda doc: doc.uploaded_at, reverse=True)
     return docs
+
+
+def _empty_case_file(case: CaseRecord) -> dict:
+    return {
+        "case": case.model_dump(mode="json"),
+        "meta": {"source": "case_record", "caseId": case.id},
+        "actors": [],
+        "entities": [],
+        "evidence": [],
+        "sources": [],
+        "threads": [],
+        "timeline": [],
+        "violations": [],
+        "contradictions": [],
+        "evidenceGaps": [],
+        "policyReforms": [],
+    }
+
+
+def _load_legacy_case_file(case: CaseRecord) -> dict:
+    if case.id != "crowley-v-usd232" or not CASE_DATA_PATH.exists():
+        return _empty_case_file(case)
+
+    data = json.loads(CASE_DATA_PATH.read_text(encoding="utf-8"))
+    data["case"] = case.model_dump(mode="json")
+    data.setdefault("meta", {})
+    data["meta"]["caseId"] = case.id
+    data["meta"]["source"] = "protected_case_file"
+    return data
 
 
 def seed_demo_case() -> None:
@@ -130,6 +159,12 @@ async def create_case(body: CaseCreate, user: dict = Depends(get_current_user)):
 @router.get("/cases/{case_id}", response_model=CaseRecord)
 async def get_case(case_id: str, user: dict = Depends(get_current_user)):
     return _get_case(case_id, user)
+
+
+@router.get("/cases/{case_id}/file")
+async def get_case_file(case_id: str, user: dict = Depends(get_current_user)):
+    case = _get_case(case_id, user)
+    return _load_legacy_case_file(case)
 
 
 @router.get("/cases/{case_id}/documents", response_model=list[CaseDocument])

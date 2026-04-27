@@ -41,14 +41,19 @@ router = APIRouter(tags=["entities"])
 
 
 @router.get("/entities", response_model=list[Entity])
-async def list_entities(user: dict = Depends(get_current_user)):
-    return scoped_items(list(entities.values()), user)
+async def list_entities(case_id: Optional[str] = Query(default=""), user: dict = Depends(get_current_user)):
+    items = scoped_items(list(entities.values()), user)
+    if case_id:
+        items = [item for item in items if item.case_id == case_id]
+    return items
 
 
 @router.get("/entities/graph")
-async def get_entity_graph(user: dict = Depends(get_current_user)):
+async def get_entity_graph(case_id: str = "", user: dict = Depends(get_current_user)):
     """Return all entities with their relationships for graph visualization."""
     all_ents = scoped_items(list(entities.values()), user)
+    if case_id:
+        all_ents = [ent for ent in all_ents if ent.case_id == case_id]
     nodes = []
     edges = []
     for ent in all_ents:
@@ -134,7 +139,7 @@ async def get_entity(entity_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.post("/entities", response_model=Entity)
-async def create_entity(req: EntityCreate, user: dict = Depends(get_current_user)):
+async def create_entity(req: EntityCreate, case_id: str = "crowley-v-usd232", user: dict = Depends(get_current_user)):
     req_lower = req.name.lower().strip()
     for existing in scoped_items(list(entities.values()), user):
         if existing.name.lower().strip() == req_lower:
@@ -151,6 +156,7 @@ async def create_entity(req: EntityCreate, user: dict = Depends(get_current_user
     ent = Entity(
         id=str(uuid.uuid4())[:8],
         workspace_id=user["workspace_id"],
+        case_id=case_id,
         name=req.name,
         type=req.type,
         state=req.state,
@@ -348,7 +354,7 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
 
             active_names.add(norm)
 
-            existing_person = _find_person_by_name_org(name, ent.name)
+            existing_person = _find_person_by_name_org(name, ent.name, ent.workspace_id)
             if existing_person:
                 if entity_id not in existing_person.entity_ids:
                     existing_person.entity_ids.append(entity_id)

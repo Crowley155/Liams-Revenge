@@ -22,14 +22,16 @@ async function authFetch(url, options = {}) {
 
 // --- Protected endpoints ---
 
-export async function fetchProfiles() {
-  const res = await authFetch(`${API_BASE}/api/profiles`);
+export async function fetchProfiles(caseId = '') {
+  const params = caseId ? `?case_id=${encodeURIComponent(caseId)}` : '';
+  const res = await authFetch(`${API_BASE}/api/profiles${params}`);
   if (!res.ok) throw new Error(`Failed to fetch profiles: ${res.status}`);
   return res.json();
 }
 
-export async function fetchEntities() {
-  const res = await authFetch(`${API_BASE}/api/entities`);
+export async function fetchEntities(caseId = '') {
+  const params = caseId ? `?case_id=${encodeURIComponent(caseId)}` : '';
+  const res = await authFetch(`${API_BASE}/api/entities${params}`);
   if (!res.ok) throw new Error(`Failed to fetch entities: ${res.status}`);
   return res.json();
 }
@@ -157,8 +159,9 @@ export async function dismissSocialProfile(personId, url) {
 }
 
 // Entity CRUD & research
-export async function createEntity(data) {
-  const res = await authFetch(`${API_BASE}/api/entities`, {
+export async function createEntity(data, caseId = '') {
+  const params = caseId ? `?case_id=${encodeURIComponent(caseId)}` : '';
+  const res = await authFetch(`${API_BASE}/api/entities${params}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -201,22 +204,27 @@ export async function deleteEntityFact(entityId, factId) {
   return res.json();
 }
 
-export async function fetchEntityGraph() {
-  const res = await authFetch(`${API_BASE}/api/entities/graph`);
+export async function fetchEntityGraph(caseId = '') {
+  const params = caseId ? `?case_id=${encodeURIComponent(caseId)}` : '';
+  const res = await authFetch(`${API_BASE}/api/entities/graph${params}`);
   if (!res.ok) throw new Error(`Failed to fetch entity graph: ${res.status}`);
   return res.json();
 }
 
 // KORA requests
-export async function generateKoraRequests() {
-  const res = await authFetch(`${API_BASE}/api/kora/generate`, { method: 'POST' });
+export async function generateKoraRequests(caseId = 'crowley-v-usd232') {
+  const params = caseId ? `?case_id=${encodeURIComponent(caseId)}` : '';
+  const res = await authFetch(`${API_BASE}/api/kora/generate${params}`, { method: 'POST' });
   if (!res.ok) throw new Error(`KORA generation failed: ${res.status}`);
   return res.json();
 }
 
-export async function fetchKoraRequests(entityId = '') {
-  const params = entityId ? `?entity_id=${entityId}` : '';
-  const res = await authFetch(`${API_BASE}/api/kora/requests${params}`);
+export async function fetchKoraRequests(entityId = '', caseId = '') {
+  const params = new URLSearchParams();
+  if (entityId) params.set('entity_id', entityId);
+  if (caseId) params.set('case_id', caseId);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const res = await authFetch(`${API_BASE}/api/kora/requests${suffix}`);
   if (!res.ok) throw new Error(`Failed to fetch KORA requests: ${res.status}`);
   return res.json();
 }
@@ -238,12 +246,13 @@ export async function markKoraSent(id) {
 }
 
 // Document upload
-export async function uploadDocument(file, { entityIds = [], personIds = [], koraRequestId = '', source = 'manual_upload' } = {}) {
+export async function uploadDocument(file, { entityIds = [], personIds = [], koraRequestId = '', caseId = 'crowley-v-usd232', source = 'manual_upload' } = {}) {
   const form = new FormData();
   form.append('file', file);
   form.append('entity_ids', entityIds.join(','));
   form.append('person_ids', personIds.join(','));
   form.append('kora_request_id', koraRequestId);
+  form.append('case_id', caseId);
   form.append('source', source);
   const token = await authTokenGetter();
   const headers = {};
@@ -256,9 +265,12 @@ export async function uploadDocument(file, { entityIds = [], personIds = [], kor
   return res.json();
 }
 
-export async function fetchDocuments(entityId = '') {
-  const params = entityId ? `?entity_id=${entityId}` : '';
-  const res = await authFetch(`${API_BASE}/api/documents${params}`);
+export async function fetchDocuments(entityId = '', caseId = '') {
+  const params = new URLSearchParams();
+  if (entityId) params.set('entity_id', entityId);
+  if (caseId) params.set('case_id', caseId);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const res = await authFetch(`${API_BASE}/api/documents${suffix}`);
   if (!res.ok) throw new Error(`Failed to fetch documents: ${res.status}`);
   return res.json();
 }
@@ -292,6 +304,12 @@ export async function createCase(data) {
 export async function fetchCase(caseId) {
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}`);
   if (!res.ok) throw new Error(`Case not found: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCaseFile(caseId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/file`);
+  if (!res.ok) throw new Error(`Case file not found: ${res.status}`);
   return res.json();
 }
 

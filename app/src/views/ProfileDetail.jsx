@@ -134,7 +134,7 @@ function Section({ title, children, count, tip }) {
 }
 
 export default function ProfileDetail() {
-  const { id } = useParams();
+  const { caseId, personId } = useParams();
   const [profile, setProfile] = useState(null);
   const [entities, setEntities] = useState([]);
   const [error, setError] = useState(null);
@@ -146,8 +146,8 @@ export default function ProfileDetail() {
   const [_saving, setSaving] = useState(false);
 
   const reload = useCallback(() => {
-    fetchProfile(id).then(setProfile).catch(() => {});
-  }, [id]);
+    fetchProfile(personId).then(setProfile).catch(() => {});
+  }, [personId]);
 
   const { job, isRunning, isDone, error: jobError, start: startJob, cancel: cancelJob } = useResearchJob({
     onPoll: reload,
@@ -162,13 +162,13 @@ export default function ProfileDetail() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      fetchProfile(id),
-      fetchEntities().catch(() => []),
+      fetchProfile(personId),
+      fetchEntities(caseId).catch(() => []),
     ])
       .then(([p, e]) => { setProfile(p); setEntities(e); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [caseId, personId]);
 
   if (loading) {
     return (
@@ -182,7 +182,7 @@ export default function ProfileDetail() {
     return (
       <div className="text-center py-20 space-y-4">
         <p className="text-danger text-sm">{error || 'Profile not found'}</p>
-        <Link to="/people" className="text-accent hover:text-accent-hover text-sm">
+        <Link to={`/cases/${caseId}/people`} className="text-accent hover:text-accent-hover text-sm">
           &larr; Back to People
         </Link>
       </div>
@@ -197,6 +197,7 @@ export default function ProfileDetail() {
         role: profile.role,
         organization: profile.organization,
         state: profile.state || 'KS',
+        case_id: caseId,
         person_id: profile.id,
       });
       startJob(j.id);
@@ -210,7 +211,7 @@ export default function ProfileDetail() {
   async function handleEnrich() {
     setEnriching(true);
     try {
-      const j = await startEnrichment(id);
+      const j = await startEnrichment(personId);
       startEnrichJob(j.id);
     } catch (e) {
       setError(e.message);
@@ -222,7 +223,7 @@ export default function ProfileDetail() {
   async function saveField(field, value) {
     setSaving(true);
     try {
-      const updated = await updateIdentity(id, { [field]: value });
+      const updated = await updateIdentity(personId, { [field]: value });
       setProfile(updated);
     } catch (e) {
       setError(e.message);
@@ -260,7 +261,7 @@ export default function ProfileDetail() {
     <div className="max-w-4xl mx-auto space-y-8 animate-fade-up">
       {/* Header */}
       <div>
-        <Link to="/people" className="text-xs text-text-dim hover:text-accent transition-colors mb-4 inline-block">
+        <Link to={`/cases/${caseId}/people`} className="text-xs text-text-dim hover:text-accent transition-colors mb-4 inline-block">
           &larr; Back to People
         </Link>
         <div className="flex items-start gap-4">
@@ -290,7 +291,7 @@ export default function ProfileDetail() {
                 {affiliatedEntities.map((ent) => (
                   <Link
                     key={ent.id}
-                    to={`/entities/${ent.id}`}
+                    to={`/cases/${caseId}/entities/${ent.id}`}
                     className="text-[11px] bg-surface-alt border border-border rounded-full px-3 py-1 text-text-dim hover:text-accent hover:border-accent/30 transition-colors"
                   >
                     {ent.name}
@@ -512,7 +513,7 @@ export default function ProfileDetail() {
                     <button
                       onClick={async () => {
                         try {
-                          const updated = await confirmSocialProfile(id, sp.url);
+                          const updated = await confirmSocialProfile(personId, sp.url);
                           setProfile(updated);
                         } catch (e) { setError(e.message); }
                       }}
@@ -524,7 +525,7 @@ export default function ProfileDetail() {
                     <button
                       onClick={async () => {
                         try {
-                          const updated = await dismissSocialProfile(id, sp.url);
+                          const updated = await dismissSocialProfile(personId, sp.url);
                           setProfile(updated);
                         } catch (e) { setError(e.message); }
                       }}

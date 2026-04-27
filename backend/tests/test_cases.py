@@ -76,6 +76,23 @@ def test_cases_are_workspace_scoped():
     assert hidden.status_code == 404
 
 
+def test_admin_role_does_not_bypass_workspace_case_scope():
+    owner = _user()
+    admin = _user()
+    admin["role"] = "admin"
+
+    _override_user(owner)
+    created = client.post("/api/cases", json=_case_payload("Owner-only case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    _override_user(admin)
+    hidden = client.get(f"/api/cases/{case_id}")
+    assert hidden.status_code == 404
+    visible = client.get("/api/cases")
+    assert all(item["id"] != case_id for item in visible.json())
+
+
 def test_case_evaluation_fallback_completes_without_model_key(monkeypatch):
     monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
     user = _user()

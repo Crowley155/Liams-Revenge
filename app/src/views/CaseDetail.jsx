@@ -10,7 +10,7 @@ import {
 } from '../api/client';
 
 export default function CaseDetail() {
-  const { id } = useParams();
+  const { caseId } = useParams();
   const [caseRecord, setCaseRecord] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [evaluation, setEvaluation] = useState(null);
@@ -23,9 +23,9 @@ export default function CaseDetail() {
     async function load() {
       try {
         const [nextCase, nextDocs, nextEval] = await Promise.all([
-          fetchCase(id),
-          fetchCaseDocuments(id),
-          fetchLatestEvaluation(id),
+          fetchCase(caseId),
+          fetchCaseDocuments(caseId),
+          fetchLatestEvaluation(caseId),
         ]);
         if (!cancelled) {
           setCaseRecord(nextCase);
@@ -40,23 +40,23 @@ export default function CaseDetail() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [caseId]);
 
   useEffect(() => {
     if (!evaluation || ['complete', 'failed'].includes(evaluation.status)) return undefined;
     const timer = window.setInterval(async () => {
-      const next = await fetchLatestEvaluation(id);
+      const next = await fetchLatestEvaluation(caseId);
       setEvaluation(next);
     }, 1800);
     return () => window.clearInterval(timer);
-  }, [evaluation, id]);
+  }, [evaluation, caseId]);
 
   const handleUpload = async () => {
     if (!file) return;
     setBusy(true);
     setError('');
     try {
-      const doc = await uploadCaseDocument(id, file);
+      const doc = await uploadCaseDocument(caseId, file);
       setDocuments((current) => [doc, ...current]);
       setFile(null);
     } catch (err) {
@@ -70,7 +70,7 @@ export default function CaseDetail() {
     setBusy(true);
     setError('');
     try {
-      const next = await startCaseEvaluation(id);
+      const next = await startCaseEvaluation(caseId);
       setEvaluation(next);
     } catch (err) {
       setError(err.message);

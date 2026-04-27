@@ -12,6 +12,7 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
+from typing import Optional
 
 from app.models import Person, PersonSource
 from app.api._store import profiles
@@ -22,9 +23,12 @@ router = APIRouter(tags=["profiles"])
 
 
 @router.get("/profiles", response_model=list[Person])
-async def list_profiles(user: dict = Depends(get_current_user)):
+async def list_profiles(case_id: Optional[str] = "", user: dict = Depends(get_current_user)):
     """Return all completed profiles."""
-    return scoped_items(list(profiles.values()), user)
+    items = scoped_items(list(profiles.values()), user)
+    if case_id:
+        items = [item for item in items if item.case_id == case_id]
+    return items
 
 
 @router.get("/profiles/{person_id}", response_model=Person)

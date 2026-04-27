@@ -52,7 +52,7 @@ function Section({ title, children, badge }) {
 }
 
 export default function MemberPreview() {
-  const { entityId, name: encodedName } = useParams();
+  const { caseId, entityId, name: encodedName } = useParams();
   const name = decodeURIComponent(encodedName);
   const navigate = useNavigate();
   const [entity, setEntity] = useState(null);
@@ -80,7 +80,7 @@ export default function MemberPreview() {
     setActing(true);
     try {
       await acceptEntityMember(entityId, member.discovered_name);
-      navigate(`/entities/${entityId}`);
+      navigate(`/cases/${caseId}/entities/${entityId}`);
     } catch (e) {
       setError(e.message);
       setActing(false);
@@ -91,7 +91,7 @@ export default function MemberPreview() {
     setActing(true);
     try {
       await rejectEntityMember(entityId, member.discovered_name);
-      navigate(`/entities/${entityId}`);
+      navigate(`/cases/${caseId}/entities/${entityId}`);
     } catch (e) {
       setError(e.message);
       setActing(false);
@@ -110,7 +110,7 @@ export default function MemberPreview() {
     return (
       <div className="text-center py-20 space-y-4">
         <p className="text-danger text-sm">{error || 'Member not found'}</p>
-        <Link to={`/entities/${entityId}`} className="text-accent hover:text-accent-hover text-sm">
+        <Link to={`/cases/${caseId}/entities/${entityId}`} className="text-accent hover:text-accent-hover text-sm">
           &larr; Back to Entity
         </Link>
       </div>
@@ -129,7 +129,7 @@ export default function MemberPreview() {
     <div className="max-w-3xl mx-auto space-y-8 animate-fade-up">
       {/* Back link */}
       <Link
-        to={`/entities/${entityId}`}
+        to={`/cases/${caseId}/entities/${entityId}`}
         className="text-xs text-text-dim hover:text-accent transition-colors inline-block"
       >
         &larr; Back to {entity?.name || 'Entity'}

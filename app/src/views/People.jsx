@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { fetchProfiles, fetchEntities, seedData, startResearch } from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
 import DocLink from '../components/DocLink';
@@ -33,7 +33,7 @@ function Initials({ name, color }) {
   );
 }
 
-function PersonCard({ person, onResearchDone, onError }) {
+function PersonCard({ person, caseId, onResearchDone, onError }) {
   const [quotesOpen, setQuotesOpen] = useState(false);
   const [launching, setLaunching] = useState(false);
   const orgColor = ORG_COLORS[person.organization] || '#6c8aff';
@@ -57,6 +57,7 @@ function PersonCard({ person, onResearchDone, onError }) {
         role: person.role,
         organization: person.organization,
         state: person.state || 'KS',
+        case_id: caseId,
         person_id: person.id,
       });
       startJob(j.id);
@@ -121,7 +122,7 @@ function PersonCard({ person, onResearchDone, onError }) {
 
       <div className="flex items-center gap-2 mt-auto pt-1 flex-wrap">
         <Link
-          to={`/people/${person.id}`}
+          to={`/cases/${caseId}/people/${person.id}`}
           className="text-[11px] text-accent hover:text-accent-hover transition-colors"
         >
           View profile &rarr;
@@ -153,6 +154,7 @@ function PersonCard({ person, onResearchDone, onError }) {
 }
 
 export default function People() {
+  const { caseId } = useParams();
   const [people, setPeople] = useState([]);
   const [entities, setEntities] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -162,13 +164,13 @@ export default function People() {
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchProfiles(), fetchEntities()])
+    Promise.all([fetchProfiles(caseId), fetchEntities(caseId)])
       .then(([p, e]) => { setPeople(p); setEntities(e); })
       .catch((err) => { setPeople([]); setEntities([]); setError(err.message || 'Failed to load data'); })
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [caseId]);
 
   const handleSeed = async () => {
     setSeeding(true);
@@ -240,7 +242,7 @@ export default function People() {
             <div className="flex items-center gap-2 mb-3">
               <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: color }} />
               <Link
-                to={`/entities/${entity.id}`}
+                to={`/cases/${caseId}/entities/${entity.id}`}
                 className="text-sm font-bold uppercase tracking-wide hover:text-accent transition-colors"
                 style={{ color }}
               >
@@ -252,7 +254,7 @@ export default function People() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {members.map((p) => (
-                <PersonCard key={p.id} person={p} onResearchDone={load} onError={setError} />
+                <PersonCard key={p.id} person={p} caseId={caseId} onResearchDone={load} onError={setError} />
               ))}
             </div>
           </section>
@@ -270,7 +272,7 @@ export default function People() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {unaffiliated.map((p) => (
-              <PersonCard key={p.id} person={p} onResearchDone={load} onError={setError} />
+              <PersonCard key={p.id} person={p} caseId={caseId} onResearchDone={load} onError={setError} />
             ))}
           </div>
         </section>

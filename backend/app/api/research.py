@@ -13,7 +13,7 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from app.models import PersonCreate, Person, PersonSource, ResearchJob, JobStatus
-from app.api._store import jobs, profiles
+from app.api._store import cases, jobs, profiles
 from app.api.deps import can_access_workspace, get_current_user
 
 logger = logging.getLogger(__name__)
@@ -99,6 +99,9 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
 async def start_research(request: PersonCreate, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Kick off a research pipeline for a person. Returns a job you can poll."""
     existing: Person | None = None
+    case = cases.get(request.case_id)
+    if not case or not can_access_workspace(user, case.workspace_id):
+        raise HTTPException(status_code=404, detail="Case not found")
 
     if request.person_id:
         existing = profiles.get(request.person_id)
@@ -110,7 +113,7 @@ async def start_research(request: PersonCreate, bg: BackgroundTasks, user: dict 
     job_id = str(uuid.uuid4())[:8]
     person_id = existing.id if existing else str(uuid.uuid4())[:8]
 
-    job = ResearchJob(id=job_id, workspace_id=user["workspace_id"], case_id=request.case_id, person_id=person_id)
+    job = ResearchJob(id=job_id, workspace_id=case.workspace_id, case_id=case.id, person_id=person_id)
     jobs[job_id] = job
 
     bg.add_task(_run_job, request, job, existing)

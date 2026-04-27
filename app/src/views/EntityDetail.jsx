@@ -59,7 +59,7 @@ const REL_TYPE_LABELS = {
 };
 
 export default function EntityDetail() {
-  const { id } = useParams();
+  const { caseId, entityId } = useParams();
   const [entity, setEntity] = useState(null);
   const [members, setMembers] = useState([]);
   const [error, setError] = useState(null);
@@ -73,10 +73,10 @@ export default function EntityDetail() {
   const [launching, setLaunching] = useState(false);
 
   const reload = useCallback(() => {
-    Promise.all([fetchEntity(id), fetchEntityMembers(id)])
+    Promise.all([fetchEntity(entityId), fetchEntityMembers(entityId)])
       .then(([e, m]) => { setEntity(e); setMembers(m); })
       .catch(() => {});
-  }, [id]);
+  }, [entityId]);
 
   const { job: researchJob, isRunning: researchRunning, isDone: researchDone, error: researchError, start: startResearchJob, cancel: cancelResearch } = useResearchJob({
     onPoll: reload,
@@ -95,16 +95,16 @@ export default function EntityDetail() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([fetchEntity(id), fetchEntityMembers(id)])
+    Promise.all([fetchEntity(entityId), fetchEntityMembers(entityId)])
       .then(([e, m]) => { setEntity(e); setMembers(m); })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [entityId]);
 
   async function handleResearchEntity() {
     setLaunching(true);
     try {
-      const job = await startEntityResearch(id);
+      const job = await startEntityResearch(entityId);
       startResearchJob(job.id);
     } catch (e) {
       setError(e.message);
@@ -115,7 +115,7 @@ export default function EntityDetail() {
 
   async function handleVerifyFact(factId) {
     try {
-      await verifyEntityFact(id, factId);
+      await verifyEntityFact(entityId, factId);
       reload();
     } catch (e) {
       setError(e.message);
@@ -124,7 +124,7 @@ export default function EntityDetail() {
 
   async function handleDeleteFact(factId) {
     try {
-      await deleteEntityFact(id, factId);
+      await deleteEntityFact(entityId, factId);
       reload();
     } catch (e) {
       setError(e.message);
@@ -135,7 +135,7 @@ export default function EntityDetail() {
     if (!aliasInput.trim()) return;
     const existing = entity.aliases || [];
     try {
-      const updated = await updateEntity(id, {
+      const updated = await updateEntity(entityId, {
         aliases: [...existing, { name: aliasInput.trim(), alias_type: 'acronym' }],
       });
       setEntity(updated);
@@ -149,7 +149,7 @@ export default function EntityDetail() {
     const updated_aliases = [...(entity.aliases || [])];
     updated_aliases.splice(idx, 1);
     try {
-      const updated = await updateEntity(id, { aliases: updated_aliases });
+      const updated = await updateEntity(entityId, { aliases: updated_aliases });
       setEntity(updated);
     } catch (e) {
       setError(e.message);
@@ -189,7 +189,7 @@ export default function EntityDetail() {
     return (
       <div className="text-center py-20 space-y-4">
         <p className="text-danger text-sm">{error || 'Entity not found'}</p>
-        <Link to="/entities" className="text-accent hover:text-accent-hover text-sm">
+        <Link to={`/cases/${caseId}/entities`} className="text-accent hover:text-accent-hover text-sm">
           &larr; Back to Entities
         </Link>
       </div>
@@ -200,7 +200,7 @@ export default function EntityDetail() {
     if (!discoveryPrompt.trim()) return;
     setLaunchingDiscover(true);
     try {
-      const j = await discoverMembers(id, discoveryPrompt.trim());
+      const j = await discoverMembers(entityId, discoveryPrompt.trim());
       startDiscover(j.id);
       setShowPrompt(false);
       setDiscoveryPrompt('');
@@ -213,7 +213,7 @@ export default function EntityDetail() {
 
   async function handleAccept(name) {
     try {
-      const updated = await acceptEntityMember(id, name);
+      const updated = await acceptEntityMember(entityId, name);
       setEntity(updated);
       reload();
     } catch (e) {
@@ -223,7 +223,7 @@ export default function EntityDetail() {
 
   async function handleReject(name) {
     try {
-      const updated = await rejectEntityMember(id, name);
+      const updated = await rejectEntityMember(entityId, name);
       setEntity(updated);
     } catch (e) {
       setError(e.message);
@@ -252,7 +252,7 @@ export default function EntityDetail() {
     <div className="max-w-4xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
       <div>
-        <Link to="/entities" className="text-xs text-text-dim hover:text-accent transition-colors mb-4 inline-block">
+        <Link to={`/cases/${caseId}/entities`} className="text-xs text-text-dim hover:text-accent transition-colors mb-4 inline-block">
           &larr; Back to Entities
         </Link>
         <div className="flex items-start justify-between gap-4">
@@ -511,7 +511,7 @@ export default function EntityDetail() {
             entity.relationships.map((rel) => (
               <Link
                 key={rel.id}
-                to={`/entities/${rel.target_entity_id}`}
+                to={`/cases/${caseId}/entities/${rel.target_entity_id}`}
                 className="flex items-center gap-3 bg-surface border border-border rounded-lg p-3 hover:border-accent/40 transition-all"
               >
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent/10 text-accent shrink-0">
@@ -531,7 +531,7 @@ export default function EntityDetail() {
       {/* Tab: Graph */}
       {activeTab === 'graph' && (
         <div className="bg-surface border border-border rounded-lg overflow-hidden" style={{ height: 500 }}>
-          <EntityGraph entityId={id} />
+          <EntityGraph caseId={caseId} entityId={entityId} />
         </div>
       )}
 
@@ -550,7 +550,7 @@ export default function EntityDetail() {
             {pendingMembers.map((m, i) => (
               <Link
                 key={i}
-                to={`/entities/${id}/members/${encodeURIComponent(m.discovered_name)}`}
+                to={`/cases/${caseId}/entities/${entityId}/members/${encodeURIComponent(m.discovered_name)}`}
                 className="flex items-center gap-3 bg-surface border border-warning/30 rounded-lg p-3 card-hover group"
               >
                 <Initials name={m.discovered_name} />
@@ -657,7 +657,7 @@ export default function EntityDetail() {
               return (
                 <Link
                   key={person.id}
-                  to={`/people/${person.id}`}
+                  to={`/cases/${caseId}/people/${person.id}`}
                   className="block bg-surface border border-border rounded-lg p-4 card-hover group"
                   style={{ boxShadow: 'var(--shadow-card)' }}
                 >

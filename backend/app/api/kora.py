@@ -18,7 +18,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from app.models import KoraRequest, ResearchJob, JobStatus
-from app.api._store import kora_requests, jobs
+from app.api._store import kora_requests, jobs, cases
 from app.api.deps import can_access_workspace, get_current_user, scoped_items
 
 logger = logging.getLogger(__name__)
@@ -63,10 +63,14 @@ def _run_kora_generation(job: ResearchJob):
 
 
 @router.post("/kora/generate", response_model=ResearchJob)
-async def generate_kora(bg: BackgroundTasks, user: dict = Depends(get_current_user)):
+async def generate_kora(bg: BackgroundTasks, case_id: str = "crowley-v-usd232", user: dict = Depends(get_current_user)):
     """Generate KORA requests for the entire case. Runs async."""
+    case = cases.get(case_id)
+    if not case or not can_access_workspace(user, case.workspace_id):
+        raise HTTPException(status_code=404, detail="Case not found")
+
     job_id = str(uuid.uuid4())[:8]
-    job = ResearchJob(id=job_id, workspace_id=user["workspace_id"], person_id="kora-generation")
+    job = ResearchJob(id=job_id, workspace_id=case.workspace_id, case_id=case.id, person_id="kora-generation")
     jobs[job_id] = job
 
     bg.add_task(_run_kora_generation, job)
@@ -80,10 +84,13 @@ async def list_kora_requests(
     entity_id: str = "",
     status: str = "",
     category: str = "",
+    case_id: str = "",
     user: dict = Depends(get_current_user),
 ):
     """List KORA requests with optional filters."""
     reqs = scoped_items(list(kora_requests.values()), user)
+    if case_id:
+        reqs = [r for r in reqs if r.case_id == case_id]
     if entity_id:
         reqs = [r for r in reqs if entity_id in r.entity_ids]
     if status:

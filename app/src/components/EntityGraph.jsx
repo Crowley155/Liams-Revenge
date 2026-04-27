@@ -22,7 +22,7 @@ const REL_COLORS = {
   contracts_with: '#339af0',
 };
 
-export default function EntityGraph({ entityId }) {
+export default function EntityGraph({ caseId, entityId }) {
   const svgRef = useRef(null);
   const navigate = useNavigate();
   const [graphData, setGraphData] = useState(null);
@@ -30,10 +30,10 @@ export default function EntityGraph({ entityId }) {
   const simulationRef = useRef(null);
 
   useEffect(() => {
-    fetchEntityGraph()
+    fetchEntityGraph(caseId)
       .then(setGraphData)
       .catch((e) => setError(e.message));
-  }, []);
+  }, [caseId]);
 
   const renderGraph = useCallback(() => {
     if (!graphData || !svgRef.current) return;
@@ -129,7 +129,7 @@ export default function EntityGraph({ entityId }) {
       )
       .on('click', (event, d) => {
         event.stopPropagation();
-        navigate(`/entities/${d.id}`);
+        navigate(`/cases/${caseId}/entities/${d.id}`);
       });
 
     node.append('circle')
@@ -182,7 +182,7 @@ export default function EntityGraph({ entityId }) {
     });
 
     return () => simulation.stop();
-  }, [graphData, entityId, navigate]);
+  }, [graphData, caseId, entityId, navigate]);
 
   useEffect(() => {
     renderGraph();

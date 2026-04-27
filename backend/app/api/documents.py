@@ -15,7 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFi
 from typing import Optional
 
 from app.models import CaseDocument
-from app.api._store import case_documents
+from app.api._store import case_documents, cases
 from app.api.deps import can_access_workspace, get_current_user, scoped_items
 
 logger = logging.getLogger(__name__)
@@ -148,6 +148,10 @@ async def upload_document(
     user: dict = Depends(get_current_user),
 ):
     """Upload a document for processing. Returns immediately; processing runs in background."""
+    target_case = cases.get(case_id or "")
+    if not target_case or not can_access_workspace(user, target_case.workspace_id):
+        raise HTTPException(status_code=404, detail="Case not found")
+
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
@@ -157,8 +161,8 @@ async def upload_document(
 
     doc = CaseDocument(
         id=str(uuid.uuid4())[:8],
-        workspace_id=user["workspace_id"],
-        case_id=case_id or "crowley-v-usd232",
+        workspace_id=target_case.workspace_id,
+        case_id=target_case.id,
         filename=file.filename or "unknown",
         file_size=len(content),
         entity_ids=ent_ids,
@@ -175,9 +179,11 @@ async def upload_document(
 
 
 @router.get("/documents", response_model=list[CaseDocument])
-async def list_documents(entity_id: str = "", status: str = "", user: dict = Depends(get_current_user)):
+async def list_documents(entity_id: str = "", status: str = "", case_id: str = "", user: dict = Depends(get_current_user)):
     """List uploaded documents, optionally filtered."""
     docs = scoped_items(list(case_documents.values()), user)
+    if case_id:
+        docs = [d for d in docs if d.case_id == case_id]
     if entity_id:
         docs = [d for d in docs if entity_id in d.entity_ids]
     if status:

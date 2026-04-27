@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { fetchEntities, createEntity } from '../api/client';
 
 function safeHostname(url) {
@@ -16,7 +16,7 @@ const TYPE_COLORS = {
   county: '#339af0',
 };
 
-function EntityCard({ entity }) {
+function EntityCard({ entity, caseId }) {
   const color = TYPE_COLORS[entity.type] || '#6c8aff';
   const memberCount = entity.members?.filter((m) => m.status === 'accepted').length || 0;
   const factCount = entity.facts?.length || 0;
@@ -24,7 +24,7 @@ function EntityCard({ entity }) {
 
   return (
     <Link
-      to={`/entities/${entity.id}`}
+      to={`/cases/${caseId}/entities/${entity.id}`}
       className="block bg-surface border border-border rounded-lg hover:border-accent/40 hover:shadow-[0_0_12px_var(--color-accent-glow)] transition-all duration-200"
     >
       <div className="p-5">
@@ -78,7 +78,7 @@ function EntityCard({ entity }) {
   );
 }
 
-function CreateEntityForm({ onCreated }) {
+function CreateEntityForm({ caseId, onCreated }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [type, setType] = useState('district');
@@ -110,7 +110,7 @@ function CreateEntityForm({ onCreated }) {
         description: description.trim(),
         aliases,
         meeting_url: meetingUrl.trim() || null,
-      });
+      }, caseId);
       onCreated(entity);
       setName('');
       setType('district');
@@ -229,16 +229,17 @@ function CreateEntityForm({ onCreated }) {
 }
 
 export default function Entities() {
+  const { caseId } = useParams();
   const [entities, setEntities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [sortBy, setSortBy] = useState('name');
 
   useEffect(() => {
-    fetchEntities()
+    fetchEntities(caseId)
       .then(setEntities)
       .finally(() => setLoading(false));
-  }, []);
+  }, [caseId]);
 
   function handleCreated(entity) {
     setEntities((prev) => [...prev, entity]);
@@ -293,9 +294,9 @@ export default function Entities() {
         <div className="text-center py-12 text-text-dim text-sm">Loading entities...</div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <CreateEntityForm onCreated={handleCreated} />
+          <CreateEntityForm caseId={caseId} onCreated={handleCreated} />
           {filtered.map((entity) => (
-            <EntityCard key={entity.id} entity={entity} />
+            <EntityCard key={entity.id} entity={entity} caseId={caseId} />
           ))}
         </div>
       )}

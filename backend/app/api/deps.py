@@ -114,10 +114,8 @@ async def get_current_user(
 
 
 def can_access_workspace(user: dict, workspace_id: str) -> bool:
-    return user.get("role") == "admin" or workspace_id == user.get("workspace_id")
+    return workspace_id == user.get("workspace_id")
 
 
 def scoped_items(items: list, user: dict) -> list:
-    if user.get("role") == "admin":
-        return items
     return [item for item in items if getattr(item, "workspace_id", "") == user.get("workspace_id")]

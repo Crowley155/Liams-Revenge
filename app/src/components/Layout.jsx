@@ -4,24 +4,15 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clerkEnabled, useAuth } from '../auth/AuthContext';
 
 const PUBLIC_NAV = [
-  { to: '/', label: 'Overview' },
-  { to: '/policy-reforms', label: 'Policy Reforms' },
-  { to: '/whats-next', label: "What's Next" },
+  { to: '/', label: 'Home' },
+  { to: '/whats-next', label: 'How It Works' },
+  { href: '/trust', label: 'Trust' },
+  { href: '/privacy', label: 'Privacy' },
 ];
 
 const PROTECTED_NAV = [
   { to: '/evaluate', label: 'Evaluate' },
   { to: '/cases', label: 'Cases' },
-];
-
-const ADMIN_NAV = [
-  { to: '/people', label: 'People' },
-  { to: '/entities', label: 'Entities' },
-  { to: '/non-compliance', label: 'Non-Compliance' },
-  { to: '/contradictions', label: 'Contradictions' },
-  { to: '/evidence-gaps', label: 'Evidence Gaps' },
-  { to: '/timeline', label: 'Timeline' },
-  { to: '/sources', label: 'Evidence Catalog' },
 ];
 
 export default function Layout() {
@@ -30,9 +21,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const { isAuthenticated, user, workspace, logout } = useAuth();
 
-  const navItems = isAuthenticated
-    ? [...PUBLIC_NAV, ...PROTECTED_NAV, ...(user?.role === 'admin' ? ADMIN_NAV : [])]
-    : PUBLIC_NAV;
+  const navItems = isAuthenticated ? [...PROTECTED_NAV, ...PUBLIC_NAV] : PUBLIC_NAV;
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -51,21 +40,31 @@ export default function Layout() {
             </h1>
 
             <nav className="hidden sm:flex items-center gap-1">
-              {navItems.map(({ to, label }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  end={to === '/'}
-                  className={({ isActive }) =>
-                    `px-3 py-2 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
-                      isActive
-                        ? 'bg-accent/15 text-accent shadow-[0_0_8px_var(--color-accent-glow)]'
-                        : 'text-text-dim hover:text-text hover:bg-surface-alt'
-                    }`
-                  }
-                >
-                  {label}
-                </NavLink>
+              {navItems.map(({ to, href, label }) => (
+                href ? (
+                  <a
+                    key={href}
+                    href={href}
+                    className="px-3 py-2 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap text-text-dim hover:text-text hover:bg-surface-alt"
+                  >
+                    {label}
+                  </a>
+                ) : (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={to === '/'}
+                    className={({ isActive }) =>
+                      `px-3 py-2 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
+                        isActive
+                          ? 'bg-accent/15 text-accent shadow-[0_0_8px_var(--color-accent-glow)]'
+                          : 'text-text-dim hover:text-text hover:bg-surface-alt'
+                      }`
+                    }
+                  >
+                    {label}
+                  </NavLink>
+                )
               ))}
 
               <span className="w-px h-5 bg-border mx-1" />
@@ -117,7 +116,19 @@ export default function Layout() {
         {menuOpen && (
           <div className="sm:hidden border-t border-border bg-surface-alt">
             <div className="px-4 py-2 space-y-1">
-              {navItems.map(({ to, label }) => {
+              {navItems.map(({ to, href, label }) => {
+                if (href) {
+                  return (
+                    <a
+                      key={href}
+                      href={href}
+                      onClick={closeMenu}
+                      className="block px-3 py-3 text-sm font-medium rounded-md transition-colors text-text-dim hover:text-text hover:bg-surface"
+                    >
+                      {label}
+                    </a>
+                  );
+                }
                 const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
                 return (
                   <NavLink

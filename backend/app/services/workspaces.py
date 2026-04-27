@@ -9,12 +9,20 @@ from app.api._store import workspaces
 from app.db import _connect
 from app.models import AppUser, EntitlementSnapshot, Workspace, WorkspacePlan, WorkspaceType
 
+LEGACY_CASE_ID = "crowley-v-usd232"
+LEGACY_WORKSPACE_ID = "demo"
+
 
 def _admin_emails() -> set[str]:
     raw = ",".join(
         v for v in [os.getenv("USDWATCH_ADMIN_EMAILS", ""), os.getenv("ADMIN_EMAIL", "")]
         if v
     )
+    return {email.strip().lower() for email in raw.split(",") if email.strip()}
+
+
+def _case_owner_emails() -> set[str]:
+    raw = os.getenv("USDWATCH_CASE_OWNER_EMAILS", "")
     return {email.strip().lower() for email in raw.split(",") if email.strip()}
 
 
@@ -69,6 +77,47 @@ def _save_user(user: AppUser) -> None:
         conn.close()
 
 
+def _claim_legacy_case_for_owner(user: AppUser, workspace: Workspace) -> None:
+    if not user.email or user.email.lower() not in _case_owner_emails():
+        return
+
+    from app.api._store import (
+        agent_runs,
+        case_documents,
+        case_evaluations,
+        cases,
+        entities,
+        jobs,
+        kora_requests,
+        profiles,
+        usage_events,
+    )
+
+    case = cases.get(LEGACY_CASE_ID)
+    if case and case.workspace_id != workspace.id:
+        case.workspace_id = workspace.id
+        case.created_by = case.created_by or user.id
+        case.updated_at = datetime.utcnow()
+        cases[case.id] = case
+
+    for store in (
+        profiles,
+        entities,
+        jobs,
+        kora_requests,
+        case_documents,
+        case_evaluations,
+        agent_runs,
+        usage_events,
+    ):
+        for item_id, item in list(store.items()):
+            if getattr(item, "case_id", "") == LEGACY_CASE_ID and getattr(item, "workspace_id", "") == LEGACY_WORKSPACE_ID:
+                item.workspace_id = workspace.id
+                if hasattr(item, "updated_at"):
+                    item.updated_at = datetime.utcnow()
+                store[item_id] = item
+
+
 def _workspace_for_org(clerk_org_id: str, org_name: str = "") -> Workspace:
     found = workspaces.find_by(clerk_org_id=clerk_org_id)
     if found:
@@ -117,7 +166,8 @@ def resolve_user_workspace(
     """Upsert the app user and active workspace from Clerk claims."""
     normalized_email = (email or "").lower().strip()
     existing = _find_user(clerk_user_id, normalized_email)
-    role = "admin" if normalized_email in _admin_emails() else (existing.role if existing else "member")
+    elevated_emails = _case_owner_emails() | _admin_emails()
+    role = "admin" if normalized_email in elevated_emails else (existing.role if existing else "member")
     user = existing or AppUser(
         id=str(uuid.uuid4())[:8],
         clerk_user_id=clerk_user_id,
@@ -141,6 +191,7 @@ def resolve_user_workspace(
     if user.role == "admin" and workspace.plan == WorkspacePlan.FREE:
         workspace.plan = WorkspacePlan.ADMIN
         workspaces[workspace.id] = workspace
+    _claim_legacy_case_for_owner(user, workspace)
     _save_user(user)
 
     return {

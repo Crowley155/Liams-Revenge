@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useParams } from 'react-router-dom';
 import { useCase } from '../data/useCase';
 import DocLink from '../components/DocLink';
 import { useAuth } from '../auth/AuthContext';
@@ -11,6 +12,7 @@ import { printDocument } from '../utils/printPdf';
 
 export default function Overview() {
   const data = useCase();
+  const { caseId } = useParams();
   const { isAuthenticated } = useAuth();
   const ageLabel = data.meta?.studentAgeLabel || 'six-year-old';
   const videoUrl = data.meta?.videoUrl;
@@ -252,13 +254,13 @@ export default function Overview() {
       </section>
 
       {/* Section 4: KORA Requests + Document Upload (auth-gated) */}
-      {isAuthenticated && <KoraSection />}
+      {isAuthenticated && <KoraSection caseId={caseId} />}
 
     </div>
   );
 }
 
-function KoraSection() {
+function KoraSection({ caseId }) {
   const [entities, setEntities] = useState([]);
   const [koraRequests, setKoraRequests] = useState([]);
   const [documents, setDocuments] = useState([]);
@@ -273,10 +275,10 @@ function KoraSection() {
   const pollRef = useRef(null);
 
   const loadData = useCallback(() => {
-    fetchEntities().then(setEntities).catch(() => {});
-    fetchKoraRequests().then(setKoraRequests).catch(() => {});
-    fetchDocuments().then(setDocuments).catch(() => {});
-  }, []);
+    fetchEntities(caseId).then(setEntities).catch(() => {});
+    fetchKoraRequests('', caseId).then(setKoraRequests).catch(() => {});
+    fetchDocuments('', caseId).then(setDocuments).catch(() => {});
+  }, [caseId]);
 
   useEffect(() => {
     loadData();
@@ -317,7 +319,7 @@ function KoraSection() {
     setGenerating(true);
     setError(null);
     try {
-      const job = await generateKoraRequests();
+      const job = await generateKoraRequests(caseId);
       setGenJobId(job.id);
     } catch (err) {
       console.error(err);
@@ -346,7 +348,7 @@ function KoraSection() {
     if (!file) return;
     setUploading(true);
     try {
-      await uploadDocument(file, { entityIds: filterEntity ? [filterEntity] : [] });
+      await uploadDocument(file, { caseId, entityIds: filterEntity ? [filterEntity] : [] });
       loadData();
     } catch (err) {
       console.error(err);

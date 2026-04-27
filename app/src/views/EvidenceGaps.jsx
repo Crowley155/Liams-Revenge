@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useCase } from '../data/useCase';
 import { useAuth } from '../auth/AuthContext';
 import { fetchKoraRequests } from '../api/client';
@@ -14,6 +14,7 @@ const IMPORTANCE_STYLE = {
 const DEFAULT_STYLE = { bg: 'bg-text-dim/15', text: 'text-text-dim' };
 
 export default function EvidenceGaps() {
+  const { caseId } = useParams();
   const data = useCase();
   const { isAuthenticated } = useAuth();
   const [koraRequests, setKoraRequests] = useState([]);
@@ -21,9 +22,9 @@ export default function EvidenceGaps() {
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchKoraRequests().then(setKoraRequests).catch(() => {});
+      fetchKoraRequests('', caseId).then(setKoraRequests).catch(() => {});
     }
-  }, [isAuthenticated]);
+  }, [caseId, isAuthenticated]);
 
   const gaps = useMemo(() => data.evidenceGaps || [], [data]);
 
@@ -180,7 +181,7 @@ export default function EvidenceGaps() {
           </p>
           {isAuthenticated && koraRequests.length > 0 && (
             <Link
-              to="/"
+              to={`/cases/${caseId}/overview`}
               className="inline-block mt-4 text-sm font-medium text-accent hover:text-accent-hover transition-colors"
             >
               View KORA requests on Overview &rarr;
