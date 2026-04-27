@@ -175,6 +175,16 @@ export default function Layout() {
       </main>
 
       <footer className="border-t border-border py-5 text-center space-y-1">
+        <a
+          href="https://elevate.cloud"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Powered by Elevate"
+          className="mx-auto mb-3 inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-text-dim transition-colors hover:border-accent/50 hover:bg-surface-alt hover:text-text"
+        >
+          <span>Powered by</span>
+          <img src="/images/elevate-logo-blue.svg" alt="Elevate" className="h-3 w-auto" />
+        </a>
         <p className="text-xs font-medium text-text-dim tracking-wide">
           <a href="https://usdwatch.com" className="text-accent hover:text-accent-hover transition-colors">
             usdwatch.com
