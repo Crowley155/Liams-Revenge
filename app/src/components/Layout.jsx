@@ -5,7 +5,7 @@ import { clerkEnabled, useAuth } from '../auth/AuthContext';
 
 const PUBLIC_NAV = [
   { to: '/', label: 'Home' },
-  { to: '/whats-next', label: 'How It Works' },
+  { href: '/whats-next', label: 'How It Works' },
   { href: '/trust', label: 'Trust' },
   { href: '/ai-disclosure', label: 'AI Disclosure' },
   { href: '/privacy', label: 'Privacy' },

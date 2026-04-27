@@ -1,5 +1,11 @@
 # Domain-level redirects are not supported here. Use Cloudflare Redirect Rules
 # to send https://trust.usdwatch.com/* to /trust/:splat or a dedicated Pages project.
 /trust /trust/index.html 200
+/trust/ /trust/index.html 200
+/whats-next /whats-next/index.html 200
+/whats-next/ /whats-next/index.html 200
+/ai-disclosure /ai-disclosure/index.html 200
+/ai-disclosure/ /ai-disclosure/index.html 200
 /privacy /privacy/index.html 200
+/privacy/ /privacy/index.html 200
 /* /index.html 200

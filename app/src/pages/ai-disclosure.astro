@@ -2,11 +2,60 @@
 import PublicPage from '../layouts/PublicPage.astro';
 
 const updated = 'April 27, 2026';
+const canonical = 'https://usdwatch.com/ai-disclosure/';
+const description = 'How USDWatch uses AI, model providers, evidence extraction, vector search, and human review.';
+const schema = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: 'USDWatch AI Disclosure',
+    url: canonical,
+    dateModified: '2026-04-27',
+    description,
+    publisher: {
+      '@type': 'Organization',
+      name: 'USDWatch',
+      url: 'https://usdwatch.com/',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'Is USDWatch just ChatGPT?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'No. USDWatch uses a multi-step workflow around AI models: intake reading, evidence extraction, retrieval and vector search, gap analysis, and self-advocacy packet synthesis.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Does AI train on my private case?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'USDWatch does not build or train a custom public model from a private case file. The product may store structured outputs, extracted text, embeddings, logs, and evaluation artifacts needed to operate the workspace.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Can AI output be wrong?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes. AI may miss context, sound too certain, or misunderstand facts. USDWatch output is informational preparation and should not be treated as legal advice or final authority.',
+        },
+      },
+    ],
+  },
+];
 ---
 
 <PublicPage
   title="USDWatch AI Disclosure"
-  description="How USDWatch uses AI, model providers, evidence extraction, vector search, and human review."
+  description={description}
+  canonical={canonical}
+  schema={schema}
 >
   <div class="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16 space-y-12 animate-fade-up">
     <section class="space-y-5 max-w-3xl">

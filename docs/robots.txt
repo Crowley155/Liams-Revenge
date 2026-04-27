@@ -1,5 +1,15 @@
 User-agent: *
 Allow: /
 Disallow: /login
+Disallow: /evaluate
+Disallow: /cases
+Disallow: /policy-reforms
+Disallow: /people
+Disallow: /entities
+Disallow: /non-compliance
+Disallow: /contradictions
+Disallow: /evidence-gaps
+Disallow: /timeline
+Disallow: /sources
 
 Sitemap: https://usdwatch.com/sitemap.xml

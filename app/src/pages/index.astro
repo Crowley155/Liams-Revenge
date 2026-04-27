@@ -1,6 +1,108 @@
 ---
 import '../index.css';
 import App from '../App.jsx';
+
+const title = 'USDWatch | Free School-District Case Evaluation for Parents';
+const description = 'USDWatch helps parents organize school records, evidence, timelines, missing records, and next steps into a private self-advocacy case file.';
+const canonical = 'https://usdwatch.com/';
+const image = 'https://usdwatch.com/images/hero-briefing.png';
+const schemas = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'USDWatch',
+    url: canonical,
+    logo: 'https://usdwatch.com/favicon.svg',
+    contactPoint: [
+      {
+        '@type': 'ContactPoint',
+        contactType: 'privacy',
+        email: 'privacy@usdwatch.com',
+      },
+      {
+        '@type': 'ContactPoint',
+        contactType: 'security',
+        email: 'security@usdwatch.com',
+      },
+    ],
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'USDWatch',
+    url: canonical,
+    description,
+    publisher: {
+      '@type': 'Organization',
+      name: 'USDWatch',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'USDWatch',
+    url: canonical,
+    applicationCategory: 'Parent advocacy software',
+    operatingSystem: 'Web',
+    description,
+    offers: {
+      '@type': 'Offer',
+      price: '0',
+      priceCurrency: 'USD',
+      description: 'Free case evaluation for parents and guardians.',
+    },
+    audience: {
+      '@type': 'Audience',
+      audienceType: 'Parents, guardians, and education advocates',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'What does USDWatch do for parents?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'USDWatch helps parents turn school records, emails, timelines, and intake details into a private case file with evidence strength, missing records, questions to ask, and practical next steps.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Is USDWatch a law firm?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'No. USDWatch is not a law firm and does not provide legal advice. Evaluations are informational and should be reviewed by a qualified attorney or advocate before a parent relies on them legally.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Is my evidence private?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Private case files live in the parent workspace. Evidence is not published publicly and attorney, advocacy, media, or parent-group routing is manual opt-in only.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Is USDWatch just ChatGPT?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'No. USDWatch uses a multi-step workflow for intake reading, evidence extraction, retrieval, gap analysis, and packet synthesis. Large language models may be part of the workflow, but the product is the structured case-file system around them.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'What is included in the free evaluation?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'The free evaluation is designed to help a parent understand the story, evidence strength, likely gaps, useful records to request, meeting questions, and next steps for self-advocacy.',
+        },
+      },
+    ],
+  },
+];
 ---
 
 <!doctype html>
@@ -8,11 +110,57 @@ import App from '../App.jsx';
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Free school-district case evaluation for families, with evidence gaps, records requests, and next steps." />
-    <title>USDWatch</title>
+    <meta name="description" content={description} />
+    <meta name="robots" content="index, follow" />
+    <title>{title}</title>
+    <link rel="canonical" href={canonical} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta property="og:site_name" content="USDWatch" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={image} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
+    <meta name="theme-color" content="#0f1117" />
+    {schemas.map((schema) => (
+      <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+    ))}
   </head>
   <body>
+    <noscript>
+      <main class="min-h-screen bg-background text-text">
+        <section class="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Free case evaluation</p>
+          <h1 class="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">USDWatch</h1>
+          <p class="mt-5 text-base leading-7 text-text-dim">
+            USDWatch helps parents organize school records, emails, timelines, and evidence into a private case file. The evaluation is designed to identify evidence strength, missing records, meeting questions, and practical next steps.
+          </p>
+          <div class="mt-6 flex flex-wrap gap-3">
+            <a href="/evaluate" class="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background">Evaluate My Case</a>
+            <a href="/whats-next/" class="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text">How It Works</a>
+            <a href="/trust/" class="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text">Trust Center</a>
+          </div>
+          <section class="mt-10 grid gap-4 sm:grid-cols-3">
+            <article class="border-t border-border pt-4">
+              <h2 class="font-semibold">Private workspace</h2>
+              <p class="mt-2 text-sm leading-6 text-text-dim">Free users get one active case evaluation assigned to their own account.</p>
+            </article>
+            <article class="border-t border-border pt-4">
+              <h2 class="font-semibold">Evidence Locker</h2>
+              <p class="mt-2 text-sm leading-6 text-text-dim">Upload records, screenshots, notes, reports, and letters when you are ready.</p>
+            </article>
+            <article class="border-t border-border pt-4">
+              <h2 class="font-semibold">Plain disclosures</h2>
+              <p class="mt-2 text-sm leading-6 text-text-dim">USDWatch is informational, not legal advice, and private case files are not sold.</p>
+            </article>
+          </section>
+        </section>
+      </main>
+    </noscript>
     <App client:only="react" />
   </body>
 </html>

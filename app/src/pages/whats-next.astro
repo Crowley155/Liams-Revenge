@@ -1,0 +1,156 @@
+---
+import PublicPage from '../layouts/PublicPage.astro';
+
+const canonical = 'https://usdwatch.com/whats-next/';
+const description = 'How USDWatch turns a parent story, school records, and evidence into a private self-advocacy case file.';
+const schema = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: 'How USDWatch Works',
+    url: canonical,
+    description,
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'USDWatch',
+      url: 'https://usdwatch.com/',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'What does a USDWatch evaluation produce?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'A USDWatch evaluation is designed to produce a self-advocacy packet with a case summary, timeline, evidence checklist, records request drafts, meeting questions, escalation options, and next-step plan.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Can a parent use USDWatch without documents?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'Yes. A parent can start by sharing the story in their own words. Uploaded evidence can strengthen the evaluation later, but the first pass can still identify likely gaps and useful records to request.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Why is the base evaluation free?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'The base evaluation is free so families can understand their evidence, gaps, and next steps before they spend money. Organization plans are intended to fund the infrastructure.',
+        },
+      },
+    ],
+  },
+];
+---
+
+<PublicPage
+  title="How USDWatch Works"
+  description={description}
+  canonical={canonical}
+  schema={schema}
+>
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16 space-y-12 animate-fade-up">
+    <section class="space-y-5">
+      <p class="text-xs uppercase tracking-[0.18em] text-accent font-semibold">How It Works</p>
+      <h1 class="text-3xl sm:text-5xl font-bold tracking-tight leading-tight">
+        Share your story. Build a case file. Leave with a plan.
+      </h1>
+      <p class="text-base sm:text-lg leading-relaxed text-text-dim">
+        USDWatch is built for parents who are trying to make sense of school records, emails, meetings, discipline issues, bullying concerns, disability supports, retaliation worries, and unanswered records requests. The first outcome is a private Self-Advocacy Packet you can review and use to prepare.
+      </p>
+      <div class="flex flex-wrap gap-3">
+        <a href="/evaluate" class="px-4 py-2 rounded-md bg-accent text-background text-sm font-semibold hover:bg-accent-hover transition-colors">
+          Evaluate My Case
+        </a>
+        <a href="/trust" class="px-4 py-2 rounded-md border border-border text-sm font-semibold text-text hover:bg-surface-alt transition-colors">
+          Trust Center
+        </a>
+      </div>
+    </section>
+
+    <section class="grid gap-4 md:grid-cols-3">
+      <article class="bg-surface border border-border rounded-lg p-5 space-y-3">
+        <h2 class="font-bold">1. Tell the story</h2>
+        <p class="text-sm leading-relaxed text-text-dim">
+          Start in plain English. The guided workflow asks who was impacted, what happened, when it happened, what you have tried, and what outcome you are hoping for.
+        </p>
+      </article>
+      <article class="bg-surface border border-border rounded-lg p-5 space-y-3">
+        <h2 class="font-bold">2. Add evidence</h2>
+        <p class="text-sm leading-relaxed text-text-dim">
+          Use the Evidence Locker for emails, PDFs, screenshots, IEP or 504 documents, incident reports, meeting notes, photos, and agency letters.
+        </p>
+      </article>
+      <article class="bg-surface border border-border rounded-lg p-5 space-y-3">
+        <h2 class="font-bold">3. Get a packet</h2>
+        <p class="text-sm leading-relaxed text-text-dim">
+          The system returns a structured case summary, evidence strength, missing records, records request drafts, questions to ask, and practical next steps.
+        </p>
+      </article>
+    </section>
+
+    <section class="space-y-5">
+      <h2 class="text-2xl font-bold">What USDWatch looks for</h2>
+      <div class="grid gap-4 md:grid-cols-2">
+        <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
+          <h3 class="font-semibold">Evidence strength</h3>
+          <p class="text-sm leading-relaxed text-text-dim">
+            Which claims are supported by documents, which are based on memory or hearsay, and which need stronger records before a parent relies on them.
+          </p>
+        </article>
+        <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
+          <h3 class="font-semibold">Timeline anchors</h3>
+          <p class="text-sm leading-relaxed text-text-dim">
+            Dates, meetings, notices, emails, incidents, decisions, and follow-up gaps that help turn a stressful story into a usable sequence.
+          </p>
+        </article>
+        <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
+          <h3 class="font-semibold">Records to request</h3>
+          <p class="text-sm leading-relaxed text-text-dim">
+            Missing emails, policies, meeting notes, incident reports, special education records, agency letters, and district materials that may clarify what happened.
+          </p>
+        </article>
+        <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
+          <h3 class="font-semibold">Next best action</h3>
+          <p class="text-sm leading-relaxed text-text-dim">
+            Questions to ask the school, meeting prep, possible escalation paths, and support preferences for attorney, advocate, media, or parent-group review.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <section class="grid gap-8 lg:grid-cols-[260px_1fr]">
+      <div>
+        <h2 class="text-xl font-bold">Why the base tier is free</h2>
+      </div>
+      <div class="bg-surface border border-border rounded-lg p-5 sm:p-6 space-y-4">
+        <p class="text-sm leading-relaxed text-text-dim">
+          Parents often need clarity before they know whether to call an attorney, file a records request, ask for a meeting, contact an advocate, or simply organize what they already have. The free tier is meant to make that first step useful without a credit card.
+        </p>
+        <p class="text-sm leading-relaxed text-text-dim">
+          Organization plans are intended to fund the infrastructure. Private family case files are not the product being sold.
+        </p>
+      </div>
+    </section>
+
+    <section class="grid gap-8 lg:grid-cols-[260px_1fr]">
+      <div>
+        <h2 class="text-xl font-bold">Important limits</h2>
+      </div>
+      <div class="bg-surface border border-border rounded-lg p-5">
+        <ul class="space-y-3 text-sm leading-relaxed text-text-dim">
+          <li>USDWatch is informational and does not provide legal advice.</li>
+          <li>AI output can be wrong, incomplete, or too confident.</li>
+          <li>Evidence Locker files are private to your workspace unless you explicitly choose to share a limited summary for support review.</li>
+          <li>Attorney, media, advocacy, and parent-group routing is opt-in and manual, not automatic.</li>
+        </ul>
+      </div>
+    </section>
+  </div>
+</PublicPage>

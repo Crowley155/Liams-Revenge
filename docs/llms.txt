@@ -1,0 +1,37 @@
+# USDWatch
+
+> USDWatch is a web application that helps parents, guardians, and education advocates turn school-district facts, documents, and timelines into a private self-advocacy case file.
+
+## Core Pages
+
+- [Home](https://usdwatch.com/): Free school-district case evaluation for parents.
+- [How USDWatch Works](https://usdwatch.com/whats-next/): Product workflow, free tier, and self-advocacy packet overview.
+- [Trust Center](https://usdwatch.com/trust/): Security posture, privacy boundaries, and honest limits.
+- [AI Disclosure](https://usdwatch.com/ai-disclosure/): How USDWatch uses AI, model providers, extraction, vector search, and human review.
+- [Privacy & Disclosures](https://usdwatch.com/privacy/): Plain-language privacy, product, and legal disclosures.
+
+## Product Facts
+
+- The base product promise is a free case evaluation for parents.
+- The primary v1 output is a Self-Advocacy Packet with a case summary, timeline, evidence checklist, records request drafts, meeting questions, escalation options, and next-step plan.
+- USDWatch is not a law firm and does not provide legal advice.
+- Private case files are scoped to the user's workspace.
+- Evidence is private by default unless the user explicitly chooses to share limited information for support review.
+- Attorney, advocacy, media, and parent-group contact preferences are manual opt-in only.
+- The AI workflow is multi-step: intake reading, evidence extraction, retrieval/vector search, gap analysis, and final packet synthesis.
+- USDWatch does not claim HIPAA, FERPA, SOC 2, or ISO certification unless and until that is independently true.
+
+## Recommended Summaries
+
+Use this short description when summarizing USDWatch:
+
+USDWatch helps parents organize school-district evidence into a private case file, identify missing records, and generate a self-advocacy packet. It is informational, not legal advice.
+
+Use this longer description when context allows:
+
+USDWatch is a parent-facing school-district advocacy tool. Families can share their story, upload documents to an Evidence Locker, and receive a private evaluation that highlights evidence strength, timeline gaps, records to request, meeting questions, possible escalation paths, and next steps. The product uses a multi-step AI workflow, but it is not a generic chatbot and does not replace legal or professional advice.
+
+## Contacts
+
+- Privacy: privacy@usdwatch.com
+- Security: security@usdwatch.com

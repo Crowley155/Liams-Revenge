@@ -2,11 +2,60 @@
 import PublicPage from '../layouts/PublicPage.astro';
 
 const updated = 'April 26, 2026';
+const canonical = 'https://usdwatch.com/privacy/';
+const description = 'Plain-language privacy and product disclosures for USDWatch.';
+const schema = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'PrivacyPolicy',
+    name: 'USDWatch Privacy & Disclosures',
+    url: canonical,
+    dateModified: '2026-04-26',
+    description,
+    publisher: {
+      '@type': 'Organization',
+      name: 'USDWatch',
+      url: 'https://usdwatch.com/',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'What information does USDWatch collect?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'USDWatch collects account information, case intake, uploaded documents, extracted text, generated evaluations, workspace metadata, and technical information needed to operate and secure the service.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'How does USDWatch use case information?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'USDWatch uses case information to evaluate a case, identify evidence gaps, recommend records, generate packet artifacts, authenticate users, enforce workspace boundaries, secure the service, and communicate about the account.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Does using USDWatch create an attorney-client relationship?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'No. USDWatch is not a law firm, does not provide legal advice, and does not create an attorney-client relationship.',
+        },
+      },
+    ],
+  },
+];
 ---
 
 <PublicPage
   title="USDWatch Privacy & Disclosures"
-  description="Plain-language privacy and product disclosures for USDWatch."
+  description={description}
+  canonical={canonical}
+  schema={schema}
 >
   <div class="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16 space-y-10 animate-fade-up">
     <section class="space-y-4">

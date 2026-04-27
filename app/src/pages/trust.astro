@@ -1,10 +1,59 @@
 ---
 import PublicPage from '../layouts/PublicPage.astro';
+
+const canonical = 'https://usdwatch.com/trust/';
+const description = 'How USDWatch protects family case information, uses AI, and sets honest security expectations.';
+const schema = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: 'USDWatch Trust Center',
+    url: canonical,
+    description,
+    isPartOf: {
+      '@type': 'WebSite',
+      name: 'USDWatch',
+      url: 'https://usdwatch.com/',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: [
+      {
+        '@type': 'Question',
+        name: 'Does USDWatch sell family case files?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'No. USDWatch says it does not sell family case files. The service uses providers for authentication, hosting, storage, operations, and AI processing to run the product.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Are private family cases public?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'No. New case evaluations live inside the parent workspace. Public demo content is separate from private family workspaces.',
+        },
+      },
+      {
+        '@type': 'Question',
+        name: 'Does USDWatch claim legal or security certifications?',
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: 'USDWatch does not claim to be HIPAA, FERPA, SOC 2, or ISO certified unless and until that is independently true.',
+        },
+      },
+    ],
+  },
+];
 ---
 
 <PublicPage
   title="USDWatch Trust Center"
-  description="How USDWatch protects family case information, uses AI, and sets honest security expectations."
+  description={description}
+  canonical={canonical}
+  schema={schema}
 >
   <div class="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-16 space-y-12 animate-fade-up">
     <section class="space-y-5 max-w-3xl">
