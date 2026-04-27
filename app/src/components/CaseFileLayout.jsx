@@ -3,22 +3,28 @@ import { NavLink, Outlet, useParams } from 'react-router-dom';
 import { fetchCase } from '../api/client';
 import { CaseProvider } from '../data/useCase';
 
-const CASE_FILE_TABS = [
-  { to: '', label: 'Evaluation', end: true },
+const PARENT_CASE_TABS = [
+  { to: '', label: 'Case Plan', end: true },
   { to: 'overview', label: 'Overview' },
   { to: 'timeline', label: 'Timeline' },
   { to: 'evidence-gaps', label: 'Gaps' },
+  { to: 'sources', label: 'Evidence' },
+];
+
+const DEMO_CASE_TABS = [
+  ...PARENT_CASE_TABS,
   { to: 'people', label: 'People' },
-  { to: 'entities', label: 'Entities' },
+  { to: 'entities', label: 'Agencies' },
   { to: 'non-compliance', label: 'Non-Compliance' },
   { to: 'contradictions', label: 'Contradictions' },
-  { to: 'sources', label: 'Evidence' },
   { to: 'policy-reforms', label: 'Reforms' },
 ];
 
 export default function CaseFileLayout() {
   const { caseId } = useParams();
   const [caseRecord, setCaseRecord] = useState(null);
+  const isDemoCase = caseRecord?.status === 'demo' || caseRecord?.id === 'crowley-v-usd232';
+  const tabs = isDemoCase ? DEMO_CASE_TABS : PARENT_CASE_TABS;
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +55,7 @@ export default function CaseFileLayout() {
               </p>
             </div>
             <div className="flex max-w-full gap-1 overflow-x-auto pb-1">
-              {CASE_FILE_TABS.map((item) => (
+              {tabs.map((item) => (
                 <NavLink
                   key={item.label}
                   to={item.to}

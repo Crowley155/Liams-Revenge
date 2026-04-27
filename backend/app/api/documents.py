@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
 from typing import Optional
@@ -20,6 +21,16 @@ from app.api.deps import can_access_workspace, get_current_user, scoped_items
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["documents"])
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+SUPPORTED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".tiff", ".tif", ".webp", ".bmp", ".docx", ".eml", ".txt", ".md"}
+
+
+def _validate_upload(filename: str, content: bytes) -> None:
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Evidence Locker files must be 15 MB or smaller for the free evaluation.")
+    ext = Path(filename or "").suffix.lower()
+    if ext not in SUPPORTED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Unsupported evidence file type. Upload PDF, image, Word, email, text, or markdown files.")
 
 
 def _process_document(doc: CaseDocument, content: bytes):
@@ -37,7 +48,9 @@ def _process_document(doc: CaseDocument, content: bytes):
 
         if not extracted or extracted.startswith("["):
             doc.status = "failed"
+            doc.processing_status = "failed"
             doc.error = "No text could be extracted"
+            doc.failure_reason = doc.error
             doc.processed_at = datetime.utcnow()
             case_documents[doc.id] = doc
             return
@@ -55,6 +68,7 @@ def _process_document(doc: CaseDocument, content: bytes):
         )
         doc.qdrant_point_ids = point_ids
         doc.status = "indexed"
+        doc.processing_status = "indexed"
         doc.processed_at = datetime.utcnow()
         case_documents[doc.id] = doc
 
@@ -66,7 +80,9 @@ def _process_document(doc: CaseDocument, content: bytes):
     except Exception as e:
         logger.exception("Document processing failed for %s", doc.id)
         doc.status = "failed"
+        doc.processing_status = "failed"
         doc.error = str(e)
+        doc.failure_reason = str(e)
         doc.processed_at = datetime.utcnow()
         case_documents[doc.id] = doc
 
@@ -145,6 +161,10 @@ async def upload_document(
     kora_request_id: Optional[str] = Form(default=""),
     case_id: Optional[str] = Form(default="crowley-v-usd232"),
     source: Optional[str] = Form(default="manual_upload"),
+    evidence_type: Optional[str] = Form(default=""),
+    user_description: Optional[str] = Form(default=""),
+    document_date: Optional[str] = Form(default=None),
+    source_person: Optional[str] = Form(default=""),
     user: dict = Depends(get_current_user),
 ):
     """Upload a document for processing. Returns immediately; processing runs in background."""
@@ -155,6 +175,7 @@ async def upload_document(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
+    _validate_upload(file.filename or "", content)
 
     ent_ids = [e.strip() for e in (entity_ids or "").split(",") if e.strip()]
     per_ids = [p.strip() for p in (person_ids or "").split(",") if p.strip()]
@@ -165,6 +186,10 @@ async def upload_document(
         case_id=target_case.id,
         filename=file.filename or "unknown",
         file_size=len(content),
+        evidence_type=evidence_type or "",
+        user_description=user_description or "",
+        document_date=document_date,
+        source_person=source_person or "",
         entity_ids=ent_ids,
         person_ids=per_ids,
         kora_request_id=kora_request_id or "",
@@ -198,3 +223,12 @@ async def get_document(doc_id: str, user: dict = Depends(get_current_user)):
     if not doc or not can_access_workspace(user, doc.workspace_id):
         raise HTTPException(status_code=404, detail="Document not found")
     return doc
+
+
+@router.delete("/documents/{doc_id}")
+async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
+    doc = case_documents.get(doc_id)
+    if not doc or not can_access_workspace(user, doc.workspace_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    case_documents.pop(doc_id, None)
+    return {"ok": True, "deleted": doc_id}

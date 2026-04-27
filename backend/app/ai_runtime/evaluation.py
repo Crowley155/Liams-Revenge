@@ -92,7 +92,14 @@ def _case_context(case: CaseRecord, documents: list[CaseDocument]) -> str:
     for doc in documents[:8]:
         text = (doc.extracted_text or "").strip()
         doc_blocks.append(
-            f"Document {doc.id} ({doc.filename}, status={doc.status}):\n{text[:3500] or '[no text extracted yet]'}"
+            "\n".join([
+                f"Document {doc.id} ({doc.filename}, status={doc.processing_status or doc.status})",
+                f"Evidence type: {doc.evidence_type or 'unspecified'}",
+                f"Parent description: {doc.user_description or 'none'}",
+                f"Document date: {doc.document_date or 'unknown'}",
+                f"Source person: {doc.source_person or 'unknown'}",
+                text[:3500] or "[no text extracted yet]",
+            ])
         )
 
     return "\n\n".join([
@@ -101,15 +108,26 @@ def _case_context(case: CaseRecord, documents: list[CaseDocument]) -> str:
         f"District: {case.intake.district}",
         f"School: {case.intake.school}",
         f"Issue type: {case.intake.issue_type}",
+        f"Issue categories: {', '.join(case.intake.issue_categories or [case.intake.issue_type])}",
         f"Incident date: {case.intake.incident_date or 'unknown'}",
+        f"Impacted party age: {case.intake.impacted_party_age or case.intake.student_age or 'unknown'}",
+        f"Grade level: {case.intake.grade_level or 'unknown'}",
+        f"School setting: {case.intake.school_setting or 'unknown'}",
+        f"Parent/user relationship: {case.intake.relationship_to_child or 'unknown'}",
+        f"IEP/504 status: {case.intake.iep_504_status or 'unknown'}",
+        f"Urgency level: {case.intake.urgency_level}",
+        f"Safety risk: {case.intake.safety_risk}",
+        f"Retaliation concern: {case.intake.retaliation_concern}",
+        f"Prior actions: {', '.join(case.intake.prior_actions) if case.intake.prior_actions else 'none listed'}",
         f"Parent narrative:\n{case.intake.narrative}",
-        f"Desired outcome:\n{case.intake.desired_outcome}",
+        f"Desired outcomes:\n{case.intake.desired_outcome or ', '.join(case.intake.desired_outcomes)}",
         "Uploaded evidence:\n" + ("\n\n".join(doc_blocks) if doc_blocks else "[none uploaded]"),
     ])
 
 
 def _fallback_result(case: CaseRecord | None, documents: list[CaseDocument], raw_notes: str = "") -> CaseEvaluationResult:
     narrative = (case.intake.narrative if case else raw_notes).lower()
+    categories = set(case.intake.issue_categories or [case.intake.issue_type]) if case else set()
     has_documents = any((doc.extracted_text or "").strip() for doc in documents)
     evidence_strength = EvidenceStrength.MIXED if has_documents else EvidenceStrength.THIN
 
@@ -129,7 +147,7 @@ def _fallback_result(case: CaseRecord | None, documents: list[CaseDocument], raw
             confidence=0.62 if has_documents else 0.48,
         ),
     ]
-    if any(word in narrative for word in ("injury", "unsafe", "assault", "bully", "restraint", "seclusion")):
+    if "student_safety" in categories or any(word in narrative for word in ("injury", "unsafe", "assault", "bully", "harass", "restraint", "seclusion")):
         issues.insert(
             0,
             EvaluationIssueArea(
@@ -218,6 +236,7 @@ def _fallback_result(case: CaseRecord | None, documents: list[CaseDocument], raw
             "Upload the most complete email/message export available.",
             "Add any meeting notes, IEP/504 documents, incident reports, or prior written notices.",
             "Send targeted records requests for the highest-priority gaps before escalating.",
+            "If you want attorney, advocacy, media, or parent-group support, use support preferences so nothing is shared without consent.",
         ],
         risk_flags=[
             "This is not legal advice and should be reviewed by counsel before filing a complaint.",

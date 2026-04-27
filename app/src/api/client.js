@@ -246,7 +246,17 @@ export async function markKoraSent(id) {
 }
 
 // Document upload
-export async function uploadDocument(file, { entityIds = [], personIds = [], koraRequestId = '', caseId = 'crowley-v-usd232', source = 'manual_upload' } = {}) {
+export async function uploadDocument(file, {
+  entityIds = [],
+  personIds = [],
+  koraRequestId = '',
+  caseId = 'crowley-v-usd232',
+  source = 'manual_upload',
+  evidenceType = '',
+  userDescription = '',
+  documentDate = '',
+  sourcePerson = '',
+} = {}) {
   const form = new FormData();
   form.append('file', file);
   form.append('entity_ids', entityIds.join(','));
@@ -254,6 +264,10 @@ export async function uploadDocument(file, { entityIds = [], personIds = [], kor
   form.append('kora_request_id', koraRequestId);
   form.append('case_id', caseId);
   form.append('source', source);
+  form.append('evidence_type', evidenceType);
+  form.append('user_description', userDescription);
+  if (documentDate) form.append('document_date', documentDate);
+  form.append('source_person', sourcePerson);
   const token = await authTokenGetter();
   const headers = {};
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -313,9 +327,15 @@ export async function fetchCaseFile(caseId) {
   return res.json();
 }
 
-export async function uploadCaseDocument(caseId, file) {
+export async function uploadCaseDocument(caseId, file, metadata = {}) {
   const form = new FormData();
   form.append('file', file);
+  form.append('evidence_type', metadata.evidenceType || metadata.evidence_type || '');
+  form.append('user_description', metadata.userDescription || metadata.user_description || '');
+  if (metadata.documentDate || metadata.document_date) {
+    form.append('document_date', metadata.documentDate || metadata.document_date);
+  }
+  form.append('source_person', metadata.sourcePerson || metadata.source_person || '');
   const token = await authTokenGetter();
   const headers = {};
   if (token) headers.Authorization = `Bearer ${token}`;
@@ -357,5 +377,48 @@ export async function fetchLatestEvaluation(caseId) {
 export async function fetchCaseEvaluation(caseId, evaluationId) {
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}/evaluations/${evaluationId}`);
   if (!res.ok) throw new Error(`Evaluation not found: ${res.status}`);
+  return res.json();
+}
+
+export async function updateSupportConsent(caseId, data) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/support-consent`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Support preferences failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchSelfAdvocacyPacket(caseId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/artifacts/self-advocacy-packet`);
+  if (!res.ok) throw new Error(`Failed to fetch self-advocacy packet: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchEvidenceChecklist(caseId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/artifacts/evidence-checklist`);
+  if (!res.ok) throw new Error(`Failed to fetch evidence checklist: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchRecordsRequestDrafts(caseId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/artifacts/records-request-drafts`);
+  if (!res.ok) throw new Error(`Failed to fetch records drafts: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCaseExport(caseId) {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/export`);
+  if (!res.ok) throw new Error(`Failed to export case: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteDocument(docId) {
+  const res = await authFetch(`${API_BASE}/api/documents/${docId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Delete document failed: ${res.status}`);
   return res.json();
 }

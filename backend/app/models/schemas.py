@@ -114,15 +114,37 @@ class EntitlementSnapshot(BaseModel):
     organization_workspace: bool = False
 
 
+class SupportConsent(BaseModel):
+    attorney_contact_opt_in: bool = False
+    advocacy_contact_opt_in: bool = False
+    media_contact_opt_in: bool = False
+    contact_preference: str = ""
+    sensitivity_notes: str = ""
+    share_summary_consent: bool = False
+    consented_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+
+
 class CaseIntake(BaseModel):
     state: str = "KS"
     district: str = ""
     school: str = ""
     issue_type: str = "special_education"
+    issue_categories: list[str] = Field(default_factory=list)
     incident_date: Optional[str] = None
     narrative: str = ""
     desired_outcome: str = ""
+    desired_outcomes: list[str] = Field(default_factory=list)
     student_age: Optional[int] = None
+    impacted_party_age: Optional[int] = None
+    grade_level: str = ""
+    school_setting: str = ""
+    relationship_to_child: str = ""
+    iep_504_status: str = ""
+    urgency_level: str = "routine"
+    safety_risk: bool = False
+    retaliation_concern: bool = False
+    prior_actions: list[str] = Field(default_factory=list)
     urgent: bool = False
 
 
@@ -132,11 +154,23 @@ class CaseCreate(BaseModel):
     district: str = ""
     school: str = ""
     issue_type: str = "special_education"
+    issue_categories: list[str] = Field(default_factory=list)
     incident_date: Optional[str] = None
     narrative: str = ""
     desired_outcome: str = ""
+    desired_outcomes: list[str] = Field(default_factory=list)
     student_age: Optional[int] = None
+    impacted_party_age: Optional[int] = None
+    grade_level: str = ""
+    school_setting: str = ""
+    relationship_to_child: str = ""
+    iep_504_status: str = ""
+    urgency_level: str = "routine"
+    safety_risk: bool = False
+    retaliation_concern: bool = False
+    prior_actions: list[str] = Field(default_factory=list)
     urgent: bool = False
+    support_consent: SupportConsent = Field(default_factory=SupportConsent)
 
 
 class CaseRecord(BaseModel):
@@ -145,6 +179,7 @@ class CaseRecord(BaseModel):
     title: str
     status: CaseStatus = CaseStatus.ACTIVE
     intake: CaseIntake = Field(default_factory=CaseIntake)
+    support_consent: SupportConsent = Field(default_factory=SupportConsent)
     summary: str = ""
     created_by: str = ""
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -656,6 +691,10 @@ class CaseDocument(BaseModel):
     filename: str = ""
     file_type: str = Field(default="", description="pdf | image | docx | eml | txt")
     file_size: int = 0
+    evidence_type: str = ""
+    user_description: str = ""
+    document_date: Optional[str] = None
+    source_person: str = ""
     entity_ids: list[str] = Field(default_factory=list)
     person_ids: list[str] = Field(default_factory=list)
     kora_request_id: str = ""
@@ -665,6 +704,8 @@ class CaseDocument(BaseModel):
     qdrant_point_ids: list[str] = Field(default_factory=list)
     facts_extracted: int = 0
     status: str = Field(default="processing", description="processing | indexed | failed")
+    processing_status: str = Field(default="processing", description="uploaded | processing | indexed | needs_review | failed")
+    failure_reason: Optional[str] = None
     error: Optional[str] = None
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     processed_at: Optional[datetime] = None
