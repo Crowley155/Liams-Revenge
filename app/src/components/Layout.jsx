@@ -7,6 +7,7 @@ const PUBLIC_NAV = [
   { to: '/', label: 'Home' },
   { to: '/whats-next', label: 'How It Works' },
   { href: '/trust', label: 'Trust' },
+  { href: '/ai-disclosure', label: 'AI Disclosure' },
   { href: '/privacy', label: 'Privacy' },
 ];
 
@@ -195,6 +196,7 @@ export default function Layout() {
         </p>
         <p className="text-[11px] text-text-dim/60 flex items-center justify-center gap-3">
           <a href="/trust" className="hover:text-text transition-colors">Trust</a>
+          <a href="/ai-disclosure" className="hover:text-text transition-colors">AI Disclosure</a>
           <a href="/privacy" className="hover:text-text transition-colors">Privacy & Disclosures</a>
         </p>
       </footer>

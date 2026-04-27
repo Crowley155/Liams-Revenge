@@ -5,6 +5,27 @@ const {
   title = 'USDWatch',
   description = 'Evidence-backed case evaluation for families.',
 } = Astro.props;
+
+const publicNav = [
+  { href: '/', label: 'Home' },
+  { href: '/whats-next', label: 'How It Works' },
+  { href: '/trust', label: 'Trust' },
+  { href: '/ai-disclosure', label: 'AI Disclosure' },
+  { href: '/privacy', label: 'Privacy' },
+];
+
+const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
+
+const navClass = (href: string) => {
+  const normalized = href.replace(/\/$/, '') || '/';
+  const active = currentPath === normalized;
+  return [
+    'rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 whitespace-nowrap',
+    active
+      ? 'bg-accent/15 text-accent shadow-[0_0_8px_var(--color-accent-glow)]'
+      : 'text-text-dim hover:text-text hover:bg-surface-alt',
+  ].join(' ');
+};
 ---
 
 <!doctype html>
@@ -18,14 +39,18 @@ const {
   </head>
   <body>
     <div class="min-h-screen flex flex-col bg-background text-text">
-      <header class="border-b border-border bg-surface/95">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
-          <a href="/" class="text-sm font-bold tracking-wide text-accent uppercase">USDWatch</a>
-          <nav class="flex items-center gap-4 text-xs font-semibold text-text-dim">
-            <a class="hover:text-text transition-colors" href="/trust">Trust</a>
-            <a class="hover:text-text transition-colors" href="/privacy">Privacy</a>
-            <a class="hover:text-text transition-colors" href="/login">Sign In</a>
-          </nav>
+      <header class="bg-surface border-b border-border sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6">
+          <div class="flex min-h-14 flex-col gap-2 py-2 sm:h-14 sm:flex-row sm:items-center sm:justify-between sm:py-0">
+            <a href="/" class="text-sm font-bold tracking-wide text-accent uppercase">USDWatch</a>
+            <nav class="flex max-w-full items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+              {publicNav.map((item) => (
+                <a class={navClass(item.href)} href={item.href}>{item.label}</a>
+              ))}
+              <span class="mx-1 hidden h-5 w-px bg-border sm:inline-block"></span>
+              <a class={navClass('/login')} href="/login">Sign In</a>
+            </nav>
+          </div>
         </div>
       </header>
 
@@ -33,14 +58,28 @@ const {
         <slot />
       </main>
 
-      <footer class="border-t border-border py-6">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-text-dim">
-          <p>USDWatch - Free case evaluation for families.</p>
-          <div class="flex items-center gap-4">
-            <a class="hover:text-text transition-colors" href="/trust">Trust Center</a>
-            <a class="hover:text-text transition-colors" href="/privacy">Privacy & Disclosures</a>
-          </div>
-        </div>
+      <footer class="border-t border-border py-5 text-center space-y-1">
+        <a
+          href="https://elevate.cloud"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Powered by Elevate"
+          class="mx-auto mb-3 inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-text-dim transition-colors hover:border-accent/50 hover:bg-surface-alt hover:text-text"
+        >
+          <span>Powered by</span>
+          <img src="/images/elevate-logo-blue.svg" alt="Elevate" class="h-3 w-auto" />
+        </a>
+        <p class="text-xs font-medium text-text-dim tracking-wide">
+          <a href="https://usdwatch.com" class="text-accent hover:text-accent-hover transition-colors">
+            usdwatch.com
+          </a>
+        </p>
+        <p class="text-[11px] text-text-dim/60">Free case evaluation - Public Advocacy Resource</p>
+        <p class="text-[11px] text-text-dim/60 flex flex-wrap items-center justify-center gap-3 px-4">
+          <a href="/trust" class="hover:text-text transition-colors">Trust</a>
+          <a href="/ai-disclosure" class="hover:text-text transition-colors">AI Disclosure</a>
+          <a href="/privacy" class="hover:text-text transition-colors">Privacy & Disclosures</a>
+        </p>
       </footer>
     </div>
   </body>
