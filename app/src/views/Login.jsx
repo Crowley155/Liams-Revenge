@@ -1,4 +1,4 @@
-import { SignInButton, SignUpButton } from '@clerk/clerk-react';
+import { SignInButton } from '@clerk/clerk-react';
 import { useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { clerkEnabled, useAuth } from '../auth/AuthContext';
@@ -28,21 +28,16 @@ export default function Login() {
     <div className="max-w-md mx-auto py-14 space-y-8 animate-fade-up">
       <div className="space-y-3">
         <p className="text-xs uppercase tracking-[0.18em] text-accent font-semibold">Free case evaluation</p>
-        <h2 className="text-3xl font-bold tracking-tight">Create your USDWatch workspace</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Sign in to USDWatch</h2>
         <p className="text-sm leading-relaxed text-text-dim">
-          Start with one private case evaluation. Organization plans fund the heavier research infrastructure.
+          New sign-ups are temporarily closed while the private case workflow is being reviewed.
         </p>
       </div>
 
       {clerkEnabled ? (
         <div className="bg-surface border border-border rounded-lg p-5 space-y-3">
-          <SignUpButton mode="modal" forceRedirectUrl="/evaluate">
-            <button className="w-full px-4 py-3 rounded-md bg-accent text-background font-semibold hover:bg-accent-hover transition-colors">
-              Create Free Account
-            </button>
-          </SignUpButton>
           <SignInButton mode="modal" forceRedirectUrl="/evaluate">
-            <button className="w-full px-4 py-3 rounded-md border border-border text-text hover:bg-surface-alt transition-colors">
+            <button className="w-full px-4 py-3 rounded-md bg-accent text-background font-semibold hover:bg-accent-hover transition-colors">
               Sign In
             </button>
           </SignInButton>
