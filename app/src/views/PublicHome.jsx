@@ -22,7 +22,7 @@ export default function PublicHome() {
                 USDWatch
               </h1>
               <p className="max-w-2xl text-base leading-7 text-text/82 sm:text-lg">
-                Turn school records, emails, and timelines into a usable case file. Your private evaluation lives behind your account, with trust and privacy terms readable before you upload anything sensitive.
+                Turn school records, emails, and evidence into a usable case file. Your private evaluation lives behind your account, with trust and privacy terms readable before you upload anything sensitive.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -53,7 +53,7 @@ export default function PublicHome() {
         <article className="border-t border-border pt-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-dim">Case file</p>
           <p className="mt-3 text-sm leading-6 text-text">
-            Evidence strength, timeline, missing records, and recommended next steps live together.
+            Evidence strength, missing records, records requests, and recommended next steps live together.
           </p>
         </article>
         <article className="border-t border-border pt-4">

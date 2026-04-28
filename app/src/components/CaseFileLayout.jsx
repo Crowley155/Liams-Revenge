@@ -6,7 +6,6 @@ import { CaseProvider } from '../data/useCase';
 const PARENT_CASE_TABS = [
   { to: '', label: 'Case Plan', end: true },
   { to: 'overview', label: 'Overview' },
-  { to: 'timeline', label: 'Timeline' },
   { to: 'evidence-gaps', label: 'Gaps' },
   { to: 'sources', label: 'Evidence' },
 ];

@@ -69,22 +69,6 @@ export default function EvaluationResults({ evaluation }) {
         </div>
       </Section>
 
-      <Section title="Timeline">
-        <div className="space-y-3">
-          {result.timeline?.length ? result.timeline.map((event) => (
-            <article key={`${event.date}-${event.label}`} className="grid gap-2 border-l-2 border-accent/50 pl-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold">{event.label}</span>
-                {event.date && <Pill>{event.date}</Pill>}
-              </div>
-              <p className="text-sm leading-relaxed text-text-dim">{event.detail}</p>
-            </article>
-          )) : (
-            <p className="text-sm text-text-dim">Timeline needs dated documents or incident details.</p>
-          )}
-        </div>
-      </Section>
-
       <Section title="Evidence Gaps">
         <div className="grid gap-3 md:grid-cols-2">
           {result.gaps?.map((gap) => (
