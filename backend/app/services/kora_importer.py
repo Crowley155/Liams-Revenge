@@ -39,6 +39,7 @@ LEGACY_WORKSPACE_ID = "demo"
 OCR_MAX_BYTES = 8 * 1024 * 1024
 OCR_MAX_PAGES = 40
 LOW_TEXT_THRESHOLD = 200
+MAX_STORED_TEXT_CHARS = 250_000
 
 
 def maintenance_token_valid(value: str) -> bool:
@@ -417,6 +418,13 @@ def _store_chunks(doc: CaseDocument) -> None:
         logger.warning("Qdrant chunk storage failed for %s: %s", doc.id, exc)
 
 
+def _trim_extracted_text(text: str) -> tuple[str, bool]:
+    if len(text) <= MAX_STORED_TEXT_CHARS:
+        return text, False
+    note = "\n\n[USDWatch import note: extracted text truncated for storage safety; original PDF is preserved in the Evidence Locker.]"
+    return text[:MAX_STORED_TEXT_CHARS] + note, True
+
+
 def _manifest_for_zip(zf: zipfile.ZipFile, *, inspect_text: bool) -> tuple[list[dict], dict[str, list[str]]]:
     items: list[dict] = []
     by_hash: dict[str, list[str]] = defaultdict(list)
@@ -477,7 +485,13 @@ def import_kora_zip(
     case_id: str = DEFAULT_CASE_ID,
     dry_run: bool = True,
     ocr_scope: str = "high_signal",
+    offset: int = 0,
+    max_files: int = 0,
+    skip_existing: bool = True,
+    store_chunks: bool = True,
 ) -> dict:
+    offset = max(0, offset)
+    max_files = max(0, max_files)
     zip_file.seek(0)
     batch_id = f"kora-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
@@ -501,6 +515,10 @@ def import_kora_zip(
             "filename": filename,
             "owner_email": owner_email,
             "case_id": case_id,
+            "offset": offset,
+            "max_files": max_files,
+            "skip_existing": skip_existing,
+            "store_chunks": store_chunks,
             "total_files": len(manifest),
             "total_bytes": sum(item["file_size"] for item in manifest),
             "unique_files": len(by_hash),
@@ -531,20 +549,29 @@ def import_kora_zip(
 
         imported = 0
         indexed = 0
+        chunked = 0
         needs_review = 0
         skipped_duplicates = 0
+        skipped_existing_documents = 0
         updated_existing = 0
 
         first_by_hash = {sha: paths[0] for sha, paths in by_hash.items()}
+        unique_items = list(first_by_hash.items())
+        selected_unique_items = unique_items[offset:] if max_files == 0 else unique_items[offset : offset + max_files]
         manifest_by_path = {item["source_zip_path"]: item for item in manifest}
 
-        for sha, first_path in first_by_hash.items():
-            info = zf.getinfo(first_path)
-            content = zf.read(info)
+        for sha, first_path in selected_unique_items:
             item = manifest_by_path[first_path]
             source_paths = by_hash[sha]
             skipped_duplicates += max(0, len(source_paths) - 1)
             doc_id = f"kora-{sha[:12]}"
+            existing = case_documents.get(doc_id)
+            if skip_existing and existing and existing.storage_path:
+                skipped_existing_documents += 1
+                continue
+
+            info = zf.getinfo(first_path)
+            content = zf.read(info)
 
             text, page_count, text_error = _pdf_text(content)
             text_chars = len(re.sub(r"\s+", " ", text).strip())
@@ -575,8 +602,10 @@ def import_kora_zip(
             flags = _analysis_flags(first_path, text)
             if low_text and "low_text_or_scanned" not in flags:
                 flags.append("low_text_or_scanned")
+            text, text_truncated = _trim_extracted_text(text)
+            if text_truncated and "text_truncated" not in flags:
+                flags.append("text_truncated")
 
-            existing = case_documents.get(doc_id)
             doc = existing or CaseDocument(id=doc_id, workspace_id=workspace.id, case_id=case.id, filename=item["filename"])
             if existing:
                 updated_existing += 1
@@ -609,8 +638,10 @@ def import_kora_zip(
             case_documents[doc.id] = doc
 
             if doc.status == "indexed":
-                _store_chunks(doc)
-                case_documents[doc.id] = doc
+                if store_chunks:
+                    _store_chunks(doc)
+                    case_documents[doc.id] = doc
+                    chunked += 1
                 indexed += 1
             else:
                 needs_review += 1
@@ -625,7 +656,71 @@ def import_kora_zip(
             "user_id": user.id,
             "imported_documents": imported,
             "indexed_documents": indexed,
+            "chunked_documents": chunked,
             "needs_review_documents": needs_review,
             "skipped_duplicate_files": skipped_duplicates,
+            "skipped_existing_documents": skipped_existing_documents,
             "updated_existing_documents": updated_existing,
+            "processed_unique_files": len(selected_unique_items),
+            "remaining_unique_files": max(0, len(unique_items) - (offset + len(selected_unique_items))),
         }
+
+
+def kora_import_status(*, owner_email: str = DEFAULT_OWNER_EMAIL, case_id: str = DEFAULT_CASE_ID) -> dict:
+    user = _find_user_by_email(owner_email.lower().strip())
+    case = cases.get(case_id)
+    workspace_id = user.workspace_id if user and user.workspace_id else (case.workspace_id if case else "")
+    docs = [
+        doc
+        for doc in case_documents.values()
+        if doc.case_id == case_id and (not workspace_id or doc.workspace_id == workspace_id)
+    ]
+    docs.sort(key=lambda doc: (doc.source_zip_path or doc.filename).lower())
+
+    status_counts = Counter(doc.processing_status or doc.status or "unknown" for doc in docs)
+    ocr_counts = Counter(doc.ocr_status or "unknown" for doc in docs)
+    evidence_counts = Counter(doc.evidence_type or "unknown" for doc in docs)
+    batch_counts = Counter(doc.import_batch_id or "unknown" for doc in docs)
+    total_source_paths = sum(max(1, len(doc.source_zip_paths or [])) for doc in docs)
+    latest_doc = max(docs, key=lambda doc: doc.processed_at or doc.uploaded_at or datetime.min, default=None)
+
+    return {
+        "ok": True,
+        "owner_email": owner_email,
+        "case_id": case_id,
+        "workspace_id": workspace_id,
+        "case_found": case is not None,
+        "case_workspace_id": case.workspace_id if case else "",
+        "visible_to_owner": bool(case and (not workspace_id or case.workspace_id == workspace_id)),
+        "total_documents": len(docs),
+        "total_source_paths": total_source_paths,
+        "status_counts": dict(sorted(status_counts.items())),
+        "ocr_status_counts": dict(sorted(ocr_counts.items())),
+        "evidence_types": dict(sorted(evidence_counts.items())),
+        "import_batches": dict(sorted(batch_counts.items())),
+        "latest_import_batch_id": latest_doc.import_batch_id if latest_doc else "",
+        "indexed_documents": sum(1 for doc in docs if doc.status == "indexed"),
+        "needs_review_documents": sum(1 for doc in docs if doc.processing_status == "needs_review"),
+        "chunked_documents": sum(1 for doc in docs if doc.chunk_count > 0 or doc.qdrant_point_ids),
+        "stored_files": sum(1 for doc in docs if doc.storage_path),
+        "duplicate_source_paths": sum(len(doc.duplicate_source_paths) for doc in docs),
+        "documents": [
+            {
+                "id": doc.id,
+                "filename": doc.filename,
+                "source_zip_path": doc.source_zip_path,
+                "source_zip_paths": doc.source_zip_paths,
+                "evidence_type": doc.evidence_type,
+                "document_date": doc.document_date,
+                "file_size": doc.file_size,
+                "page_count": doc.page_count,
+                "status": doc.status,
+                "processing_status": doc.processing_status,
+                "ocr_status": doc.ocr_status,
+                "analysis_flags": doc.analysis_flags,
+                "chunk_count": doc.chunk_count,
+                "import_batch_id": doc.import_batch_id,
+            }
+            for doc in docs
+        ],
+    }

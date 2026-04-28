@@ -27,6 +27,7 @@ def _post_import(zip_content: bytes, token: str, **data):
         "ocr_scope": data.pop("ocr_scope", "high_signal"),
         **data,
     }
+    form = {key: str(value).lower() if isinstance(value, bool) else str(value) for key, value in form.items()}
     return client.post(
         "/api/maintenance/kora-import",
         data=form,
@@ -105,11 +106,12 @@ def test_kora_import_attaches_private_case_and_builds_case_file(monkeypatch, tmp
     monkeypatch.setenv("USDWATCH_CASE_OWNER_EMAILS", owner_email)
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
 
-    large_pdf = b"%PDF-1.4\n" + (b"x" * (16 * 1024 * 1024))
+    marker = uuid.uuid4().hex.encode()
+    large_pdf = b"%PDF-1.4\n" + marker + (b"x" * (16 * 1024 * 1024))
     payload = _zip_bytes({
-        "4 Inter agency communication/Communication/JA FW Incident Report Liam Crowley 1_Redacted.pdf": b"%PDF-1.4\nincident",
-        "4 Inter agency communication/Communication/JA JCPRD Updated Critical Incident form-Mize Elementary 4_3_2026 (#0052177-020).pdf": b"%PDF-1.4\nupdated",
-        "4 Inter agency communication/Communication/JA FW_ Refund for Liam Crowley.pdf": b"%PDF-1.4\nrefund",
+        "4 Inter agency communication/Communication/JA FW Incident Report Liam Crowley 1_Redacted.pdf": b"%PDF-1.4\nincident" + marker,
+        "4 Inter agency communication/Communication/JA JCPRD Updated Critical Incident form-Mize Elementary 4_3_2026 (#0052177-020).pdf": b"%PDF-1.4\nupdated" + marker,
+        "4 Inter agency communication/Communication/JA FW_ Refund for Liam Crowley.pdf": b"%PDF-1.4\nrefund" + marker,
         "8 JCPRD Mize OST Staff Logs/4.2.26 Staff Placement-Program Schedule.pdf": large_pdf,
     })
 
@@ -156,3 +158,85 @@ def test_kora_import_attaches_private_case_and_builds_case_file(monkeypatch, tmp
     app.dependency_overrides[get_current_user] = lambda: _user(f"outsider-{uuid.uuid4().hex[:8]}")
     hidden = client.get(f"/api/cases/{case_id}/file")
     assert hidden.status_code == 404
+
+
+def test_kora_import_batches_and_reports_status(monkeypatch, tmp_path):
+    token = "secret-token"
+    owner_email = f"william.crowley+{uuid.uuid4().hex[:8]}@example.com"
+    case_id = f"crowley-{uuid.uuid4().hex[:8]}"
+    monkeypatch.setenv("USDWATCH_MAINTENANCE_TOKEN", token)
+    monkeypatch.setenv("USDWATCH_CASE_OWNER_EMAILS", owner_email)
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    marker = uuid.uuid4().hex.encode()
+    payload = _zip_bytes({
+        "5 KDHE Critical Incident Filings/Critical Incident Liam Crowley 4-3-26_Redacted.pdf": b"%PDF-1.4\none" + marker,
+        "6 JCPRD Mize OST Staff Training Records/Training Record A.pdf": b"%PDF-1.4\ntwo" + marker,
+        "8 JCPRD Mize OST Staff Logs/4.2.26 Staff Placement-Program Schedule.pdf": b"%PDF-1.4\nthree" + marker,
+    })
+
+    first = _post_import(
+        payload,
+        token,
+        owner_email=owner_email,
+        case_id=case_id,
+        dry_run=False,
+        ocr_scope="none",
+        offset=0,
+        max_files=2,
+        store_chunks=False,
+    )
+    assert first.status_code == 200
+    first_body = first.json()
+    assert first_body["processed_unique_files"] == 2
+    assert first_body["imported_documents"] == 2
+    assert first_body["remaining_unique_files"] == 1
+
+    status = client.get(
+        "/api/maintenance/kora-import/status",
+        params={"owner_email": owner_email, "case_id": case_id},
+        headers={"X-USDWATCH-MAINTENANCE-TOKEN": token},
+    )
+    assert status.status_code == 200
+    status_body = status.json()
+    assert status_body["total_documents"] == 2
+    assert status_body["stored_files"] == 2
+    assert status_body["chunked_documents"] == 0
+
+    second = _post_import(
+        payload,
+        token,
+        owner_email=owner_email,
+        case_id=case_id,
+        dry_run=False,
+        ocr_scope="none",
+        offset=2,
+        max_files=2,
+        store_chunks=False,
+    )
+    assert second.status_code == 200
+    assert second.json()["imported_documents"] == 1
+
+    repeat = _post_import(
+        payload,
+        token,
+        owner_email=owner_email,
+        case_id=case_id,
+        dry_run=False,
+        ocr_scope="none",
+        offset=0,
+        max_files=2,
+        skip_existing=True,
+        store_chunks=False,
+    )
+    assert repeat.status_code == 200
+    repeat_body = repeat.json()
+    assert repeat_body["imported_documents"] == 0
+    assert repeat_body["skipped_existing_documents"] == 2
+
+    final_status = client.get(
+        "/api/maintenance/kora-import/status",
+        params={"owner_email": owner_email, "case_id": case_id},
+        headers={"X-USDWATCH-MAINTENANCE-TOKEN": token},
+    ).json()
+    assert final_status["total_documents"] == 3
+    assert final_status["total_source_paths"] == 3
