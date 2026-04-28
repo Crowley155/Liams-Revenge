@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
+import hashlib
 import json
+import mimetypes
 import os
 import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 
 from app.ai_runtime.evaluation import run_case_evaluation
 from app.api._store import case_documents, case_evaluations, cases, usage_events, workspaces
@@ -28,18 +30,20 @@ from app.models import (
 )
 from app.services.entitlements import ensure_can_create_case, ensure_can_run_evaluation, ensure_can_upload_document
 from app.services.case_file_builder import build_private_case_file
+from app.services.document_classifier import infer_document_metadata
+from app.services.document_storage import save_case_document_file
 from app.services.workspaces import entitlements_for_workspace
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["cases"])
 CASE_DATA_PATH = Path(os.getenv("CASE_DATA_PATH", "/app/case-data/case-data.json"))
-MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 SUPPORTED_EVIDENCE_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".tiff", ".tif", ".webp", ".bmp", ".docx", ".eml", ".txt", ".md"}
 
 
 def _validate_evidence_upload(filename: str, content: bytes) -> None:
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Evidence Locker files must be 15 MB or smaller for the free evaluation.")
+        raise HTTPException(status_code=413, detail="Evidence Locker files must be 50 MB or smaller for this version.")
     ext = Path(filename or "").suffix.lower()
     if ext not in SUPPORTED_EVIDENCE_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Unsupported evidence file type. Upload PDF, image, Word, email, text, or markdown files.")
@@ -63,6 +67,49 @@ def _case_docs(case: CaseRecord) -> list[CaseDocument]:
     ]
     docs.sort(key=lambda doc: doc.uploaded_at, reverse=True)
     return docs
+
+
+def _filter_case_docs(
+    docs: list[CaseDocument],
+    *,
+    q: str = "",
+    status: str = "",
+    category: str = "",
+    tag: str = "",
+    sort: str = "uploaded_at",
+    direction: str = "desc",
+    limit: int = 200,
+    offset: int = 0,
+) -> list[CaseDocument]:
+    if status:
+        docs = [doc for doc in docs if doc.status == status or doc.processing_status == status]
+    if category:
+        docs = [doc for doc in docs if doc.inferred_category == category or doc.evidence_type == category]
+    if tag:
+        docs = [doc for doc in docs if tag in doc.tags]
+    if q:
+        needle = q.lower()
+        docs = [
+            doc for doc in docs
+            if needle in " ".join([
+                doc.filename,
+                doc.user_description,
+                doc.source_person,
+                doc.evidence_type,
+                doc.inferred_category,
+                " ".join(doc.tags),
+                doc.extracted_text[:2000],
+            ]).lower()
+        ]
+    key_map = {
+        "name": lambda doc: doc.filename.lower(),
+        "size": lambda doc: doc.file_size,
+        "status": lambda doc: doc.processing_status or doc.status,
+        "document_date": lambda doc: doc.document_date or "",
+        "uploaded_at": lambda doc: doc.uploaded_at,
+    }
+    docs.sort(key=key_map.get(sort, key_map["uploaded_at"]), reverse=direction != "asc")
+    return docs[offset:offset + limit]
 
 
 def _latest_case_evaluation(case: CaseRecord) -> CaseEvaluation | None:
@@ -359,9 +406,30 @@ async def get_case_file(case_id: str, user: dict = Depends(get_current_user)):
 
 
 @router.get("/cases/{case_id}/documents", response_model=list[CaseDocument])
-async def list_case_documents(case_id: str, user: dict = Depends(get_current_user)):
+async def list_case_documents(
+    case_id: str,
+    q: str = "",
+    status: str = "",
+    category: str = "",
+    tag: str = "",
+    sort: str = Query(default="uploaded_at"),
+    direction: str = Query(default="desc"),
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    user: dict = Depends(get_current_user),
+):
     case = _get_case(case_id, user)
-    return _case_docs(case)
+    return _filter_case_docs(
+        _case_docs(case),
+        q=q,
+        status=status,
+        category=category,
+        tag=tag,
+        sort=sort,
+        direction=direction,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("/cases/{case_id}/documents", response_model=CaseDocument)
@@ -388,12 +456,21 @@ async def upload_case_document(
         case_id=case.id,
         filename=file.filename or "unknown",
         file_size=len(content),
+        mime_type=file.content_type or mimetypes.guess_type(file.filename or "")[0] or "",
+        content_sha256=hashlib.sha256(content).hexdigest(),
         evidence_type=evidence_type,
         user_description=user_description,
         document_date=document_date,
         source_person=source_person,
         source="case_evaluation_upload",
     )
+    category, confidence, tags, inferred_type = infer_document_metadata(doc.filename)
+    doc.inferred_category = category
+    doc.category_confidence = confidence
+    doc.tags = tags
+    if not doc.evidence_type:
+        doc.evidence_type = inferred_type
+    doc.storage_path = save_case_document_file(doc.workspace_id, doc.case_id, doc.id, doc.filename, content)
 
     try:
         from app.services.document_parser import parse_file
@@ -402,11 +479,30 @@ async def upload_case_document(
         extracted, file_type = parse_file(doc.filename, content)
         doc.file_type = file_type
         doc.extracted_text = extracted
-        doc.chunk_count = len(chunk_text(extracted, doc.id)) if extracted else 0
-        doc.status = "indexed" if extracted and not extracted.startswith("[") else "failed"
-        doc.processing_status = "indexed" if doc.status == "indexed" else "failed"
-        doc.error = None if doc.status == "indexed" else "No text could be extracted"
-        doc.failure_reason = doc.error
+        category, confidence, tags, inferred_type = infer_document_metadata(doc.filename, extracted)
+        doc.inferred_category = doc.inferred_category or category
+        doc.category_confidence = doc.category_confidence or confidence
+        doc.tags = sorted(set([*doc.tags, *tags]))
+        if not doc.evidence_type:
+            doc.evidence_type = inferred_type
+        if extracted.startswith("[OCR extraction needed:"):
+            doc.chunk_count = 0
+            doc.status = "processing"
+            doc.processing_status = "needs_review"
+            doc.ocr_status = "queued"
+            doc.failure_reason = extracted
+        elif extracted and not extracted.startswith("["):
+            doc.chunk_count = len(chunk_text(extracted, doc.id))
+            doc.status = "indexed"
+            doc.processing_status = "indexed"
+            doc.error = None
+            doc.failure_reason = None
+        else:
+            doc.chunk_count = 0
+            doc.status = "failed"
+            doc.processing_status = "failed"
+            doc.error = "No text could be extracted"
+            doc.failure_reason = doc.error
         doc.processed_at = datetime.utcnow()
     except Exception as exc:
         logger.warning("Case document parse failed for %s: %s", doc.filename, exc)

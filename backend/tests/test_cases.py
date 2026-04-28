@@ -1,9 +1,14 @@
 import uuid
+from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
 from app.api.deps import get_current_user
+from app.api._store import case_documents, cases, gmail_connections
 from app.main import app
+from app.models import GmailConnection, GmailImportRule
+from app.services.gmail_importer import import_matching_messages
+from app.services.gmail_security import encrypt_token
 
 client = TestClient(app)
 
@@ -153,7 +158,57 @@ def test_guided_intake_fields_and_support_consent_are_persisted():
     assert body["support_consent"]["consented_at"]
 
 
-def test_case_document_metadata_and_artifacts_are_private_to_workspace():
+def test_case_advocate_intake_creates_case_without_required_form_fields(monkeypatch):
+    monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
+    user = _user()
+    _override_user(user)
+
+    session = client.post("/api/intake/sessions")
+    assert session.status_code == 200
+    session_id = session.json()["id"]
+
+    message = client.post(
+        f"/api/intake/sessions/{session_id}/messages",
+        json={
+            "content": (
+                "My son is in 2nd grade at Mize Elementary in USD 232. "
+                "He was hurt during recess and I emailed the principal because I am worried about safety."
+            )
+        },
+    )
+    assert message.status_code == 200
+    facts = message.json()["facts"]
+    assert facts["district"] == "USD 232"
+    assert facts["school"] == "Mize Elementary"
+    assert "student_safety" in facts["issue_categories"]
+
+    patched = client.patch(
+        f"/api/intake/sessions/{session_id}/facts",
+        json={"facts": {"district": "USD 232 De Soto", "state": "KS"}},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["facts"]["district"] == "USD 232 De Soto"
+
+    created = client.post(
+        f"/api/intake/sessions/{session_id}/create-case",
+        json={"support_consent": {
+            "attorney_contact_opt_in": False,
+            "advocacy_contact_opt_in": False,
+            "media_contact_opt_in": False,
+            "contact_preference": "",
+            "sensitivity_notes": "",
+            "share_summary_consent": False,
+        }},
+    )
+    assert created.status_code == 200
+    body = created.json()
+    assert body["intake"]["district"] == "USD 232 De Soto"
+    assert body["intake"]["state"] == "KS"
+    assert body["intake"]["safety_risk"] is True
+
+
+def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
     owner = _user()
     outsider = _user()
     _override_user(owner)
@@ -177,6 +232,14 @@ def test_case_document_metadata_and_artifacts_are_private_to_workspace():
     assert doc["processing_status"] == "indexed"
     assert doc["evidence_type"] == "meeting_notes"
     assert doc["user_description"] == "This shows the school knew about the incident."
+    assert doc["storage_path"]
+
+    preview = client.get(f"/api/documents/{doc['id']}/preview")
+    assert preview.status_code == 200
+    assert preview.json()["has_original"] is True
+    content = client.get(f"/api/documents/{doc['id']}/content")
+    assert content.status_code == 200
+    assert b"Principal confirmed" in content.content
 
     packet = client.get(f"/api/cases/{case_id}/artifacts/self-advocacy-packet")
     assert packet.status_code == 200
@@ -194,6 +257,153 @@ def test_case_document_metadata_and_artifacts_are_private_to_workspace():
     assert hidden_packet.status_code == 404
     hidden_docs = client.get(f"/api/cases/{case_id}/documents")
     assert hidden_docs.status_code == 404
+    hidden_preview = client.get(f"/api/documents/{doc['id']}/preview")
+    assert hidden_preview.status_code == 404
+
+
+def test_gmail_import_rule_scaffolding_is_private_to_workspace(monkeypatch):
+    monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_SECRET", raising=False)
+    owner = _user()
+    outsider = _user()
+    _override_user(owner)
+
+    created = client.post("/api/cases", json=_case_payload("Gmail beta case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    run = client.post("/api/gmail/import-rules", json={
+        "case_id": case_id,
+        "domains": ["usd232.org"],
+        "email_addresses": ["principal@usd232.org"],
+        "keywords": ["incident"],
+        "include_attachments": True,
+        "auto_sync": True,
+    })
+    assert run.status_code == 200
+    assert run.json()["status"] == "needs_oauth"
+
+    status = client.get(f"/api/gmail/status?case_id={case_id}")
+    assert status.status_code == 200
+    assert status.json()["configured"] is False
+    assert status.json()["connections"][0]["rule"]["domains"] == ["usd232.org"]
+    assert "encrypted_refresh_token" not in status.json()["connections"][0]
+    assert "oauth_state_hash" not in status.json()["connections"][0]
+
+    _override_user(outsider)
+    hidden = client.get(f"/api/gmail/status?case_id={case_id}")
+    assert hidden.status_code == 404
+
+
+def test_gmail_oauth_state_flow_stores_no_public_secrets(monkeypatch):
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "client-id")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "client-secret")
+    monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI", "https://api.usdwatch.com/api/gmail/oauth/callback")
+    monkeypatch.setenv("GMAIL_TOKEN_ENCRYPTION_KEY", "test-gmail-token-key")
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Gmail OAuth case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    client.post("/api/gmail/import-rules", json={
+        "case_id": case_id,
+        "domains": ["usd232.org"],
+        "email_addresses": [],
+        "keywords": [],
+        "include_attachments": True,
+        "auto_sync": False,
+    })
+
+    started = client.post("/api/gmail/oauth/start", json={"case_id": case_id})
+    assert started.status_code == 200
+    auth_url = started.json()["authorization_url"]
+    parsed = urlparse(auth_url)
+    params = parse_qs(parsed.query)
+    assert params["scope"] == ["https://www.googleapis.com/auth/gmail.readonly"]
+    assert params["access_type"] == ["offline"]
+    assert params["include_granted_scopes"] == ["true"]
+    assert params["state"][0]
+
+    status = client.get(f"/api/gmail/status?case_id={case_id}")
+    assert status.status_code == 200
+    public_connection = status.json()["connections"][0]
+    assert public_connection["token_stored"] is False
+    assert "encrypted_refresh_token" not in public_connection
+
+
+def test_gmail_import_stores_matching_message_and_attachment(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("GMAIL_TOKEN_ENCRYPTION_KEY", "test-gmail-token-key")
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Gmail import case"))
+    assert created.status_code == 200
+    case = created.json()
+    connection = GmailConnection(
+        id=f"gmail-{uuid.uuid4().hex[:6]}",
+        workspace_id=user["workspace_id"],
+        case_id=case["id"],
+        google_email="parent@example.com",
+        status="connected",
+        rule=GmailImportRule(domains=["usd232.org"], include_attachments=True),
+        encrypted_refresh_token=encrypt_token("refresh-token"),
+    )
+    gmail_connections[connection.id] = connection
+
+    def fake_refresh(_connection):
+        return "access-token"
+
+    def fake_get_json(path, _access_token, params=None):
+        if path == "messages":
+            return {"messages": [{"id": "msg-1"}], "resultSizeEstimate": 1}
+        if path == "messages/msg-1":
+            return {
+                "id": "msg-1",
+                "threadId": "thread-1",
+                "internalDate": "1775000000000",
+                "snippet": "Incident report attached",
+                "payload": {
+                    "headers": [
+                        {"name": "From", "value": "principal@usd232.org"},
+                        {"name": "To", "value": "parent@example.com"},
+                        {"name": "Subject", "value": "Incident follow-up"},
+                        {"name": "Date", "value": "Tue, 28 Apr 2026 12:00:00 -0500"},
+                    ],
+                    "parts": [
+                        {
+                            "mimeType": "text/plain",
+                            "body": {"data": "VGhlIGluY2lkZW50IHJlcG9ydCBpcyBhdHRhY2hlZC4="},
+                        },
+                        {
+                            "filename": "incident-report.txt",
+                            "mimeType": "text/plain",
+                            "body": {"attachmentId": "att-1"},
+                        },
+                    ],
+                },
+            }
+        if path == "messages/msg-1/attachments/att-1":
+            return {"data": "U3RhZmYgbm90ZXMgYWJvdXQgdGhlIGluY2lkZW50Lg=="}
+        raise AssertionError(path)
+
+    monkeypatch.setattr("app.services.gmail_importer.refresh_access_token", fake_refresh)
+    monkeypatch.setattr("app.services.gmail_importer.gmail_get_json", fake_get_json)
+
+    run = import_matching_messages(connection, cases.get(case["id"]))
+    assert run.status == "complete"
+    assert run.imported_messages == 1
+    assert run.imported_attachments == 1
+
+    docs = [
+        doc for doc in case_documents.values()
+        if doc.workspace_id == user["workspace_id"] and doc.case_id == case["id"] and doc.source == "gmail_import"
+    ]
+    assert len(docs) == 2
+    assert any(doc.email_message_id == "msg-1" and not doc.parent_document_id for doc in docs)
+    assert any(doc.email_attachment_id == "att-1" and doc.parent_document_id for doc in docs)
 
 
 def test_support_review_queue_requires_admin_and_respects_revocation():

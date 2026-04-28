@@ -138,6 +138,14 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_evals_case ON case_evaluations(workspace_id, case_id);
 
+        CREATE TABLE IF NOT EXISTS case_intake_sessions (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'active',
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_intake_workspace ON case_intake_sessions(workspace_id, status);
+
         CREATE TABLE IF NOT EXISTS agent_runs (
             id TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL,
@@ -159,6 +167,24 @@ def init_db():
             data TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_usage_workspace ON usage_events(workspace_id, event_type);
+
+        CREATE TABLE IF NOT EXISTS gmail_connections (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            case_id TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'setup_required',
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_gmail_connections_workspace ON gmail_connections(workspace_id, case_id, status);
+
+        CREATE TABLE IF NOT EXISTS gmail_import_runs (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            case_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'queued',
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_gmail_import_runs_case ON gmail_import_runs(workspace_id, case_id, status);
     """)
 
     for table in ("persons", "entities", "jobs"):

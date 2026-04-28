@@ -8,55 +8,86 @@ GET  /api/documents/{id}     — single document detail
 from __future__ import annotations
 
 import logging
+import hashlib
+import mimetypes
 import uuid
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form, Query
+from fastapi.responses import FileResponse
 from typing import Optional
 
-from app.models import CaseDocument
+from app.models import CaseDocument, CaseDocumentUpdate
 from app.api._store import case_documents, cases
 from app.api.deps import can_access_workspace, get_current_user, scoped_items
+from app.services.document_classifier import infer_document_metadata
+from app.services.document_storage import delete_document_file, resolve_document_path, save_case_document_file
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["documents"])
-MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 SUPPORTED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".tiff", ".tif", ".webp", ".bmp", ".docx", ".eml", ".txt", ".md"}
 
 
 def _validate_upload(filename: str, content: bytes) -> None:
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Evidence Locker files must be 15 MB or smaller for the free evaluation.")
+        raise HTTPException(status_code=413, detail="Evidence Locker files must be 50 MB or smaller for this version.")
     ext = Path(filename or "").suffix.lower()
     if ext not in SUPPORTED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Unsupported evidence file type. Upload PDF, image, Word, email, text, or markdown files.")
+
+
+def _apply_processing_result(doc: CaseDocument, extracted: str, file_type: str) -> CaseDocument:
+    from app.services.text_chunker import chunk_text
+
+    doc.file_type = file_type
+    doc.extracted_text = extracted
+    category, confidence, tags, evidence_type = infer_document_metadata(doc.filename, extracted)
+    doc.inferred_category = doc.inferred_category or category
+    doc.category_confidence = doc.category_confidence or confidence
+    doc.tags = sorted(set([*doc.tags, *tags]))
+    if not doc.evidence_type:
+        doc.evidence_type = evidence_type
+
+    if extracted.startswith("[OCR extraction needed:"):
+        doc.status = "processing"
+        doc.processing_status = "needs_review"
+        doc.ocr_status = "queued"
+        doc.failure_reason = extracted
+        doc.chunk_count = 0
+    elif extracted and not extracted.startswith("["):
+        doc.chunk_count = len(chunk_text(extracted, doc.id))
+        doc.status = "indexed"
+        doc.processing_status = "indexed"
+        doc.error = None
+        doc.failure_reason = None
+    else:
+        doc.status = "failed"
+        doc.processing_status = "failed"
+        doc.error = "No text could be extracted"
+        doc.failure_reason = doc.error
+    doc.processed_at = datetime.utcnow()
+    return doc
 
 
 def _process_document(doc: CaseDocument, content: bytes):
     """Background task: parse file, chunk text, embed in Qdrant."""
     try:
         from app.services.document_parser import parse_file
-        from app.services.text_chunker import chunk_text
         from app.services.qdrant_client import store_document_chunks
 
         logger.info("Processing document %s (%s, %d bytes)", doc.id, doc.filename, len(content))
 
         extracted, file_type = parse_file(doc.filename, content)
-        doc.file_type = file_type
-        doc.extracted_text = extracted
+        doc = _apply_processing_result(doc, extracted, file_type)
 
-        if not extracted or extracted.startswith("["):
-            doc.status = "failed"
-            doc.processing_status = "failed"
-            doc.error = "No text could be extracted"
-            doc.failure_reason = doc.error
-            doc.processed_at = datetime.utcnow()
+        if doc.processing_status != "indexed":
             case_documents[doc.id] = doc
             return
 
+        from app.services.text_chunker import chunk_text
         chunks = chunk_text(extracted, doc.id)
-        doc.chunk_count = len(chunks)
 
         point_ids = store_document_chunks(
             chunks=chunks,
@@ -64,12 +95,9 @@ def _process_document(doc: CaseDocument, content: bytes):
             entity_ids=doc.entity_ids,
             person_ids=doc.person_ids,
             source=doc.source,
-    metadata={"filename": doc.filename, "case_id": doc.case_id},
+            metadata={"filename": doc.filename, "case_id": doc.case_id},
         )
         doc.qdrant_point_ids = point_ids
-        doc.status = "indexed"
-        doc.processing_status = "indexed"
-        doc.processed_at = datetime.utcnow()
         case_documents[doc.id] = doc
 
         logger.info("Document %s indexed: %d chunks, %d Qdrant points",
@@ -186,6 +214,9 @@ async def upload_document(
         case_id=target_case.id,
         filename=file.filename or "unknown",
         file_size=len(content),
+        mime_type=file.content_type or mimetypes.guess_type(file.filename or "")[0] or "",
+        storage_path="",
+        content_sha256=hashlib.sha256(content).hexdigest(),
         evidence_type=evidence_type or "",
         user_description=user_description or "",
         document_date=document_date,
@@ -195,6 +226,13 @@ async def upload_document(
         kora_request_id=kora_request_id or "",
         source=source or "manual_upload",
     )
+    category, confidence, tags, inferred_type = infer_document_metadata(doc.filename)
+    doc.inferred_category = category
+    doc.category_confidence = confidence
+    doc.tags = tags
+    if not doc.evidence_type:
+        doc.evidence_type = inferred_type
+    doc.storage_path = save_case_document_file(doc.workspace_id, doc.case_id, doc.id, doc.filename, content)
     case_documents[doc.id] = doc
 
     bg.add_task(_process_document, doc, content)
@@ -204,7 +242,19 @@ async def upload_document(
 
 
 @router.get("/documents", response_model=list[CaseDocument])
-async def list_documents(entity_id: str = "", status: str = "", case_id: str = "", user: dict = Depends(get_current_user)):
+async def list_documents(
+    entity_id: str = "",
+    status: str = "",
+    case_id: str = "",
+    q: str = "",
+    category: str = "",
+    tag: str = "",
+    sort: str = Query(default="uploaded_at"),
+    direction: str = Query(default="desc"),
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    user: dict = Depends(get_current_user),
+):
     """List uploaded documents, optionally filtered."""
     docs = scoped_items(list(case_documents.values()), user)
     if case_id:
@@ -212,9 +262,35 @@ async def list_documents(entity_id: str = "", status: str = "", case_id: str = "
     if entity_id:
         docs = [d for d in docs if entity_id in d.entity_ids]
     if status:
-        docs = [d for d in docs if d.status == status]
-    docs.sort(key=lambda d: d.uploaded_at, reverse=True)
-    return docs
+        docs = [d for d in docs if d.status == status or d.processing_status == status]
+    if category:
+        docs = [d for d in docs if d.inferred_category == category or d.evidence_type == category]
+    if tag:
+        docs = [d for d in docs if tag in d.tags]
+    if q:
+        needle = q.lower()
+        docs = [
+            d for d in docs
+            if needle in " ".join([
+                d.filename,
+                d.user_description,
+                d.source_person,
+                d.evidence_type,
+                d.inferred_category,
+                " ".join(d.tags),
+                d.extracted_text[:2000],
+            ]).lower()
+        ]
+
+    key_map = {
+        "name": lambda d: d.filename.lower(),
+        "size": lambda d: d.file_size,
+        "status": lambda d: d.processing_status or d.status,
+        "document_date": lambda d: d.document_date or "",
+        "uploaded_at": lambda d: d.uploaded_at,
+    }
+    docs.sort(key=key_map.get(sort, key_map["uploaded_at"]), reverse=direction != "asc")
+    return docs[offset:offset + limit]
 
 
 @router.get("/documents/{doc_id}", response_model=CaseDocument)
@@ -225,10 +301,52 @@ async def get_document(doc_id: str, user: dict = Depends(get_current_user)):
     return doc
 
 
+@router.patch("/documents/{doc_id}", response_model=CaseDocument)
+async def update_document(doc_id: str, body: CaseDocumentUpdate, user: dict = Depends(get_current_user)):
+    doc = case_documents.get(doc_id)
+    if not doc or not can_access_workspace(user, doc.workspace_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    patch = body.model_dump(exclude_unset=True)
+    for key, value in patch.items():
+        setattr(doc, key, value)
+    case_documents[doc.id] = doc
+    return doc
+
+
+@router.get("/documents/{doc_id}/preview")
+async def preview_document(doc_id: str, user: dict = Depends(get_current_user)):
+    doc = case_documents.get(doc_id)
+    if not doc or not can_access_workspace(user, doc.workspace_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {
+        "document": doc.model_dump(mode="json"),
+        "text_preview": (doc.extracted_text or "")[:12000],
+        "has_original": bool(resolve_document_path(doc)),
+    }
+
+
+@router.get("/documents/{doc_id}/content")
+async def document_content(doc_id: str, user: dict = Depends(get_current_user)):
+    doc = case_documents.get(doc_id)
+    if not doc or not can_access_workspace(user, doc.workspace_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    path = resolve_document_path(doc)
+    if not path:
+        raise HTTPException(status_code=404, detail="Original file not available")
+    media_type = doc.mime_type or mimetypes.guess_type(doc.filename)[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, filename=doc.filename)
+
+
 @router.delete("/documents/{doc_id}")
 async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
     doc = case_documents.get(doc_id)
     if not doc or not can_access_workspace(user, doc.workspace_id):
         raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        from app.services.qdrant_client import delete_points
+        delete_points(doc.qdrant_point_ids)
+    except Exception:
+        logger.warning("Qdrant cleanup failed for document %s", doc_id)
+    delete_document_file(doc)
     case_documents.pop(doc_id, None)
     return {"ok": True, "deleted": doc_id}

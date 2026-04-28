@@ -1,7 +1,7 @@
 ---
 import PublicPage from '../layouts/PublicPage.astro';
 
-const updated = 'April 26, 2026';
+const updated = 'April 28, 2026';
 const canonical = 'https://usdwatch.com/privacy/';
 const description = 'Plain-language privacy and product disclosures for USDWatch.';
 const schema = [
@@ -10,7 +10,7 @@ const schema = [
     '@type': 'PrivacyPolicy',
     name: 'USDWatch Privacy & Disclosures',
     url: canonical,
-    dateModified: '2026-04-26',
+    dateModified: '2026-04-28',
     description,
     publisher: {
       '@type': 'Organization',
@@ -72,7 +72,7 @@ const schema = [
       <ul class="space-y-2 text-sm leading-relaxed text-text-dim">
         <li>You give us account information, case details, and documents when you use the product.</li>
         <li>We use that information to evaluate your case, identify evidence gaps, recommend records, operate the service, and keep it secure.</li>
-        <li>We use vendors such as authentication, hosting, database, observability, and AI/model providers to run the service.</li>
+        <li>We use vendors such as authentication, hosting, database, observability, Google APIs when you connect Gmail, and AI/model providers to run the service.</li>
         <li>We do not sell family case files.</li>
         <li>USDWatch is not a law firm. Evaluations are informational and should be reviewed by a qualified attorney before you file or rely on them legally.</li>
       </ul>
@@ -94,6 +94,12 @@ const schema = [
           </p>
         </article>
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
+          <h3 class="font-semibold">Connected Gmail evidence</h3>
+          <p class="text-sm leading-relaxed text-text-dim">
+            If you connect Gmail, USDWatch stores your selected import rules, the connected Gmail address, matched/imported message metadata, imported message text, and imported attachments. We do not send, delete, label, or modify email.
+          </p>
+        </article>
+        <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">Technical information</h3>
           <p class="text-sm leading-relaxed text-text-dim">
             Request metadata, logs, device/browser information, error reports, security events, and usage events such as evaluation runs.
@@ -108,6 +114,7 @@ const schema = [
         <ul class="space-y-3 text-sm leading-relaxed text-text-dim">
           <li>Provide the free case evaluation and paid organization features.</li>
           <li>Parse documents, extract evidence, identify key dates, find gaps, and recommend records to request.</li>
+          <li>Import Gmail messages and attachments only when you connect Gmail and choose matching domains, addresses, keywords, or selected messages.</li>
           <li>Authenticate users and enforce workspace boundaries.</li>
           <li>Debug, secure, maintain, and improve the service.</li>
           <li>Communicate about your account, security issues, product changes, or support requests.</li>
@@ -138,7 +145,7 @@ const schema = [
       <div class="bg-surface border border-border rounded-lg p-5">
         <ul class="space-y-3 text-sm leading-relaxed text-text-dim">
           <li>With service providers who help operate the product, such as Clerk, hosting, database, logging, analytics/observability, email/support, and AI/model infrastructure.</li>
-          <li>When you direct us to share it or connect another service.</li>
+          <li>When you direct us to share it or connect another service, such as Google/Gmail for read-only evidence import.</li>
           <li>When required by law, legal process, safety, security, or abuse prevention.</li>
           <li>With a successor if the project is transferred, merged, or reorganized, subject to this policy or a notice of material change.</li>
         </ul>
@@ -168,6 +175,12 @@ const schema = [
           <h3 class="font-semibold">Deletion</h3>
           <p class="text-sm leading-relaxed text-text-dim">
             You can ask us to delete your account or case data. Backups, logs, legal obligations, and abuse-prevention records may take longer to remove.
+          </p>
+        </article>
+        <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
+          <h3 class="font-semibold">Disconnect Gmail</h3>
+          <p class="text-sm leading-relaxed text-text-dim">
+            You can disconnect Gmail from the Evidence Locker. USDWatch revokes/clears the stored token where possible and stops future sync. Evidence already imported remains in your case until you delete it.
           </p>
         </article>
       </div>

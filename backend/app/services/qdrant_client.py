@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 from typing import Optional
 
 from app.config import settings
@@ -20,7 +21,7 @@ _client = None
 _available = False
 
 COLLECTION_NAME = "documents"
-VECTOR_SIZE = 3072  # gemini-embedding-001 outputs 3072-dim vectors
+VECTOR_SIZE = int(os.getenv("QDRANT_VECTOR_SIZE", "2048"))
 SIMILARITY_THRESHOLD = 0.92  # above this = "same document"
 
 
@@ -460,3 +461,16 @@ def store_document_chunks(
 
     logger.info("Stored %d/%d chunks for document %s", len(point_ids), len(chunks), document_id)
     return point_ids
+
+
+def delete_points(point_ids: list[str]) -> None:
+    """Best-effort cleanup for document chunks stored in Qdrant."""
+    if not point_ids:
+        return
+    client = _get_client()
+    if not client:
+        return
+    try:
+        client.delete(collection_name=COLLECTION_NAME, points_selector=point_ids)
+    except Exception as e:
+        logger.warning("Qdrant delete failed for %d points: %s", len(point_ids), e)

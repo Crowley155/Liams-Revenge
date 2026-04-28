@@ -1,7 +1,7 @@
 ---
 import PublicPage from '../layouts/PublicPage.astro';
 
-const updated = 'April 27, 2026';
+const updated = 'April 28, 2026';
 const canonical = 'https://usdwatch.com/ai-disclosure/';
 const description = 'How USDWatch uses AI, model providers, evidence extraction, vector search, and human review.';
 const schema = [
@@ -119,13 +119,13 @@ const schema = [
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">1. Intake reading</h3>
           <p class="text-sm leading-relaxed text-text-dim">
-            The system reads your narrative and guided intake fields: who was impacted, age or grade band, issue categories, urgency, safety concerns, retaliation concerns, prior actions, and desired outcomes.
+            The system reads your Case Advocate conversation and draft facts panel: impacted person context, age or grade band, issue categories, urgency, safety concerns, retaliation concerns, prior actions, and desired outcomes.
           </p>
         </article>
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">2. Evidence extraction</h3>
           <p class="text-sm leading-relaxed text-text-dim">
-            Uploaded documents in the Evidence Locker are parsed when possible. The system looks for dates, actors, claims, decisions, notices, records, policy references, and inconsistencies.
+            Uploaded documents and explicitly imported Gmail evidence in the Evidence Locker are parsed when possible. The system looks for dates, actors, claims, decisions, notices, records, policy references, and inconsistencies.
           </p>
         </article>
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
@@ -156,10 +156,10 @@ const schema = [
       <div class="space-y-4">
         <div class="bg-surface border border-border rounded-lg p-5 space-y-3">
           <p class="text-sm leading-relaxed text-text-dim">
-            USDWatch is built to route different jobs to different models. Cheaper, faster models can handle extraction and classification. Stronger reasoning models can handle deeper review and synthesis. The configured stack can include DeepInfra-hosted NVIDIA/Nemotron-family models, fallback language models, and document/OCR providers depending on the task and deployment settings.
+            USDWatch is built to route different jobs to different models. Cheaper, faster models can handle extraction and classification. Stronger reasoning models can handle deeper review and synthesis. The configured stack uses DeepInfra-hosted NVIDIA/Nemotron-family models, with a DeepInfra-hosted Llama fallback when needed.
           </p>
           <p class="text-sm leading-relaxed text-text-dim">
-            Model providers can change as quality, cost, and privacy options improve. The important promise is that model use should be purposeful: send the minimum useful context to the model needed for the job, then return structured outputs that the app can display and test.
+            The current USDWatch pipeline is not routed to Gemini or Anthropic. Model choices can still change as quality, cost, and privacy options improve, but model use should be purposeful: send the minimum useful context needed for the job, then return structured outputs that the app can display and test.
           </p>
         </div>
       </div>
@@ -172,6 +172,7 @@ const schema = [
       <div class="bg-surface border border-border rounded-lg p-5">
         <ul class="space-y-3 text-sm leading-relaxed text-text-dim">
           <li>Relevant intake answers and document text may be sent to AI/model providers so they can process the evaluation.</li>
+          <li>If you connect Gmail, only matched/imported messages and attachments become Evidence Locker content for AI processing.</li>
           <li>Generated outputs are stored in your workspace as evaluations, evidence gaps, recommended records, and packet artifacts.</li>
           <li>Evidence Locker files remain private to your workspace unless you explicitly choose to share a limited summary for support review.</li>
           <li>Support outreach is not automated. Opting in creates a manual review path; it does not publish your case or automatically send it to attorneys, media, or advocacy groups.</li>

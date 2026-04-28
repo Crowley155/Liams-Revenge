@@ -9,8 +9,11 @@ Drop-in replacement for the old JSON file store. Same API:
 """
 from app.models import (
     AgentRun,
+    CaseIntakeSession,
     CaseEvaluation,
     CaseRecord,
+    GmailConnection,
+    GmailImportRun,
     KoraRequest,
     CaseDocument,
     Entity,
@@ -81,6 +84,12 @@ case_evaluations = _SqliteStore(
     indexed_cols={"workspace_id": "workspace_id", "case_id": "case_id", "status": "status"},
 )
 
+case_intake_sessions = _SqliteStore(
+    "case_intake_sessions",
+    CaseIntakeSession,
+    indexed_cols={"workspace_id": "workspace_id", "status": "status"},
+)
+
 agent_runs = _SqliteStore(
     "agent_runs",
     AgentRun,
@@ -97,4 +106,16 @@ usage_events = _SqliteStore(
     "usage_events",
     UsageEvent,
     indexed_cols={"workspace_id": "workspace_id", "case_id": "case_id", "event_type": "event_type", "quantity": "quantity"},
+)
+
+gmail_connections = _SqliteStore(
+    "gmail_connections",
+    GmailConnection,
+    indexed_cols={"workspace_id": "workspace_id", "case_id": "case_id", "status": "status"},
+)
+
+gmail_import_runs = _SqliteStore(
+    "gmail_import_runs",
+    GmailImportRun,
+    indexed_cols={"workspace_id": "workspace_id", "case_id": "case_id", "status": "status"},
 )

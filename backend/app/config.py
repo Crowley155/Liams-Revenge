@@ -16,28 +16,28 @@ def _env(key: str, default: str | None = None) -> str | None:
 @dataclass(frozen=True)
 class Settings:
     pipeline_model: str = field(
-        default_factory=lambda: _env("PIPELINE_MODEL", "openai/gpt-4o-mini")
+        default_factory=lambda: _env("PIPELINE_MODEL", "deepinfra/nvidia/NVIDIA-Nemotron-Nano-9B-v2")
     )
     collect_model: str = field(
         default_factory=lambda: _env(
             "COLLECT_MODEL",
-            _env("PIPELINE_MODEL", "gemini/gemini-2.5-flash-lite"),
+            _env("PIPELINE_MODEL", "deepinfra/nvidia/NVIDIA-Nemotron-Nano-9B-v2"),
         )
     )
     disambiguate_model: str = field(
         default_factory=lambda: _env(
             "DISAMBIGUATE_MODEL",
-            _env("PIPELINE_MODEL", "gemini/gemini-2.5-flash"),
+            _env("PIPELINE_MODEL", "deepinfra/nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning"),
         )
     )
     synthesize_model: str = field(
         default_factory=lambda: _env(
             "SYNTHESIZE_MODEL",
-            _env("PIPELINE_MODEL", "gemini/gemini-2.5-flash"),
+            _env("PIPELINE_MODEL", "deepinfra/nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning"),
         )
     )
     embedding_model: str = field(
-        default_factory=lambda: _env("EMBEDDING_MODEL", "gemini/gemini-embedding-001")
+        default_factory=lambda: _env("EMBEDDING_MODEL", "deepinfra/nvidia/llama-3.2-nv-embedqa-1b-v2")
     )
 
     serpapi_key: str | None = field(
@@ -78,7 +78,7 @@ class Settings:
         default_factory=lambda: _env("DEEPINFRA_EXTRACTION_MODEL", "nvidia/NVIDIA-Nemotron-Nano-9B-v2")
     )
     deepinfra_reasoning_model: str = field(
-        default_factory=lambda: _env("DEEPINFRA_REASONING_MODEL", "nvidia/Nemotron-3-Nano-30B-A3B")
+        default_factory=lambda: _env("DEEPINFRA_REASONING_MODEL", "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning")
     )
     deepinfra_premium_model: str = field(
         default_factory=lambda: _env("DEEPINFRA_PREMIUM_MODEL", "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B")
@@ -102,6 +102,21 @@ class Settings:
     )
     backend_public_url: str | None = field(
         default_factory=lambda: _env("BACKEND_PUBLIC_URL")
+    )
+    frontend_public_url: str = field(
+        default_factory=lambda: _env("FRONTEND_PUBLIC_URL", _env("PUBLIC_APP_URL", "http://localhost:4321"))
+    )
+    google_oauth_client_id: str | None = field(
+        default_factory=lambda: _env("GOOGLE_OAUTH_CLIENT_ID")
+    )
+    google_oauth_client_secret: str | None = field(
+        default_factory=lambda: _env("GOOGLE_OAUTH_CLIENT_SECRET")
+    )
+    google_oauth_redirect_uri: str | None = field(
+        default_factory=lambda: _env("GOOGLE_OAUTH_REDIRECT_URI")
+    )
+    gmail_token_encryption_key: str | None = field(
+        default_factory=lambda: _env("GMAIL_TOKEN_ENCRYPTION_KEY")
     )
 
     langfuse_public_key: str | None = field(
@@ -148,6 +163,14 @@ class Settings:
     @property
     def has_deepinfra(self) -> bool:
         return bool(self.deepinfra_api_key)
+
+    @property
+    def has_google_oauth(self) -> bool:
+        return bool(self.google_oauth_client_id and self.google_oauth_client_secret)
+
+    @property
+    def has_gmail_token_encryption(self) -> bool:
+        return bool(self.gmail_token_encryption_key)
 
 
 settings = Settings()

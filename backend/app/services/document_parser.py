@@ -1,16 +1,15 @@
 """
-Document parser — extracts text from uploaded files.
+Document parser: extracts text from uploaded files.
 
 Routes by file type:
-  - Native PDF (text-selectable): pdfplumber
-  - Scanned PDF / images: Gemini multimodal via LiteLLM
+  - Native PDF (text-selectable): pdfplumber, then pypdf
+  - Scanned PDF / images: stored and marked for OCR review
   - Word docs (.docx): python-docx
   - Email files (.eml): stdlib email.parser
   - Plain text: direct read
 """
 from __future__ import annotations
 
-import base64
 import email
 import io
 import logging
@@ -29,26 +28,25 @@ def parse_file(filename: str, content: bytes) -> tuple[str, str]:
 
     if ext == ".pdf":
         return _parse_pdf(content), "pdf"
-    elif ext in SUPPORTED_IMAGE_EXTS:
-        return _parse_image(content, filename), "image"
-    elif ext == ".docx":
+    if ext in SUPPORTED_IMAGE_EXTS:
+        return _parse_image(filename), "image"
+    if ext == ".docx":
         return _parse_docx(content), "docx"
-    elif ext == ".eml":
+    if ext == ".eml":
         return _parse_eml(content), "eml"
-    elif ext in (".txt", ".md", ".csv", ".json"):
+    if ext in (".txt", ".md", ".csv", ".json"):
         return content.decode("utf-8", errors="replace"), "txt"
-    else:
-        return content.decode("utf-8", errors="replace"), "txt"
+    return content.decode("utf-8", errors="replace"), "txt"
 
 
 def _parse_pdf(content: bytes) -> str:
-    """Try pdfplumber first; fall back to Gemini multimodal for scanned pages."""
+    """Try text extraction first; mark scanned PDFs for a future NVIDIA OCR pass."""
     try:
         import pdfplumber
     except ImportError:
-        logger.warning("pdfplumber not installed; trying pypdf before OCR")
+        logger.warning("pdfplumber not installed; trying pypdf before OCR review")
         pypdf_text = _parse_pdf_with_pypdf(content)
-        return pypdf_text or _parse_image(content, "document.pdf")
+        return pypdf_text or _parse_image("document.pdf")
 
     text_parts: list[str] = []
     scanned_pages: list[int] = []
@@ -63,13 +61,16 @@ def _parse_pdf(content: bytes) -> str:
                 text_parts.append("")
 
     if scanned_pages and len(scanned_pages) / max(len(text_parts), 1) > 0.5:
-        logger.info("PDF appears mostly scanned (%d/%d pages) — using Gemini multimodal",
-                     len(scanned_pages), len(text_parts))
-        return _parse_image(content, "document.pdf")
+        logger.info(
+            "PDF appears mostly scanned (%d/%d pages); marking for OCR review",
+            len(scanned_pages),
+            len(text_parts),
+        )
+        return _parse_image("document.pdf")
 
     full_text = "\n\n".join(t for t in text_parts if t)
     if not full_text.strip():
-        return _parse_image(content, "document.pdf")
+        return _parse_image("document.pdf")
 
     return full_text
 
@@ -94,43 +95,15 @@ def _parse_pdf_with_pypdf(content: bytes) -> str:
         return ""
 
 
-def _parse_image(content: bytes, filename: str) -> str:
-    """Send image/scanned PDF to Gemini multimodal for text extraction."""
-    try:
-        import litellm
-
-        mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-        if filename.endswith(".pdf"):
-            mime = "application/pdf"
-
-        b64 = base64.b64encode(content).decode("utf-8")
-
-        from app.config import settings
-        model = settings.collect_model
-
-        response = litellm.completion(
-            model=model,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": (
-                        "Extract ALL text from this document image. "
-                        "Preserve the original structure, headings, and formatting. "
-                        "If there are tables, represent them clearly. "
-                        "Return only the extracted text, no commentary."
-                    )},
-                    {"type": "image_url", "image_url": {
-                        "url": f"data:{mime};base64,{b64}",
-                    }},
-                ],
-            }],
-            max_tokens=8000,
-        )
-        return response.choices[0].message.content.strip()
-
-    except Exception as e:
-        logger.error("Gemini multimodal extraction failed: %s", e)
-        return f"[OCR extraction failed: {e}]"
+def _parse_image(filename: str) -> str:
+    """Images and scanned PDFs are stored, but OCR waits for the NVIDIA OCR path."""
+    mime = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+    if filename.endswith(".pdf"):
+        mime = "application/pdf"
+    return (
+        "[OCR extraction needed: this image or scanned PDF was stored safely, "
+        f"but automatic OCR is not enabled for MIME type {mime}.]"
+    )
 
 
 def _parse_docx(content: bytes) -> str:
@@ -139,7 +112,7 @@ def _parse_docx(content: bytes) -> str:
         from docx import Document
     except ImportError:
         logger.warning("python-docx not installed")
-        return "[python-docx not installed — cannot parse .docx files]"
+        return "[python-docx not installed - cannot parse .docx files]"
 
     doc = Document(io.BytesIO(content))
     paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
@@ -147,7 +120,7 @@ def _parse_docx(content: bytes) -> str:
 
 
 def _parse_eml(content: bytes) -> str:
-    """Extract text from an .eml email file, including attachment text."""
+    """Extract text from an .eml email file."""
     msg = email.message_from_bytes(content)
     parts: list[str] = []
 

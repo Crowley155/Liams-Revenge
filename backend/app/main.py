@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import init_db, migrate_json_to_sqlite
-from app.api import agent_os, auth, cases, documents, enrichment, entities, kora, maintenance, profiles, research
+from app.api import agent_os, auth, cases, documents, enrichment, entities, gmail, intake, kora, maintenance, profiles, research
 from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -82,6 +82,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api")
+app.include_router(intake.router, prefix="/api")
 app.include_router(cases.router, prefix="/api")
 app.include_router(research.router, prefix="/api")
 app.include_router(profiles.router, prefix="/api")
@@ -89,6 +90,7 @@ app.include_router(entities.router, prefix="/api")
 app.include_router(enrichment.router, prefix="/api")
 app.include_router(kora.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
+app.include_router(gmail.router, prefix="/api")
 app.include_router(agent_os.router, prefix="/api")
 app.include_router(maintenance.router, prefix="/api")
 

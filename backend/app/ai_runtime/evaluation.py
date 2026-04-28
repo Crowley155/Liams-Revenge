@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime
 
 from app.api._store import agent_runs, case_evaluations
+from app.config import settings
 from app.models import (
     AgentRun,
     CaseDocument,
@@ -22,10 +22,10 @@ from app.models import (
 
 logger = logging.getLogger(__name__)
 
-EXTRACTION_MODEL = os.getenv("DEEPINFRA_EXTRACTION_MODEL", "nvidia/NVIDIA-Nemotron-Nano-9B-v2")
-REASONING_MODEL = os.getenv("DEEPINFRA_REASONING_MODEL", "nvidia/Nemotron-3-Nano-30B-A3B")
-PREMIUM_MODEL = os.getenv("DEEPINFRA_PREMIUM_MODEL", "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B")
-FALLBACK_MODEL = os.getenv("DEEPINFRA_FALLBACK_MODEL", "meta-llama/Llama-3.3-70B-Instruct-Turbo")
+EXTRACTION_MODEL = settings.deepinfra_extraction_model
+REASONING_MODEL = settings.deepinfra_reasoning_model
+PREMIUM_MODEL = settings.deepinfra_premium_model
+FALLBACK_MODEL = settings.deepinfra_fallback_model
 
 WORKFLOW_STEPS = [
     "intake",
@@ -54,7 +54,7 @@ def _content_from_response(response) -> str:
 
 
 def _run_agno_step(step: str, prompt: str, model_id: str) -> str:
-    if not os.getenv("DEEPINFRA_API_KEY"):
+    if not settings.has_deepinfra:
         raise RuntimeError("DEEPINFRA_API_KEY is not configured")
 
     try:
@@ -280,9 +280,19 @@ def run_case_evaluation(case: CaseRecord, documents: list[CaseDocument], evaluat
             else:
                 prompt = f"Workflow step: {step}\n\nCase context:\n{context}\n\nReturn the highest-signal findings for this step."
 
-            raw = _run_agno_step(step, prompt, model_id)
+            try:
+                raw = _run_agno_step(step, prompt, model_id)
+            except Exception as primary_exc:
+                if model_id == FALLBACK_MODEL or not settings.has_deepinfra:
+                    raise
+                logger.info("Primary model %s failed for %s; trying fallback %s: %s", model_id, step, FALLBACK_MODEL, primary_exc)
+                run.model_id = FALLBACK_MODEL
+                run.error = f"Primary model {model_id} failed: {primary_exc}"
+                raw = _run_agno_step(step, prompt, FALLBACK_MODEL)
+                run.status = "fallback_model"
             step_notes.append(f"{step}: {raw[:3000]}")
-            run.status = "complete"
+            if run.status == "running":
+                run.status = "complete"
             run.output_tokens = len(raw.split())
         except Exception as exc:
             logger.info("Using local evaluator fallback for %s: %s", step, exc)

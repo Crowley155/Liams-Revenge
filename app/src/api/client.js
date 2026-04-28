@@ -315,6 +315,48 @@ export async function createCase(data) {
   return res.json();
 }
 
+export async function createIntakeSession() {
+  const res = await authFetch(`${API_BASE}/api/intake/sessions`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to start case advocate: ${res.status}`);
+  return res.json();
+}
+
+export async function sendIntakeMessage(sessionId, content) {
+  const res = await authFetch(`${API_BASE}/api/intake/sessions/${sessionId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Case advocate failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateIntakeFacts(sessionId, facts) {
+  const res = await authFetch(`${API_BASE}/api/intake/sessions/${sessionId}/facts`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ facts }),
+  });
+  if (!res.ok) throw new Error(`Failed to update case facts: ${res.status}`);
+  return res.json();
+}
+
+export async function createCaseFromIntake(sessionId, supportConsent) {
+  const res = await authFetch(`${API_BASE}/api/intake/sessions/${sessionId}/create-case`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ support_consent: supportConsent }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Create case failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function fetchCase(caseId) {
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}`);
   if (!res.ok) throw new Error(`Case not found: ${res.status}`);
@@ -351,9 +393,113 @@ export async function uploadCaseDocument(caseId, file, metadata = {}) {
   return res.json();
 }
 
-export async function fetchCaseDocuments(caseId) {
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/documents`);
+export async function fetchCaseDocuments(caseId, filters = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') params.set(key, value);
+  });
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/documents${suffix}`);
   if (!res.ok) throw new Error(`Failed to fetch case documents: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchDocumentPreview(docId) {
+  const res = await authFetch(`${API_BASE}/api/documents/${docId}/preview`);
+  if (!res.ok) throw new Error(`Failed to preview document: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchDocumentContentBlob(docId) {
+  const res = await authFetch(`${API_BASE}/api/documents/${docId}/content`);
+  if (!res.ok) throw new Error(`Failed to load document file: ${res.status}`);
+  return res.blob();
+}
+
+export async function updateDocument(docId, data) {
+  const res = await authFetch(`${API_BASE}/api/documents/${docId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Update document failed: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchGmailStatus(caseId = '') {
+  const params = caseId ? `?case_id=${encodeURIComponent(caseId)}` : '';
+  const res = await authFetch(`${API_BASE}/api/gmail/status${params}`);
+  if (!res.ok) throw new Error(`Failed to fetch Gmail status: ${res.status}`);
+  return res.json();
+}
+
+export async function saveGmailImportRule(data) {
+  const res = await authFetch(`${API_BASE}/api/gmail/import-rules`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to save Gmail import rule: ${res.status}`);
+  return res.json();
+}
+
+export async function startGmailOAuth(caseId) {
+  const res = await authFetch(`${API_BASE}/api/gmail/oauth/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ case_id: caseId }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to start Gmail OAuth: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function searchGmailMessages(data) {
+  const res = await authFetch(`${API_BASE}/api/gmail/search`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Gmail search failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function importGmailMessages(data) {
+  const res = await authFetch(`${API_BASE}/api/gmail/import`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Gmail import failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function syncGmailMessages(data) {
+  const res = await authFetch(`${API_BASE}/api/gmail/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Gmail sync failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function disconnectGmail(caseId) {
+  const res = await authFetch(`${API_BASE}/api/gmail/disconnect?case_id=${encodeURIComponent(caseId)}`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`Failed to disconnect Gmail: ${res.status}`);
   return res.json();
 }
 

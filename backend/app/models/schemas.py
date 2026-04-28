@@ -149,8 +149,8 @@ class CaseIntake(BaseModel):
 
 
 class CaseCreate(BaseModel):
-    title: str
-    state: str = "KS"
+    title: str = ""
+    state: str = ""
     district: str = ""
     school: str = ""
     issue_type: str = "special_education"
@@ -170,6 +170,78 @@ class CaseCreate(BaseModel):
     retaliation_concern: bool = False
     prior_actions: list[str] = Field(default_factory=list)
     urgent: bool = False
+    support_consent: SupportConsent = Field(default_factory=SupportConsent)
+
+
+class CaseIntakeFacts(BaseModel):
+    """Structured case facts extracted from the parent conversation."""
+    title: str = ""
+    state: str = ""
+    district: str = ""
+    school: str = ""
+    issue_type: str = "other"
+    issue_categories: list[str] = Field(default_factory=list)
+    incident_date: Optional[str] = None
+    narrative: str = ""
+    desired_outcome: str = ""
+    desired_outcomes: list[str] = Field(default_factory=list)
+    student_age: Optional[int] = None
+    impacted_party_age: Optional[int] = None
+    grade_level: str = ""
+    school_setting: str = ""
+    relationship_to_child: str = ""
+    iep_504_status: str = ""
+    urgency_level: str = "routine"
+    safety_risk: bool = False
+    retaliation_concern: bool = False
+    prior_actions: list[str] = Field(default_factory=list)
+    urgent: bool = False
+
+
+class CaseIntakeAnalysis(BaseModel):
+    facts: CaseIntakeFacts = Field(default_factory=CaseIntakeFacts)
+    confidence: dict[str, float] = Field(default_factory=dict)
+    missing_fields: list[str] = Field(default_factory=list)
+    issue_tags: list[str] = Field(default_factory=list)
+    next_question: str = ""
+    assistant_message: str = ""
+    draft_title: str = ""
+
+
+class CaseIntakeMessage(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    role: str = Field(default="user", description="user | assistant | system")
+    content: str = ""
+    structured: dict = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CaseIntakeSession(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str
+    created_by: str = ""
+    status: str = Field(default="active", description="active | case_created | abandoned")
+    messages: list[CaseIntakeMessage] = Field(default_factory=list)
+    facts: CaseIntakeFacts = Field(default_factory=CaseIntakeFacts)
+    confidence: dict[str, float] = Field(default_factory=dict)
+    missing_fields: list[str] = Field(default_factory=list)
+    issue_tags: list[str] = Field(default_factory=list)
+    next_question: str = ""
+    user_overrides: dict = Field(default_factory=dict)
+    draft_case_id: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class CaseIntakeMessageCreate(BaseModel):
+    content: str
+
+
+class CaseIntakeFactsPatch(BaseModel):
+    facts: dict = Field(default_factory=dict)
+
+
+class CaseIntakeCreateCaseRequest(BaseModel):
     support_consent: SupportConsent = Field(default_factory=SupportConsent)
 
 
@@ -691,11 +763,17 @@ class CaseDocument(BaseModel):
     filename: str = ""
     file_type: str = Field(default="", description="pdf | image | docx | eml | txt")
     file_size: int = 0
+    mime_type: str = ""
     evidence_type: str = ""
+    inferred_category: str = ""
+    category_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    tags: list[str] = Field(default_factory=list)
     user_description: str = ""
     document_date: Optional[str] = None
     source_person: str = ""
     storage_path: str = ""
+    preview_path: str = ""
+    thumbnail_path: str = ""
     content_sha256: str = ""
     source_zip_path: str = ""
     source_zip_paths: list[str] = Field(default_factory=list)
@@ -710,6 +788,17 @@ class CaseDocument(BaseModel):
     person_ids: list[str] = Field(default_factory=list)
     kora_request_id: str = ""
     source: str = Field(default="manual_upload", description="kora_response | manual_upload | email_export")
+    email_message_id: str = ""
+    email_thread_id: str = ""
+    email_subject: str = ""
+    email_from: str = ""
+    email_to: list[str] = Field(default_factory=list)
+    email_date: Optional[str] = None
+    email_attachment_id: str = ""
+    email_source_connection_id: str = ""
+    email_import_run_id: str = ""
+    parent_document_id: str = ""
+    attachment_ids: list[str] = Field(default_factory=list)
     extracted_text: str = ""
     chunk_count: int = 0
     qdrant_point_ids: list[str] = Field(default_factory=list)
@@ -720,3 +809,62 @@ class CaseDocument(BaseModel):
     error: Optional[str] = None
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     processed_at: Optional[datetime] = None
+
+
+class CaseDocumentUpdate(BaseModel):
+    evidence_type: Optional[str] = None
+    inferred_category: Optional[str] = None
+    tags: Optional[list[str]] = None
+    user_description: Optional[str] = None
+    document_date: Optional[str] = None
+    source_person: Optional[str] = None
+
+
+class GmailImportRule(BaseModel):
+    domains: list[str] = Field(default_factory=list)
+    email_addresses: list[str] = Field(default_factory=list)
+    keywords: list[str] = Field(default_factory=list)
+    include_attachments: bool = True
+    auto_sync: bool = False
+
+
+class GmailConnection(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str
+    case_id: str = ""
+    google_email: str = ""
+    status: str = Field(default="setup_required", description="setup_required | connected | disconnected | error")
+    scopes: list[str] = Field(default_factory=lambda: ["https://www.googleapis.com/auth/gmail.readonly"])
+    rule: GmailImportRule = Field(default_factory=GmailImportRule)
+    encrypted_refresh_token: str = ""
+    oauth_state_hash: str = ""
+    oauth_state_expires_at: Optional[datetime] = None
+    last_history_id: str = ""
+    watch_expires_at: Optional[datetime] = None
+    last_sync_at: Optional[datetime] = None
+    token_last_refreshed_at: Optional[datetime] = None
+    connected_at: Optional[datetime] = None
+    disconnected_at: Optional[datetime] = None
+    error: str = ""
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class GmailImportRun(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str
+    case_id: str
+    connection_id: str = ""
+    status: str = Field(default="queued", description="queued | running | complete | failed | needs_oauth")
+    rule: GmailImportRule = Field(default_factory=GmailImportRule)
+    matched_messages: int = 0
+    imported_messages: int = 0
+    imported_attachments: int = 0
+    query: str = ""
+    message_ids: list[str] = Field(default_factory=list)
+    imported_document_ids: list[str] = Field(default_factory=list)
+    skipped_messages: int = 0
+    error: str = ""
+    started_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None

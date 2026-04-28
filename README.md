@@ -11,7 +11,7 @@ Live at [usdwatch.com](https://usdwatch.com)
 - **Frontend:** Astro static site in `app/`, deployed to Cloudflare Pages. React islands keep the existing case workspace and evaluation UI working during the migration.
 - **Auth:** Clerk session JWTs from the frontend, verified by FastAPI through Clerk JWKS.
 - **Backend:** FastAPI with SQLite WAL persistence, tenant-scoped cases/documents/jobs/evaluations, and protected admin/demo data.
-- **Agent runtime:** Agno workflow with DeepInfra model routing. Defaults use NVIDIA Nemotron Nano for extraction, Nemotron 3 Nano for reasoning, Nemotron 3 Super for premium review, and Llama 3.3 70B as fallback.
+- **Agent runtime:** Agno workflow with DeepInfra model routing. Defaults use NVIDIA Nemotron Nano for extraction, Nemotron 3 Nano Omni for reasoning, Nemotron 3 Super for premium review, and Llama 3.3 70B as fallback.
 - **Storage:** SQLite for app records, Qdrant for vector evidence, Redis for optional caching.
 
 ## Deployment
@@ -26,7 +26,7 @@ Live at [usdwatch.com](https://usdwatch.com)
 - **Backend:** Railway or another long-running API host
   - Dockerfile: `Dockerfile.prod`
   - Required env: `CLERK_ISSUER` or `CLERK_JWKS_URL`
-  - Recommended env: `DEEPINFRA_API_KEY`, `USDWATCH_ADMIN_EMAILS`, search/vector/cache keys as needed
+  - Recommended env: `DEEPINFRA_API_KEY`, `USDWATCH_ADMIN_EMAILS`, Gmail OAuth settings, search/vector/cache keys as needed
 
 Cloudflare Pages hosts the Astro frontend only. The FastAPI/Agno backend still needs a server runtime.
 
@@ -69,10 +69,15 @@ PUBLIC_API_URL=https://your-backend.example.com npm run build
 | `ALLOW_DEV_AUTH` | Backend | Enables `Authorization: Bearer dev:user@example.com` locally |
 | `DEEPINFRA_API_KEY` | Backend | Enables Agno + DeepInfra model calls |
 | `DEEPINFRA_EXTRACTION_MODEL` | Backend | Defaults to `nvidia/NVIDIA-Nemotron-Nano-9B-v2` |
-| `DEEPINFRA_REASONING_MODEL` | Backend | Defaults to `nvidia/Nemotron-3-Nano-30B-A3B` |
+| `DEEPINFRA_REASONING_MODEL` | Backend | Defaults to `nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning` |
 | `DEEPINFRA_PREMIUM_MODEL` | Backend | Defaults to `nvidia/NVIDIA-Nemotron-3-Super-120B-A12B` |
 | `DEEPINFRA_FALLBACK_MODEL` | Backend | Defaults to `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
 | `ENABLE_AGENT_OS` | Backend | Disabled by default; protected admin status endpoint only |
+| `GOOGLE_OAUTH_CLIENT_ID` | Backend | Gmail import OAuth client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | Backend | Gmail import OAuth client secret |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Backend | Must match Google OAuth callback, e.g. `https://<api-host>/api/gmail/oauth/callback` |
+| `GMAIL_TOKEN_ENCRYPTION_KEY` | Backend | Required to encrypt Gmail refresh tokens at rest |
+| `FRONTEND_PUBLIC_URL` | Backend | Used to redirect from Gmail OAuth back to the Evidence Locker |
 | `SERPAPI_KEY` | Backend | Optional search pipeline input |
 | `QDRANT_URL` / `QDRANT_API_KEY` | Backend | Optional vector storage |
 | `REDIS_URL` | Backend | Optional cache |

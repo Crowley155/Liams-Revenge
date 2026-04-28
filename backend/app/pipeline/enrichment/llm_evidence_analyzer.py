@@ -8,8 +8,8 @@ Replaces dumb regex-only extraction with contextual understanding:
 - Extracts structured contact info, role, bio, and relationships
 - Validates regex-extracted candidates against document context
 
-Uses the cheap COLLECT_MODEL (gemini-2.5-flash-lite) since this is a
-focused extraction task, not deep reasoning.
+Uses the configured lightweight COLLECT_MODEL for focused extraction rather
+than deep reasoning.
 """
 from __future__ import annotations
 
