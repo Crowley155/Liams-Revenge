@@ -8,7 +8,9 @@ COPY pyproject.toml .
 RUN uv pip install --system --no-build-isolation \
     fastapi uvicorn[standard] dspy httpx beautifulsoup4 \
     python-dotenv qdrant-client "langfuse>=3.0" \
-    openinference-instrumentation-dspy redis pytest pytest-asyncio
+    openinference-instrumentation-dspy redis pdfplumber pypdf \
+    python-docx python-multipart "pyjwt[crypto]" agno[os] litellm openai \
+    pytest pytest-asyncio
 
 COPY . .
 

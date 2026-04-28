@@ -46,8 +46,9 @@ def _parse_pdf(content: bytes) -> str:
     try:
         import pdfplumber
     except ImportError:
-        logger.warning("pdfplumber not installed — falling back to Gemini for PDF")
-        return _parse_image(content, "document.pdf")
+        logger.warning("pdfplumber not installed; trying pypdf before OCR")
+        pypdf_text = _parse_pdf_with_pypdf(content)
+        return pypdf_text or _parse_image(content, "document.pdf")
 
     text_parts: list[str] = []
     scanned_pages: list[int] = []
@@ -71,6 +72,26 @@ def _parse_pdf(content: bytes) -> str:
         return _parse_image(content, "document.pdf")
 
     return full_text
+
+
+def _parse_pdf_with_pypdf(content: bytes) -> str:
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return ""
+
+    try:
+        reader = PdfReader(io.BytesIO(content))
+        parts = []
+        for page in reader.pages:
+            try:
+                parts.append(page.extract_text() or "")
+            except Exception:
+                parts.append("")
+        return "\n\n".join(part for part in parts if part).strip()
+    except Exception as exc:
+        logger.warning("pypdf extraction failed: %s", exc)
+        return ""
 
 
 def _parse_image(content: bytes, filename: str) -> str:

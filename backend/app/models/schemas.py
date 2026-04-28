@@ -695,6 +695,17 @@ class CaseDocument(BaseModel):
     user_description: str = ""
     document_date: Optional[str] = None
     source_person: str = ""
+    storage_path: str = ""
+    content_sha256: str = ""
+    source_zip_path: str = ""
+    source_zip_paths: list[str] = Field(default_factory=list)
+    import_batch_id: str = ""
+    page_count: int = 0
+    ocr_status: str = Field(default="not_required", description="not_required | queued | completed | failed | skipped")
+    duplicate_of_doc_id: str = ""
+    duplicate_source_paths: list[str] = Field(default_factory=list)
+    kora_response_source: str = ""
+    analysis_flags: list[str] = Field(default_factory=list)
     entity_ids: list[str] = Field(default_factory=list)
     person_ids: list[str] = Field(default_factory=list)
     kora_request_id: str = ""

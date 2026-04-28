@@ -27,6 +27,7 @@ from app.models import (
     WorkspaceType,
 )
 from app.services.entitlements import ensure_can_create_case, ensure_can_run_evaluation, ensure_can_upload_document
+from app.services.case_file_builder import build_private_case_file
 from app.services.workspaces import entitlements_for_workspace
 
 logger = logging.getLogger(__name__)
@@ -242,6 +243,10 @@ def _empty_case_file(case: CaseRecord) -> dict:
 
 
 def _load_legacy_case_file(case: CaseRecord) -> dict:
+    docs = _case_docs(case)
+    if docs:
+        return build_private_case_file(case, docs)
+
     if case.id != "crowley-v-usd232" or not CASE_DATA_PATH.exists():
         return _empty_case_file(case)
 
