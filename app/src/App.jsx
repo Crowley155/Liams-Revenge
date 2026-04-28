@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Routes, Route, useParams } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import RequireAuth from './auth/RequireAuth';
+import { fetchCase } from './api/client';
 import { EvidencePanelProvider } from './components/EvidencePanel';
 import Layout from './components/Layout';
 import CaseFileLayout from './components/CaseFileLayout';
@@ -21,6 +23,10 @@ import EvidenceGaps from './views/EvidenceGaps';
 import EvaluateCase from './views/EvaluateCase';
 import Cases from './views/Cases';
 import CaseDetail from './views/CaseDetail';
+import EvidenceLocker from './views/EvidenceLocker';
+import RecordsRequests from './views/RecordsRequests';
+import CaseEvaluation from './views/CaseEvaluation';
+import SelfAdvocacyPacket from './views/SelfAdvocacyPacket';
 
 function restoreGithubPagesSpaPath() {
   if (typeof window === 'undefined') return;
@@ -37,9 +43,43 @@ function LegacyCaseRedirect({ section = '' }) {
   return <Navigate to={`/cases/crowley-v-usd232/${section}${suffix}`} replace />;
 }
 
-function CasePlanRedirect() {
+function CaseSectionRedirect({ section = '' }) {
   const { caseId } = useParams();
-  return <Navigate to={`/cases/${caseId}`} replace />;
+  return <Navigate to={`/cases/${caseId}${section ? `/${section}` : ''}`} replace />;
+}
+
+function DemoOnlyRoute({ children, fallbackSection = '' }) {
+  const { caseId } = useParams();
+  const [caseRecord, setCaseRecord] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchCase(caseId)
+      .then((record) => {
+        if (!cancelled) setCaseRecord(record);
+      })
+      .catch(() => {
+        if (!cancelled) setCaseRecord(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId]);
+
+  if (loading) {
+    return <div className="grid min-h-[40vh] place-items-center text-sm text-text-dim">Loading case...</div>;
+  }
+
+  if (caseRecord?.status !== 'demo') {
+    return <CaseSectionRedirect section={fallbackSection} />;
+  }
+
+  return children;
 }
 
 export default function App() {
@@ -62,18 +102,22 @@ export default function App() {
                 <Route path="cases" element={<Cases />} />
                 <Route path="cases/:caseId" element={<CaseFileLayout />}>
                   <Route index element={<CaseDetail />} />
-                  <Route path="overview" element={<Overview />} />
+                  <Route path="locker" element={<EvidenceLocker />} />
+                  <Route path="records" element={<RecordsRequests />} />
                   <Route path="people" element={<People />} />
                   <Route path="people/:personId" element={<ProfileDetail />} />
-                  <Route path="entities" element={<Entities />} />
-                  <Route path="entities/:entityId" element={<EntityDetail />} />
-                  <Route path="entities/:entityId/members/:name" element={<MemberPreview />} />
-                  <Route path="non-compliance" element={<NonCompliance />} />
-                  <Route path="contradictions" element={<Contradictions />} />
-                  <Route path="evidence-gaps" element={<EvidenceGaps />} />
-                  <Route path="timeline" element={<CasePlanRedirect />} />
-                  <Route path="sources" element={<Sources />} />
-                  <Route path="policy-reforms" element={<PolicyReforms />} />
+                  <Route path="evaluation" element={<CaseEvaluation />} />
+                  <Route path="packet" element={<SelfAdvocacyPacket />} />
+                  <Route path="overview" element={<DemoOnlyRoute><Overview /></DemoOnlyRoute>} />
+                  <Route path="entities" element={<DemoOnlyRoute><Entities /></DemoOnlyRoute>} />
+                  <Route path="entities/:entityId" element={<DemoOnlyRoute><EntityDetail /></DemoOnlyRoute>} />
+                  <Route path="entities/:entityId/members/:name" element={<DemoOnlyRoute><MemberPreview /></DemoOnlyRoute>} />
+                  <Route path="non-compliance" element={<DemoOnlyRoute><NonCompliance /></DemoOnlyRoute>} />
+                  <Route path="contradictions" element={<DemoOnlyRoute><Contradictions /></DemoOnlyRoute>} />
+                  <Route path="evidence-gaps" element={<DemoOnlyRoute fallbackSection="records"><EvidenceGaps /></DemoOnlyRoute>} />
+                  <Route path="timeline" element={<CaseSectionRedirect />} />
+                  <Route path="sources" element={<DemoOnlyRoute fallbackSection="locker"><Sources /></DemoOnlyRoute>} />
+                  <Route path="policy-reforms" element={<DemoOnlyRoute><PolicyReforms /></DemoOnlyRoute>} />
                 </Route>
 
                 <Route path="policy-reforms" element={<LegacyCaseRedirect section="policy-reforms" />} />

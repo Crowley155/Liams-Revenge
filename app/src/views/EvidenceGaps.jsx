@@ -181,10 +181,10 @@ export default function EvidenceGaps() {
           </p>
           {isAuthenticated && koraRequests.length > 0 && (
             <Link
-              to={`/cases/${caseId}/overview`}
+              to={`/cases/${caseId}/records`}
               className="inline-block mt-4 text-sm font-medium text-accent hover:text-accent-hover transition-colors"
             >
-              View KORA requests on Overview &rarr;
+              View records requests &rarr;
             </Link>
           )}
         </div>

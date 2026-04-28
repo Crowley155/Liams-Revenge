@@ -5,14 +5,15 @@ import { CaseProvider } from '../data/useCase';
 
 const PARENT_CASE_TABS = [
   { to: '', label: 'Case Plan', end: true },
-  { to: 'overview', label: 'Overview' },
-  { to: 'evidence-gaps', label: 'Gaps' },
-  { to: 'sources', label: 'Evidence' },
+  { to: 'locker', label: 'Evidence Locker' },
+  { to: 'records', label: 'Records Requests' },
+  { to: 'people', label: 'People' },
+  { to: 'evaluation', label: 'Evaluation' },
+  { to: 'packet', label: 'Packet' },
 ];
 
 const DEMO_CASE_TABS = [
   ...PARENT_CASE_TABS,
-  { to: 'people', label: 'People' },
   { to: 'entities', label: 'Agencies' },
   { to: 'non-compliance', label: 'Non-Compliance' },
   { to: 'contradictions', label: 'Contradictions' },
@@ -22,7 +23,7 @@ const DEMO_CASE_TABS = [
 export default function CaseFileLayout() {
   const { caseId } = useParams();
   const [caseRecord, setCaseRecord] = useState(null);
-  const isDemoCase = caseRecord?.status === 'demo' || caseRecord?.id === 'crowley-v-usd232';
+  const isDemoCase = caseRecord?.status === 'demo';
   const tabs = isDemoCase ? DEMO_CASE_TABS : PARENT_CASE_TABS;
 
   useEffect(() => {

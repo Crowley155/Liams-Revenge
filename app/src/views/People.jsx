@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { fetchProfiles, fetchEntities, seedData, startResearch } from '../api/client';
+import { fetchProfiles, fetchEntities, fetchCase, seedData, startResearch } from '../api/client';
 import useResearchJob from '../hooks/useResearchJob';
 import DocLink from '../components/DocLink';
 import OrgDiagram from '../components/OrgDiagram';
@@ -157,6 +157,7 @@ export default function People() {
   const { caseId } = useParams();
   const [people, setPeople] = useState([]);
   const [entities, setEntities] = useState([]);
+  const [caseRecord, setCaseRecord] = useState(null);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState(null);
@@ -164,9 +165,9 @@ export default function People() {
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchProfiles(caseId), fetchEntities(caseId)])
-      .then(([p, e]) => { setPeople(p); setEntities(e); })
-      .catch((err) => { setPeople([]); setEntities([]); setError(err.message || 'Failed to load data'); })
+    Promise.all([fetchProfiles(caseId), fetchEntities(caseId), fetchCase(caseId).catch(() => null)])
+      .then(([p, e, c]) => { setPeople(p); setEntities(e); setCaseRecord(c); })
+      .catch((err) => { setPeople([]); setEntities([]); setCaseRecord(null); setError(err.message || 'Failed to load data'); })
       .finally(() => setLoading(false));
   };
 
@@ -197,6 +198,7 @@ export default function People() {
 
   const assignedIds = new Set(entityGroups.flatMap((g) => g.members.map((m) => m.id)));
   const unaffiliated = people.filter((p) => !assignedIds.has(p.id));
+  const isDemoCase = caseRecord?.status === 'demo';
 
   if (loading) {
     return (
@@ -241,13 +243,19 @@ export default function People() {
           <section key={entity.id} className="animate-fade-up">
             <div className="flex items-center gap-2 mb-3">
               <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: color }} />
-              <Link
-                to={`/cases/${caseId}/entities/${entity.id}`}
-                className="text-sm font-bold uppercase tracking-wide hover:text-accent transition-colors"
-                style={{ color }}
-              >
-                {entity.name}
-              </Link>
+              {isDemoCase ? (
+                <Link
+                  to={`/cases/${caseId}/entities/${entity.id}`}
+                  className="text-sm font-bold uppercase tracking-wide hover:text-accent transition-colors"
+                  style={{ color }}
+                >
+                  {entity.name}
+                </Link>
+              ) : (
+                <span className="text-sm font-bold uppercase tracking-wide" style={{ color }}>
+                  {entity.name}
+                </span>
+              )}
               <span className="text-xs font-normal text-text-dim bg-surface-alt px-2 py-0.5 rounded-full">
                 {members.length}
               </span>
