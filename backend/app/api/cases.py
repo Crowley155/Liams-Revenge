@@ -13,15 +13,21 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 
 from app.ai_runtime.evaluation import run_case_evaluation
-from app.api._store import case_documents, case_evaluations, cases, usage_events, workspaces
+from app.ai_runtime.intake import analyze_intake_session
+from app.api._store import case_documents, case_evaluations, case_intake_sessions, cases, usage_events, workspaces
 from app.api.deps import get_current_user
 from app.models import (
     CaseCreate,
     CaseDocument,
     CaseEvaluation,
     CaseIntake,
+    CaseIntakeFacts,
+    CaseIntakeMessage,
+    CaseIntakeMessageCreate,
+    CaseIntakeSession,
     CaseRecord,
     CaseStatus,
+    CaseUpdate,
     EvaluationStatus,
     SupportConsent,
     UsageEvent,
@@ -130,11 +136,175 @@ def _consent_with_timestamp(consent: SupportConsent) -> SupportConsent:
     return consent
 
 
+def _case_to_intake_facts(case: CaseRecord) -> CaseIntakeFacts:
+    intake = case.intake
+    return CaseIntakeFacts(
+        title=case.title,
+        state=intake.state,
+        district=intake.district,
+        school=intake.school,
+        issue_type=intake.issue_type,
+        issue_categories=intake.issue_categories,
+        incident_date=intake.incident_date,
+        narrative=intake.narrative,
+        desired_outcome=intake.desired_outcome,
+        desired_outcomes=intake.desired_outcomes,
+        student_age=intake.student_age,
+        impacted_party_age=intake.impacted_party_age,
+        grade_level=intake.grade_level,
+        school_setting=intake.school_setting,
+        relationship_to_child=intake.relationship_to_child,
+        iep_504_status=intake.iep_504_status,
+        urgency_level=intake.urgency_level,
+        safety_risk=intake.safety_risk,
+        retaliation_concern=intake.retaliation_concern,
+        prior_actions=intake.prior_actions,
+        urgent=intake.urgent,
+    )
+
+
+def _facts_to_intake(facts: CaseIntakeFacts) -> CaseIntake:
+    impacted_age = facts.impacted_party_age if facts.impacted_party_age is not None else facts.student_age
+    desired_outcome = facts.desired_outcome or "; ".join(facts.desired_outcomes)
+    issue_categories = facts.issue_categories or ([facts.issue_type] if facts.issue_type else ["other"])
+    return CaseIntake(
+        state=facts.state,
+        district=facts.district,
+        school=facts.school,
+        issue_type=issue_categories[0] if issue_categories else "other",
+        issue_categories=issue_categories,
+        incident_date=facts.incident_date,
+        narrative=facts.narrative,
+        desired_outcome=desired_outcome,
+        desired_outcomes=facts.desired_outcomes,
+        student_age=facts.student_age,
+        impacted_party_age=impacted_age,
+        grade_level=facts.grade_level,
+        school_setting=facts.school_setting,
+        relationship_to_child=facts.relationship_to_child,
+        iep_504_status=facts.iep_504_status,
+        urgency_level=facts.urgency_level,
+        safety_risk=facts.safety_risk,
+        retaliation_concern=facts.retaliation_concern,
+        prior_actions=facts.prior_actions,
+        urgent=facts.urgent or facts.safety_risk or facts.urgency_level in {"urgent", "immediate"},
+    )
+
+
+def _latest_advocate_structured(session: CaseIntakeSession) -> dict:
+    for message in reversed(session.messages):
+        if message.role == "assistant" and message.structured:
+            return message.structured
+    return {}
+
+
+def _apply_session_to_case(case: CaseRecord, session: CaseIntakeSession) -> CaseRecord:
+    facts = session.facts
+    manual_narrative = case.family_narrative if case.advocate_state.get("family_narrative_manual") else ""
+    case.title = facts.title or case.title
+    case.intake = _facts_to_intake(facts)
+    if manual_narrative:
+        case.family_narrative = manual_narrative
+        case.intake.narrative = manual_narrative
+        case.summary = manual_narrative[:280]
+    else:
+        case.summary = (facts.narrative or case.summary or "")[:280]
+    structured = _latest_advocate_structured(session)
+    narrative_patch = structured.get("family_narrative_patch") or facts.narrative
+    if narrative_patch and not manual_narrative:
+        case.family_narrative = narrative_patch
+    case.advocate_state = {
+        **case.advocate_state,
+        "active_session_id": session.id,
+        "confidence": session.confidence,
+        "missing_facts": session.missing_fields,
+        "issue_tags": session.issue_tags,
+        "next_question": session.next_question,
+        "suggested_actions": structured.get("suggested_actions", []),
+        "route_suggestion": structured.get("route_suggestion", ""),
+        "agent_run_ids": structured.get("agent_run_ids", []),
+        "updated_by": "case_advocate",
+    }
+    case.updated_at = utc_now()
+    cases[case.id] = case
+    return case
+
+
+def _open_case_for_workspace(user: dict) -> CaseRecord | None:
+    visible = [case for case in cases.values() if _visible_case(case, user) and case.status != CaseStatus.ARCHIVED]
+    if not visible:
+        return None
+    visible.sort(key=lambda case: normalize_utc(case.updated_at), reverse=True)
+    drafts = [case for case in visible if case.status == CaseStatus.DRAFT]
+    return drafts[0] if drafts else visible[0]
+
+
+def _create_draft_case(user: dict) -> CaseRecord:
+    ensure_can_create_case(user)
+    case = CaseRecord(
+        id=str(uuid.uuid4())[:8],
+        workspace_id=user["workspace_id"],
+        title="Draft school case",
+        status=CaseStatus.DRAFT,
+        intake=CaseIntake(state="", issue_type="other", issue_categories=["other"]),
+        summary="",
+        family_narrative="",
+        advocate_state={"created_by": "case_advocate"},
+        created_by=user["id"],
+    )
+    cases[case.id] = case
+    return case
+
+
+def _case_advocate_session(case: CaseRecord, user: dict) -> CaseIntakeSession:
+    sessions = [
+        session for session in case_intake_sessions.values()
+        if session.workspace_id == case.workspace_id
+        and session.case_id == case.id
+        and session.status == "active"
+    ]
+    sessions.sort(key=lambda session: normalize_utc(session.updated_at), reverse=True)
+    if sessions:
+        return sessions[0]
+
+    session = CaseIntakeSession(
+        id=str(uuid.uuid4())[:8],
+        workspace_id=case.workspace_id,
+        case_id=case.id,
+        created_by=user["id"],
+        draft_case_id=case.id,
+        facts=_case_to_intake_facts(case),
+        messages=[
+            CaseIntakeMessage(
+                role="assistant",
+                content=(
+                    "I am here with you while we build this case file. Tell me what feels most important, "
+                    "and I will organize the facts, look for gaps, and suggest the next useful step."
+                ),
+                structured={
+                    "suggested_actions": [
+                        "Share the family narrative in plain English.",
+                        "Add any emails, records, screenshots, or notes to the Evidence Locker.",
+                    ],
+                    "route_suggestion": "",
+                },
+            )
+        ],
+        next_question="What happened, and what are you most worried about right now?",
+    )
+    case_intake_sessions[session.id] = session
+    case.advocate_state = {**case.advocate_state, "active_session_id": session.id}
+    case.updated_at = utc_now()
+    cases[case.id] = case
+    return session
+
+
 def _case_context_summary(case: CaseRecord, docs: list[CaseDocument]) -> dict:
     intake = case.intake
     return {
         "case_id": case.id,
         "title": case.title,
+        "status": case.status,
         "district": intake.district,
         "school": intake.school,
         "issue_categories": intake.issue_categories or [intake.issue_type],
@@ -237,9 +407,9 @@ def _self_advocacy_packet(case: CaseRecord) -> dict:
         "title": f"Self-Advocacy Packet - {case.title}",
         "disclaimer": "USDWatch is informational and does not provide legal advice or create an attorney-client relationship.",
         "case_summary": _case_context_summary(case, docs),
-        "parent_story": case.intake.narrative,
+        "parent_story": case.family_narrative or case.intake.narrative,
         "desired_outcomes": desired,
-        "what_usdwatch_sees": result.executive_summary if result else "Run an evaluation to generate a fuller case read.",
+        "what_usdwatch_sees": result.executive_summary if result else "Run a Case Read to generate a fuller case read.",
         "evidence_strength": result.evidence_strength if result else "unknown",
         "timeline": [event.model_dump(mode="json") for event in (result.timeline if result else [])],
         "evidence_checklist": checklist,
@@ -257,7 +427,7 @@ def _self_advocacy_packet(case: CaseRecord) -> dict:
         ],
         "next_steps": result.next_steps if result else [
             "Upload the strongest records you already have.",
-            "Run the free evaluation.",
+            "Run the first Case Read.",
             "Use the recommended records list to fill evidence gaps.",
         ],
         "support_preferences": case.support_consent.model_dump(mode="json"),
@@ -321,9 +491,9 @@ def seed_demo_case() -> None:
             school="",
             issue_type="student_safety",
             narrative="Seeded public demo case used by the original Case Command Center.",
-            desired_outcome="Preserve the existing public advocacy resource while new private evaluations are scoped to user workspaces.",
+            desired_outcome="Preserve the existing public advocacy resource while new private case workspaces are scoped to user workspaces.",
         ),
-        summary="Seeded admin/demo case preserved during the free evaluation rollout.",
+        summary="Seeded admin/demo case preserved during the free draft workspace rollout.",
     )
 
 
@@ -345,6 +515,14 @@ async def list_cases(user: dict = Depends(get_current_user)):
     visible = [case for case in cases.values() if _visible_case(case, user)]
     visible.sort(key=lambda case: normalize_utc(case.updated_at), reverse=True)
     return visible
+
+
+@router.post("/cases/draft", response_model=CaseRecord)
+async def open_or_create_draft_case(user: dict = Depends(get_current_user)):
+    existing = _open_case_for_workspace(user)
+    if existing:
+        return existing
+    return _create_draft_case(user)
 
 
 @router.post("/cases", response_model=CaseRecord)
@@ -381,6 +559,7 @@ async def create_case(body: CaseCreate, user: dict = Depends(get_current_user)):
         ),
         support_consent=support_consent,
         summary=body.narrative[:280],
+        family_narrative=body.narrative,
         created_by=user["id"],
     )
     cases[case.id] = case
@@ -390,6 +569,63 @@ async def create_case(body: CaseCreate, user: dict = Depends(get_current_user)):
 @router.get("/cases/{case_id}", response_model=CaseRecord)
 async def get_case(case_id: str, user: dict = Depends(get_current_user)):
     return _get_case(case_id, user)
+
+
+@router.patch("/cases/{case_id}", response_model=CaseRecord)
+async def update_case(case_id: str, body: CaseUpdate, user: dict = Depends(get_current_user)):
+    case = _get_case(case_id, user)
+    if body.title is not None:
+        case.title = body.title.strip() or case.title
+    if body.summary is not None:
+        case.summary = body.summary[:280]
+    if body.family_narrative is not None:
+        case.family_narrative = body.family_narrative
+        case.intake.narrative = body.family_narrative
+        case.summary = body.family_narrative[:280]
+        case.advocate_state = {**case.advocate_state, "family_narrative_manual": True}
+    if body.intake is not None:
+        case.intake = body.intake
+    if body.advocate_state is not None:
+        case.advocate_state = {**case.advocate_state, **body.advocate_state}
+    case.updated_at = utc_now()
+    cases[case.id] = case
+    return case
+
+
+@router.post("/cases/{case_id}/activate", response_model=CaseRecord)
+async def activate_case(case_id: str, user: dict = Depends(get_current_user)):
+    case = _get_case(case_id, user)
+    if case.status == CaseStatus.DRAFT:
+        case.status = CaseStatus.ACTIVE
+        case.updated_at = utc_now()
+        cases[case.id] = case
+    return case
+
+
+@router.get("/cases/{case_id}/advocate/session", response_model=CaseIntakeSession)
+async def get_case_advocate_session(case_id: str, user: dict = Depends(get_current_user)):
+    case = _get_case(case_id, user)
+    return _case_advocate_session(case, user)
+
+
+@router.post("/cases/{case_id}/advocate/messages", response_model=CaseIntakeSession)
+async def append_case_advocate_message(
+    case_id: str,
+    body: CaseIntakeMessageCreate,
+    user: dict = Depends(get_current_user),
+):
+    case = _get_case(case_id, user)
+    session = _case_advocate_session(case, user)
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    session.messages.append(CaseIntakeMessage(role="user", content=content))
+    session = analyze_intake_session(session)
+    session.case_id = case.id
+    session.draft_case_id = case.id
+    case_intake_sessions[session.id] = session
+    _apply_session_to_case(case, session)
+    return session
 
 
 @router.get("/cases/{case_id}/file")
@@ -482,6 +718,10 @@ async def start_evaluation(
 ):
     case = _get_case(case_id, user)
     entitlements = ensure_can_run_evaluation(user, case.id)
+    if case.status == CaseStatus.DRAFT:
+        case.status = CaseStatus.ACTIVE
+        case.updated_at = utc_now()
+        cases[case.id] = case
 
     evaluation = CaseEvaluation(
         id=str(uuid.uuid4())[:8],

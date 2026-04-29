@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { UserButton } from '@clerk/clerk-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clerkEnabled, useAuth } from '../auth/AuthContext';
+
+const FloatingCaseAdvocate = lazy(() => import('./FloatingCaseAdvocate'));
 
 const PUBLIC_NAV = [
   { to: '/', label: 'Home' },
@@ -12,7 +14,6 @@ const PUBLIC_NAV = [
 ];
 
 const PROTECTED_NAV = [
-  { to: '/evaluate', label: 'Evaluate' },
   { to: '/cases', label: 'Cases' },
 ];
 
@@ -175,6 +176,12 @@ export default function Layout() {
         <Outlet />
       </main>
 
+      {isAuthenticated && (
+        <Suspense fallback={null}>
+          <FloatingCaseAdvocate />
+        </Suspense>
+      )}
+
       <footer className="border-t border-border py-5 text-center space-y-1">
         <a
           href="https://elevate.cloud"
@@ -192,7 +199,7 @@ export default function Layout() {
           </a>
         </p>
         <p className="text-[11px] text-text-dim/60">
-          {workspace?.name || 'Free case evaluation'} - Public Advocacy Resource
+          {workspace?.name || 'Free draft case workspace'} - Public Advocacy Resource
         </p>
         <p className="text-[11px] text-text-dim/60 flex items-center justify-center gap-3">
           <a href="/trust" className="hover:text-text transition-colors">Trust</a>

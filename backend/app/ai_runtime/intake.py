@@ -157,6 +157,7 @@ def _heuristic_analysis(session: CaseIntakeSession) -> CaseIntakeAnalysis:
     text = _user_text(session)
     lowered = text.lower()
     categories = _infer_issue_categories(text)
+    narrative = text.strip()
     facts = _merge_facts(
         session.facts,
         CaseIntakeFacts(
@@ -167,7 +168,7 @@ def _heuristic_analysis(session: CaseIntakeSession) -> CaseIntakeAnalysis:
             issue_type=categories[0],
             issue_categories=categories,
             incident_date=_infer_date(text),
-            narrative=text,
+            narrative=narrative,
             desired_outcomes=_infer_desired_outcomes(text),
             desired_outcome="; ".join(_infer_desired_outcomes(text)),
             impacted_party_age=_infer_age(text),
@@ -201,6 +202,13 @@ def _heuristic_analysis(session: CaseIntakeSession) -> CaseIntakeAnalysis:
     if not facts.safety_risk and "student_safety" in facts.issue_categories:
         missing.append("whether there is a current safety concern")
     next_question = _next_question(facts, missing)
+    suggested_actions = []
+    if not facts.narrative:
+        suggested_actions.append("Tell the Case Advocate what happened in your own words.")
+    if missing:
+        suggested_actions.append(f"Fill the next case-file gap: {missing[0]}.")
+    if not facts.prior_actions:
+        suggested_actions.append("Share what you have already tried so records and next steps fit the real history.")
     return CaseIntakeAnalysis(
         facts=facts,
         confidence=confidence,
@@ -209,6 +217,9 @@ def _heuristic_analysis(session: CaseIntakeSession) -> CaseIntakeAnalysis:
         next_question=next_question,
         assistant_message=_assistant_message(facts, missing, next_question),
         draft_title=facts.title or "New school case",
+        family_narrative_patch=narrative,
+        suggested_actions=suggested_actions[:3],
+        route_suggestion="",
     )
 
 
@@ -254,6 +265,8 @@ def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MOD
             "You are a careful parent-facing case advocate intake agent.",
             "Extract only facts supported by the parent messages; leave uncertain fields blank.",
             "Ask one practical follow-up question at a time.",
+            "Write a concise family_narrative_patch in the parent's plain-language voice when enough story exists.",
+            "Return suggested_actions that help the parent fill case-file gaps, upload evidence, or track records.",
             "Do not provide legal advice or promise outcomes.",
         ],
         markdown=False,
@@ -306,8 +319,21 @@ def analyze_intake_session(session: CaseIntakeSession) -> CaseIntakeSession:
         session.missing_fields = analysis.missing_fields
         session.issue_tags = analysis.issue_tags
         session.next_question = analysis.next_question
+        analysis.agent_run_ids = [run.id]
         if analysis.assistant_message:
-            session.messages.append(CaseIntakeMessage(role="assistant", content=analysis.assistant_message))
+            session.messages.append(CaseIntakeMessage(
+                role="assistant",
+                content=analysis.assistant_message,
+                structured={
+                    "facts_patch": analysis.facts.model_dump(mode="json"),
+                    "family_narrative_patch": analysis.family_narrative_patch,
+                    "missing_facts": analysis.missing_fields,
+                    "suggested_actions": analysis.suggested_actions,
+                    "route_suggestion": analysis.route_suggestion,
+                    "confidence": analysis.confidence,
+                    "agent_run_ids": analysis.agent_run_ids,
+                },
+            ))
         session.updated_at = utc_now()
         run.output_tokens = len((analysis.assistant_message or "").split())
         return session

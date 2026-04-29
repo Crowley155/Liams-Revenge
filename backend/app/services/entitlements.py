@@ -21,14 +21,14 @@ def _entitlements(user: dict) -> EntitlementSnapshot:
 
 def ensure_can_create_case(user: dict) -> EntitlementSnapshot:
     entitlements = _entitlements(user)
-    active_cases = [
+    open_cases = [
         case for case in cases.values()
-        if case.workspace_id == user["workspace_id"] and case.status == CaseStatus.ACTIVE
+        if case.workspace_id == user["workspace_id"] and case.status in (CaseStatus.DRAFT, CaseStatus.ACTIVE)
     ]
-    if len(active_cases) >= entitlements.max_active_cases:
+    if len(open_cases) >= entitlements.max_active_cases:
         raise HTTPException(
             status_code=403,
-            detail=f"Your {entitlements.plan.value} plan includes {entitlements.max_active_cases} active case.",
+            detail=f"Your {entitlements.plan.value} plan includes {entitlements.max_active_cases} draft or active case.",
         )
     return entitlements
 
@@ -63,6 +63,6 @@ def ensure_can_run_evaluation(user: dict, case_id: str) -> EntitlementSnapshot:
     if recent:
         raise HTTPException(
             status_code=403,
-            detail=f"Your free evaluation can be refreshed every {entitlements.evaluation_refresh_days} days.",
+            detail=f"Your free Case Read can be refreshed every {entitlements.evaluation_refresh_days} days.",
         )
     return entitlements

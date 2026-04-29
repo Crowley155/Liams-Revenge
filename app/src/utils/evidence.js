@@ -32,7 +32,7 @@ export function evidenceCategoryLabel(value, fallbackFormatter) {
 
 export function evidenceStatusHelp(status) {
   return {
-    indexed: 'Ready for search and evaluation.',
+    indexed: 'Ready for search and Case Reads.',
     processing: 'Uploaded and being read by USDWatch.',
     uploaded: 'Queued for processing.',
     needs_review: 'Saved, but OCR or human review is needed before USDWatch can fully read it.',

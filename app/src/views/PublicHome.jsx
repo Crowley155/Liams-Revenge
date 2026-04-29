@@ -15,14 +15,14 @@ export default function PublicHome() {
         <div className="relative mx-auto flex min-h-[72vh] max-w-7xl flex-col justify-center px-4 py-16 sm:px-6">
           <div className="max-w-3xl space-y-6">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-accent/90">
-              Free case evaluation
+              Free draft case workspace
             </p>
             <div className="space-y-4">
               <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-6xl">
                 USDWatch
               </h1>
               <p className="max-w-2xl text-base leading-7 text-text/82 sm:text-lg">
-                Turn school records, emails, and evidence into a usable case file. Your private evaluation lives behind your account, with trust and privacy terms readable before you upload anything sensitive.
+                Start with the Case Advocate, organize school records and evidence, and build a private case file before you decide what to do next.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -30,7 +30,7 @@ export default function PublicHome() {
                 to={isAuthenticated ? '/evaluate' : '/login'}
                 className="inline-flex items-center justify-center rounded-md bg-accent px-5 py-3 text-sm font-bold text-background transition-colors hover:bg-accent-hover"
               >
-                Evaluate My Case
+                Start My Case
               </Link>
               <a
                 href="/trust"
@@ -47,7 +47,7 @@ export default function PublicHome() {
         <article className="border-t border-border pt-4">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-text-dim">Private workspace</p>
           <p className="mt-3 text-sm leading-6 text-text">
-            Free users get one active case evaluation assigned to their own account.
+            Free users get one draft or active case assigned to their own account.
           </p>
         </article>
         <article className="border-t border-border pt-4">

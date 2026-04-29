@@ -8,7 +8,6 @@ const PARENT_CASE_TABS = [
   { to: 'locker', label: 'Evidence Locker' },
   { to: 'records', label: 'Records Requests' },
   { to: 'people', label: 'People' },
-  { to: 'evaluation', label: 'Evaluation' },
   { to: 'packet', label: 'Packet' },
 ];
 

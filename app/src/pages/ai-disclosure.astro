@@ -35,7 +35,7 @@ const schema = [
         name: 'Does AI train on my private case?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'USDWatch does not build or train a custom public model from a private case file. The product may store structured outputs, extracted text, embeddings, logs, and evaluation artifacts needed to operate the workspace.',
+          text: 'USDWatch does not build or train a custom public model from a private case file. The product may store structured outputs, extracted text, embeddings, logs, Case Reads, and packet artifacts needed to operate the workspace.',
         },
       },
       {
@@ -69,7 +69,7 @@ const schema = [
       </p>
       <div class="flex flex-wrap gap-3">
         <a href="/evaluate" class="px-4 py-2 rounded-md bg-accent text-background text-sm font-semibold hover:bg-accent-hover transition-colors">
-          Start Evaluation
+          Start My Case
         </a>
         <a href="/privacy" class="px-4 py-2 rounded-md border border-border text-sm font-semibold text-text hover:bg-surface-alt transition-colors">
           Privacy & Disclosures
@@ -81,7 +81,7 @@ const schema = [
       <article class="bg-surface border border-border rounded-lg p-5 space-y-3">
         <h2 class="font-bold">Multiple steps</h2>
         <p class="text-sm leading-relaxed text-text-dim">
-          The evaluation runs through intake, evidence extraction, records research, gap analysis, and final synthesis. It is not a single generic prompt.
+          A Case Read runs through intake, evidence extraction, records research, gap analysis, and final synthesis. It is not a single generic prompt.
         </p>
       </article>
       <article class="bg-surface border border-border rounded-lg p-5 space-y-3">
@@ -171,9 +171,9 @@ const schema = [
       </div>
       <div class="bg-surface border border-border rounded-lg p-5">
         <ul class="space-y-3 text-sm leading-relaxed text-text-dim">
-          <li>Relevant intake answers and document text may be sent to AI/model providers so they can process the evaluation.</li>
+          <li>Relevant intake answers and document text may be sent to AI/model providers so they can process the Case Advocate conversation, Case Read, and packet outputs.</li>
           <li>If you connect Gmail, only matched/imported messages and attachments become Evidence Locker content for AI processing.</li>
-          <li>Generated outputs are stored in your workspace as evaluations, evidence gaps, recommended records, and packet artifacts.</li>
+          <li>Generated outputs are stored in your workspace as Case Reads, evidence gaps, recommended records, and packet artifacts.</li>
           <li>Evidence Locker files remain private to your workspace unless you explicitly choose to share a limited summary for support review.</li>
           <li>Support outreach is not automated. Opting in creates a manual review path; it does not publish your case or automatically send it to attorneys, media, or advocacy groups.</li>
           <li>We do not use AI output as a final legal, educational, disciplinary, medical, or safety decision about a child.</li>
@@ -201,7 +201,7 @@ const schema = [
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">It cannot replace professional judgment.</h3>
           <p class="text-sm leading-relaxed text-text-dim">
-            A qualified attorney, advocate, clinician, or emergency professional may see issues that a case evaluation misses. Use USDWatch as preparation, not as final authority.
+            A qualified attorney, advocate, clinician, or emergency professional may see issues that a Case Read misses. Use USDWatch as preparation, not as final authority.
           </p>
         </article>
       </div>
@@ -213,7 +213,7 @@ const schema = [
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">Does AI train on my private case?</h3>
           <p class="text-sm leading-relaxed text-text-dim">
-            USDWatch does not build or train a custom public model from your case file. The product may store structured outputs, extracted text, embeddings, logs, and evaluation artifacts needed to operate your workspace.
+            USDWatch does not build or train a custom public model from your case file. The product may store structured outputs, extracted text, embeddings, logs, Case Reads, and packet artifacts needed to operate your workspace.
           </p>
         </article>
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
@@ -225,7 +225,7 @@ const schema = [
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">Will a human see my case?</h3>
           <p class="text-sm leading-relaxed text-text-dim">
-            Normal evaluation is automated. Human review may happen for support, safety, security, operations, abuse prevention, or if you opt into attorney, advocacy, media, or parent-group support.
+            Normal Case Reads are automated. Human review may happen for support, safety, security, operations, abuse prevention, or if you opt into attorney, advocacy, media, or parent-group support.
           </p>
         </article>
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">

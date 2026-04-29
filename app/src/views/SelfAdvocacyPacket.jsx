@@ -119,7 +119,7 @@ export default function SelfAdvocacyPacket() {
       {!loading && !packet && (
         <Panel title="Packet Not Ready Yet" eyebrow="Next step">
           <p className="text-sm leading-relaxed text-text-dim">
-            Run an evaluation first. USDWatch will use your story, evidence, and gaps to build the packet.
+            Run a Case Read first. USDWatch will use your story, evidence, and gaps to build the packet.
           </p>
         </Panel>
       )}

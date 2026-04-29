@@ -27,7 +27,7 @@ const schema = [
         name: 'What information does USDWatch collect?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'USDWatch collects account information, case intake, uploaded documents, extracted text, generated evaluations, workspace metadata, and technical information needed to operate and secure the service.',
+          text: 'USDWatch collects account information, case intake, uploaded documents, extracted text, generated Case Reads and packet artifacts, workspace metadata, and technical information needed to operate and secure the service.',
         },
       },
       {
@@ -35,7 +35,7 @@ const schema = [
         name: 'How does USDWatch use case information?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'USDWatch uses case information to evaluate a case, identify evidence gaps, recommend records, generate packet artifacts, authenticate users, enforce workspace boundaries, secure the service, and communicate about the account.',
+          text: 'USDWatch uses case information to operate the Case Advocate, run Case Reads, identify evidence gaps, recommend records, generate packet artifacts, authenticate users, enforce workspace boundaries, secure the service, and communicate about the account.',
         },
       },
       {
@@ -71,10 +71,10 @@ const schema = [
       <h2 class="text-xl font-bold">Short version</h2>
       <ul class="space-y-2 text-sm leading-relaxed text-text-dim">
         <li>You give us account information, case details, and documents when you use the product.</li>
-        <li>We use that information to evaluate your case, identify evidence gaps, recommend records, operate the service, and keep it secure.</li>
+        <li>We use that information to operate your draft case workspace, run Case Reads, identify evidence gaps, recommend records, operate the service, and keep it secure.</li>
         <li>We use vendors such as authentication, hosting, database, observability, Google APIs when you connect Gmail, and AI/model providers to run the service.</li>
         <li>We do not sell family case files.</li>
-        <li>USDWatch is not a law firm. Evaluations are informational and should be reviewed by a qualified attorney before you file or rely on them legally.</li>
+        <li>USDWatch is not a law firm. Case Reads and packets are informational and should be reviewed by a qualified attorney before you file or rely on them legally.</li>
       </ul>
     </section>
 
@@ -90,7 +90,7 @@ const schema = [
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">Case information</h3>
           <p class="text-sm leading-relaxed text-text-dim">
-            Case intake, school and district names, narrative details, dates, desired outcomes, issue categories, uploaded documents, extracted text, generated evaluations, evidence gaps, key date anchors, and recommended records.
+            Case intake, school and district names, narrative details, dates, desired outcomes, issue categories, uploaded documents, extracted text, generated Case Reads and packet artifacts, evidence gaps, key date anchors, and recommended records.
           </p>
         </article>
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
@@ -102,7 +102,7 @@ const schema = [
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">Technical information</h3>
           <p class="text-sm leading-relaxed text-text-dim">
-            Request metadata, logs, device/browser information, error reports, security events, and usage events such as evaluation runs.
+            Request metadata, logs, device/browser information, error reports, security events, and usage events such as Case Read runs.
           </p>
         </article>
       </div>
@@ -112,7 +112,7 @@ const schema = [
       <h2 class="text-2xl font-bold">How we use it</h2>
       <div class="bg-surface border border-border rounded-lg p-5">
         <ul class="space-y-3 text-sm leading-relaxed text-text-dim">
-          <li>Provide the free case evaluation and paid organization features.</li>
+          <li>Provide the free draft case workspace, Case Advocate, Case Reads, and paid organization features.</li>
           <li>Parse documents, extract evidence, identify key dates, find gaps, and recommend records to request.</li>
           <li>Import Gmail messages and attachments only when you connect Gmail and choose matching domains, addresses, keywords, or selected messages.</li>
           <li>Authenticate users and enforce workspace boundaries.</li>
@@ -126,7 +126,7 @@ const schema = [
     <section class="space-y-5">
       <h2 class="text-2xl font-bold">AI and model providers</h2>
       <p class="text-sm leading-relaxed text-text-dim">
-        USDWatch uses AI to evaluate intake information and documents. That means relevant case content may be sent to model providers and infrastructure vendors so they can process it for the product. We try to keep model routing purposeful: extraction work goes to cheaper models, deeper reasoning goes to stronger models, and premium review can use larger models.
+        USDWatch uses AI to organize intake information and documents, support the Case Advocate, and generate Case Reads and packet outputs. That means relevant case content may be sent to model providers and infrastructure vendors so they can process it for the product. We try to keep model routing purposeful: extraction work goes to cheaper models, deeper reasoning goes to stronger models, and premium review can use larger models.
       </p>
       <p class="text-sm leading-relaxed text-text-dim">
         For a fuller plain-English explanation of the pipeline, vector search, model routing, and limits, read the
@@ -135,7 +135,7 @@ const schema = [
       <div class="bg-surface border border-border rounded-lg p-5 space-y-2">
         <h3 class="font-semibold">Important limits</h3>
         <p class="text-sm leading-relaxed text-text-dim">
-          AI output can be incomplete or wrong. It may miss facts, overstate weak evidence, or misunderstand context. Treat the evaluation as a structured starting point, not a legal conclusion.
+          AI output can be incomplete or wrong. It may miss facts, overstate weak evidence, or misunderstand context. Treat a Case Read as a structured starting point, not a legal conclusion.
         </p>
       </div>
     </section>
@@ -158,7 +158,7 @@ const schema = [
     <section class="space-y-5">
       <h2 class="text-2xl font-bold">Student and child information</h2>
       <p class="text-sm leading-relaxed text-text-dim">
-        The service is for parents, guardians, advocates, and organization users, not for children to use directly. You are responsible for deciding what student information you upload. Avoid uploading information you do not have the right to provide or that is not needed for the evaluation.
+        The service is for parents, guardians, advocates, and organization users, not for children to use directly. You are responsible for deciding what student information you upload. Avoid uploading information you do not have the right to provide or that is not needed for the case file.
       </p>
     </section>
 
@@ -195,7 +195,7 @@ const schema = [
         <ul class="space-y-3 text-sm leading-relaxed text-text-dim">
           <li>USDWatch is not a law firm and does not provide legal advice.</li>
           <li>Using USDWatch does not create an attorney-client relationship.</li>
-          <li>Evaluations are informational, not guarantees of legal, educational, administrative, or records-request outcomes.</li>
+          <li>Case Reads and packets are informational, not guarantees of legal, educational, administrative, or records-request outcomes.</li>
           <li>Do not use USDWatch for emergencies or situations requiring immediate legal, medical, or safety intervention.</li>
           <li>Security matters, but no online service can guarantee perfect protection.</li>
           <li>We may update this page as the product, vendors, laws, or practices change.</li>

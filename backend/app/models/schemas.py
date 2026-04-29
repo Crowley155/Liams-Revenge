@@ -39,6 +39,7 @@ class WorkspacePlan(str, Enum):
 
 
 class CaseStatus(str, Enum):
+    DRAFT = "draft"
     ACTIVE = "active"
     ARCHIVED = "archived"
     DEMO = "demo"
@@ -208,6 +209,10 @@ class CaseIntakeAnalysis(BaseModel):
     next_question: str = ""
     assistant_message: str = ""
     draft_title: str = ""
+    family_narrative_patch: str = ""
+    suggested_actions: list[str] = Field(default_factory=list)
+    route_suggestion: str = ""
+    agent_run_ids: list[str] = Field(default_factory=list)
 
 
 class CaseIntakeMessage(BaseModel):
@@ -221,6 +226,7 @@ class CaseIntakeMessage(BaseModel):
 class CaseIntakeSession(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     workspace_id: str
+    case_id: str = ""
     created_by: str = ""
     status: str = Field(default="active", description="active | case_created | abandoned")
     messages: list[CaseIntakeMessage] = Field(default_factory=list)
@@ -247,6 +253,14 @@ class CaseIntakeCreateCaseRequest(BaseModel):
     support_consent: SupportConsent = Field(default_factory=SupportConsent)
 
 
+class CaseUpdate(BaseModel):
+    title: Optional[str] = None
+    summary: Optional[str] = None
+    family_narrative: Optional[str] = None
+    intake: Optional[CaseIntake] = None
+    advocate_state: Optional[dict] = None
+
+
 class CaseRecord(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     workspace_id: str
@@ -255,6 +269,8 @@ class CaseRecord(BaseModel):
     intake: CaseIntake = Field(default_factory=CaseIntake)
     support_consent: SupportConsent = Field(default_factory=SupportConsent)
     summary: str = ""
+    family_narrative: str = ""
+    advocate_state: dict = Field(default_factory=dict)
     created_by: str = ""
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)

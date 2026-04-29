@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Navigate, Routes, Route, useParams } from 'react-router-dom';
+import { BrowserRouter, Navigate, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import RequireAuth from './auth/RequireAuth';
-import { fetchCase } from './api/client';
+import { fetchCase, openOrCreateDraftCase } from './api/client';
 import { EvidencePanelProvider } from './components/EvidencePanel';
 import Layout from './components/Layout';
 
@@ -21,12 +21,10 @@ const EntityDetail = lazy(() => import('./views/EntityDetail'));
 const MemberPreview = lazy(() => import('./views/MemberPreview'));
 const Contradictions = lazy(() => import('./views/Contradictions'));
 const EvidenceGaps = lazy(() => import('./views/EvidenceGaps'));
-const EvaluateCase = lazy(() => import('./views/EvaluateCase'));
 const Cases = lazy(() => import('./views/Cases'));
 const CaseDetail = lazy(() => import('./views/CaseDetail'));
 const EvidenceLocker = lazy(() => import('./views/EvidenceLocker'));
 const RecordsRequests = lazy(() => import('./views/RecordsRequests'));
-const CaseEvaluation = lazy(() => import('./views/CaseEvaluation'));
 const SelfAdvocacyPacket = lazy(() => import('./views/SelfAdvocacyPacket'));
 
 function restoreGithubPagesSpaPath() {
@@ -51,6 +49,31 @@ function CaseSectionRedirect({ section = '' }) {
 
 function RouteFallback() {
   return <div className="grid min-h-[40vh] place-items-center text-sm text-text-dim">Loading workspace...</div>;
+}
+
+function EvaluateRedirect() {
+  const navigate = useNavigate();
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    openOrCreateDraftCase()
+      .then((caseRecord) => {
+        if (!cancelled) navigate(`/cases/${caseRecord.id}?advocate=open`, { replace: true });
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || 'Could not open your draft case');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  if (error) {
+    return <div className="mx-auto max-w-2xl py-10 text-sm text-danger">{error}</div>;
+  }
+
+  return <div className="grid min-h-[40vh] place-items-center text-sm text-text-dim">Opening your draft case...</div>;
 }
 
 function DemoOnlyRoute({ children, fallbackSection = '' }) {
@@ -104,7 +127,7 @@ export default function App() {
 
                 {/* Protected routes */}
                 <Route element={<RequireAuth />}>
-                  <Route path="evaluate" element={<EvaluateCase />} />
+                  <Route path="evaluate" element={<EvaluateRedirect />} />
                   <Route path="cases" element={<Cases />} />
                   <Route path="cases/:caseId" element={<CaseFileLayout />}>
                     <Route index element={<CaseDetail />} />
@@ -112,7 +135,7 @@ export default function App() {
                     <Route path="records" element={<RecordsRequests />} />
                     <Route path="people" element={<People />} />
                     <Route path="people/:personId" element={<ProfileDetail />} />
-                    <Route path="evaluation" element={<CaseEvaluation />} />
+                    <Route path="evaluation" element={<CaseSectionRedirect />} />
                     <Route path="packet" element={<SelfAdvocacyPacket />} />
                     <Route path="overview" element={<DemoOnlyRoute><Overview /></DemoOnlyRoute>} />
                     <Route path="entities" element={<DemoOnlyRoute><Entities /></DemoOnlyRoute>} />

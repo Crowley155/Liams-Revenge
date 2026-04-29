@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import get_current_user
 from app.api._store import case_documents, cases, gmail_connections
+from app.config import Settings
 from app.main import app
 from app.models import GmailConnection, GmailImportRule
 from app.services.gmail_importer import import_matching_messages
@@ -81,6 +82,22 @@ def test_free_user_gets_one_active_case():
 
     second = client.post("/api/cases", json=_case_payload("Free case two"))
     assert second.status_code == 403
+
+
+def test_free_user_draft_counts_against_case_limit():
+    user = _user()
+    _override_user(user)
+
+    draft = client.post("/api/cases/draft")
+    assert draft.status_code == 200
+    assert draft.json()["status"] == "draft"
+
+    second = client.post("/api/cases", json=_case_payload("Second open case"))
+    assert second.status_code == 403
+
+    reopened = client.post("/api/cases/draft")
+    assert reopened.status_code == 200
+    assert reopened.json()["id"] == draft.json()["id"]
 
 
 def test_cases_are_workspace_scoped():
@@ -211,6 +228,81 @@ def test_case_advocate_intake_creates_case_without_required_form_fields(monkeypa
     assert body["intake"]["district"] == "USD 232 De Soto"
     assert body["intake"]["state"] == "KS"
     assert body["intake"]["safety_risk"] is True
+
+
+def test_case_bound_advocate_updates_draft_case_and_first_case_read_activates(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai_runtime.intake._run_agno_analysis",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mock fallback")),
+    )
+    user = _user()
+    _override_user(user)
+
+    draft = client.post("/api/cases/draft")
+    assert draft.status_code == 200
+    case_id = draft.json()["id"]
+
+    session = client.get(f"/api/cases/{case_id}/advocate/session")
+    assert session.status_code == 200
+    assert session.json()["case_id"] == case_id
+
+    message = client.post(
+        f"/api/cases/{case_id}/advocate/messages",
+        json={"content": "My daughter is in 4th grade at Mize Elementary. I am worried about retaliation after I asked for records."},
+    )
+    assert message.status_code == 200
+    body = message.json()
+    assert body["case_id"] == case_id
+    assert "retaliation" in body["issue_tags"]
+    assert body["messages"][-1]["structured"]["agent_run_ids"]
+
+    updated = client.get(f"/api/cases/{case_id}")
+    assert updated.status_code == 200
+    case_body = updated.json()
+    assert case_body["status"] == "draft"
+    assert case_body["family_narrative"]
+    assert case_body["advocate_state"]["active_session_id"] == session.json()["id"]
+
+    started = client.post(f"/api/cases/{case_id}/evaluations")
+    assert started.status_code == 200
+    activated = client.get(f"/api/cases/{case_id}")
+    assert activated.status_code == 200
+    assert activated.json()["status"] == "active"
+
+
+def test_manual_family_narrative_override_beats_agent_patch(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai_runtime.intake._run_agno_analysis",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mock fallback")),
+    )
+    user = _user()
+    _override_user(user)
+
+    draft = client.post("/api/cases/draft")
+    case_id = draft.json()["id"]
+    manual = client.patch(f"/api/cases/{case_id}", json={"family_narrative": "Parent-edited narrative should stay."})
+    assert manual.status_code == 200
+    assert manual.json()["advocate_state"]["family_narrative_manual"] is True
+
+    message = client.post(
+        f"/api/cases/{case_id}/advocate/messages",
+        json={"content": "My son was hurt at school and the district has not answered my emails."},
+    )
+    assert message.status_code == 200
+
+    updated = client.get(f"/api/cases/{case_id}")
+    assert updated.json()["family_narrative"] == "Parent-edited narrative should stay."
+    assert updated.json()["intake"]["narrative"] == "Parent-edited narrative should stay."
+
+
+def test_model_provider_guard_rejects_disallowed_models(monkeypatch):
+    monkeypatch.setenv("DEEPINFRA_REASONING_MODEL", "anthropic/claude-sonnet")
+    try:
+        Settings().validate_ai_model_providers()
+    except RuntimeError as exc:
+        assert "must not use Gemini, Anthropic, or Claude" in str(exc)
+    else:
+        raise AssertionError("disallowed model provider was not rejected")
 
 
 def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypatch, tmp_path):

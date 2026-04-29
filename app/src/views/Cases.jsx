@@ -28,7 +28,7 @@ export default function Cases() {
           <h2 className="text-3xl font-bold tracking-tight">Cases</h2>
         </div>
         <Link to="/evaluate" className="px-4 py-2 rounded-md bg-accent text-background text-sm font-semibold hover:bg-accent-hover transition-colors">
-          Evaluate My Case
+          Start My Case
         </Link>
       </div>
 
@@ -52,7 +52,7 @@ export default function Cases() {
         ))}
         {!cases.length && !error && (
           <div className="bg-surface border border-border rounded-lg p-5 text-sm text-text-dim">
-            No cases yet. Start with a free evaluation.
+            No cases yet. Start with a Draft Case and let the Case Advocate help you build it.
           </div>
         )}
       </div>

@@ -529,7 +529,7 @@ export default function EvidenceLocker() {
               <div className="rounded-md border border-border bg-background px-4 py-10 text-center">
                 <FileSearch className="mx-auto h-8 w-8 text-text-dim" aria-hidden="true" />
                 <h3 className="mt-3 font-semibold text-text">No matching evidence yet</h3>
-                <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-text-dim">Import files or adjust the filters. You can still get a first evaluation from the Case Advocate conversation.</p>
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-text-dim">Import files or adjust the filters. You can still get a first Case Read from the Case Advocate conversation.</p>
               </div>
             )}
             {!loading && documents.length > 0 && (
@@ -590,7 +590,7 @@ export default function EvidenceLocker() {
           <section className="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-2xl">
             <h3 className="text-lg font-bold">Delete this evidence?</h3>
             <p className="mt-2 text-sm leading-relaxed text-text-dim">
-              This removes <strong className="text-text">{deleteTarget.filename}</strong> from the Evidence Locker and future evaluations for this case.
+              This removes <strong className="text-text">{deleteTarget.filename}</strong> from the Evidence Locker and future Case Reads for this case.
             </p>
             <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">Cancel</button>

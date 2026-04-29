@@ -33,7 +33,7 @@ const schema = [
         name: 'Are private family cases public?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'No. New case evaluations live inside the parent workspace. Public demo content is separate from private family workspaces.',
+          text: 'No. New draft cases live inside the parent workspace. Public demo content is separate from private family workspaces.',
         },
       },
       {
@@ -72,7 +72,7 @@ const schema = [
           AI Disclosure
         </a>
         <a href="/evaluate" class="px-4 py-2 rounded-md border border-border text-sm font-semibold text-text hover:bg-surface-alt transition-colors">
-          Start Evaluation
+          Start My Case
         </a>
       </div>
     </section>
@@ -81,19 +81,19 @@ const schema = [
       <article class="bg-surface border border-border rounded-lg p-5 space-y-3">
         <h2 class="font-bold">Private by default</h2>
         <p class="text-sm leading-relaxed text-text-dim">
-          New case evaluations live inside your workspace. The public demo case is separate from private family workspaces.
+          New draft cases live inside your workspace. The public demo case is separate from private family workspaces.
         </p>
       </article>
       <article class="bg-surface border border-border rounded-lg p-5 space-y-3">
         <h2 class="font-bold">No sale of case data</h2>
         <p class="text-sm leading-relaxed text-text-dim">
-          We do not sell family case files. We use service providers to run the product, authenticate users, host the app, and generate evaluations.
+          We do not sell family case files. We use service providers to run the product, authenticate users, host the app, and generate Case Reads and packet outputs.
         </p>
       </article>
       <article class="bg-surface border border-border rounded-lg p-5 space-y-3">
         <h2 class="font-bold">Human-use output</h2>
         <p class="text-sm leading-relaxed text-text-dim">
-          Evaluations are informational. They are not legal advice, not a legal filing, and not an automated decision about a child.
+          Case Reads are informational. They are not legal advice, not a legal filing, and not an automated decision about a child.
         </p>
       </article>
     </section>
@@ -106,7 +106,7 @@ const schema = [
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">Authentication and workspace boundaries</h3>
           <p class="text-sm leading-relaxed text-text-dim">
-            Sign-in is handled through Clerk. The backend verifies Clerk session tokens and scopes cases, documents, jobs, evaluations, profiles, entities, and records requests to the active workspace.
+            Sign-in is handled through Clerk. The backend verifies Clerk session tokens and scopes cases, documents, jobs, Case Reads, profiles, entities, and records requests to the active workspace.
           </p>
         </article>
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
@@ -118,7 +118,7 @@ const schema = [
         <article class="bg-surface border border-border rounded-lg p-5 space-y-2">
           <h3 class="font-semibold">Careful AI routing</h3>
           <p class="text-sm leading-relaxed text-text-dim">
-            The evaluation workflow uses model providers as processors to read intake details, extract evidence, identify gaps, and synthesize next steps. We route cheaper models to extraction and stronger models to deeper review when a plan allows it.
+            The Case Advocate and Case Read workflows use model providers as processors to read intake details, extract evidence, identify gaps, and synthesize next steps. We route cheaper models to extraction and stronger models to deeper review when a plan allows it.
           </p>
           <a class="text-sm font-semibold text-accent hover:text-accent-hover" href="/ai-disclosure">
             Read the AI disclosure

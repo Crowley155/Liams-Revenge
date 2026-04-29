@@ -9,6 +9,7 @@ import {
   fetchRecordsRequestDrafts,
   fetchSelfAdvocacyPacket,
   startCaseEvaluation,
+  updateCase,
   updateSupportConsent,
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
@@ -31,8 +32,10 @@ export default function CaseDetail() {
   const [checklist, setChecklist] = useState([]);
   const [recordsDrafts, setRecordsDrafts] = useState([]);
   const [supportForm, setSupportForm] = useState(EMPTY_SUPPORT);
+  const [familyNarrative, setFamilyNarrative] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [savingNarrative, setSavingNarrative] = useState(false);
   const [savingSupport, setSavingSupport] = useState(false);
 
   const loadCase = useCallback(async () => {
@@ -54,6 +57,7 @@ export default function CaseDetail() {
         fetchRecordsRequestDrafts(caseId).catch(() => ({ records: [] })),
       ]);
       setCaseRecord(nextCase);
+      setFamilyNarrative(nextCase.family_narrative || nextCase.intake?.narrative || '');
       setDocuments(nextDocs);
       setEvaluation(nextEval);
       setPacket(nextPacket);
@@ -75,6 +79,16 @@ export default function CaseDetail() {
     };
   }, [loadCase]);
 
+  useEffect(() => {
+    const handleCaseUpdated = (event) => {
+      if (!event.detail?.caseId || event.detail.caseId === caseId) {
+        loadCase();
+      }
+    };
+    window.addEventListener('usdwatch:case-updated', handleCaseUpdated);
+    return () => window.removeEventListener('usdwatch:case-updated', handleCaseUpdated);
+  }, [caseId, loadCase]);
+
   const result = evaluation?.result;
   const issueCategories = caseRecord?.intake?.issue_categories?.length
     ? caseRecord.intake.issue_categories
@@ -87,12 +101,13 @@ export default function CaseDetail() {
 
   const nextActions = useMemo(() => {
     const actions = [];
+    if (!(caseRecord?.family_narrative || caseRecord?.intake?.narrative)) actions.push('Tell the Case Advocate what happened so USDWatch can start a Family Narrative.');
     if (!documents.length) actions.push('Add the strongest document, email, screenshot, or incident note to the Evidence Locker.');
-    if (!evaluation) actions.push('Run the free evaluation so USDWatch can organize the first case read.');
+    if (!evaluation) actions.push('Run the first Case Read so USDWatch can organize what it sees from the story and evidence.');
     if (missingCount > 0) actions.push('Review missing evidence and decide which records requests should be sent first.');
-    if (!packet) actions.push('Open the packet tab after evaluation to print a self-advocacy plan.');
-    return actions.length ? actions.slice(0, 4) : ['Keep evidence current, track records responses, and refresh the evaluation when something important changes.'];
-  }, [documents.length, evaluation, missingCount, packet]);
+    if (!packet && evaluation) actions.push('Open the packet tab after the Case Read to print a self-advocacy plan.');
+    return actions.length ? actions.slice(0, 4) : ['Keep evidence current, track records responses, and refresh the Case Read when something important changes.'];
+  }, [caseRecord?.family_narrative, caseRecord?.intake?.narrative, documents.length, evaluation, missingCount, packet]);
 
   const updateSupportField = (field, value) => {
     setSupportForm((current) => ({ ...current, [field]: value }));
@@ -105,9 +120,23 @@ export default function CaseDetail() {
       const next = await startCaseEvaluation(caseId);
       setEvaluation(next);
     } catch (err) {
-      setError(err.message || 'Failed to start evaluation');
+      setError(err.message || 'Failed to start Case Read');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const handleSaveNarrative = async () => {
+    setSavingNarrative(true);
+    setError('');
+    try {
+      const nextCase = await updateCase(caseId, { family_narrative: familyNarrative });
+      setCaseRecord(nextCase);
+      setFamilyNarrative(nextCase.family_narrative || '');
+    } catch (err) {
+      setError(err.message || 'Failed to save Family Narrative');
+    } finally {
+      setSavingNarrative(false);
     }
   };
 
@@ -187,9 +216,10 @@ export default function CaseDetail() {
           <Link to="/cases" className="text-sm font-semibold text-accent hover:text-accent-hover">Cases</Link>
           <h2 className="text-3xl font-bold tracking-tight">{caseRecord.title}</h2>
           <p className="max-w-3xl text-sm leading-relaxed text-text-dim">
-            A calmer working desk for your story, evidence, records requests, evaluation, and self-advocacy packet.
+            A calmer working desk for your Family Narrative, evidence, records requests, Case Read, and self-advocacy packet.
           </p>
           <div className="flex flex-wrap gap-2">
+            <StatusPill status={caseRecord.status} />
             <StatusPill status={caseRecord.intake?.urgency_level || 'routine'} />
             {issueCategories.map((category) => <StatusPill key={category} status={category} />)}
             {caseRecord.intake?.safety_risk && <StatusPill status="safety risk" />}
@@ -216,7 +246,7 @@ export default function CaseDetail() {
             onClick={handleRunEvaluation}
             className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
           >
-            {evaluation ? 'Refresh Evaluation' : 'Run Evaluation'}
+            {evaluation ? 'Refresh Case Read' : 'Run Case Read'}
           </button>
         </div>
       </div>
@@ -229,6 +259,30 @@ export default function CaseDetail() {
         <Metric label="Gaps To Close" value={missingCount} detail="Missing or recommended evidence." />
         <Metric label="Records Requests" value={activeRecordCount} detail="Drafts and tracked requests." />
       </div>
+
+      <Panel
+        title="Family Narrative"
+        eyebrow={caseRecord.advocate_state?.family_narrative_manual ? 'Parent-edited' : 'Case Advocate draft'}
+        action={(
+          <button
+            disabled={savingNarrative || familyNarrative === (caseRecord.family_narrative || caseRecord.intake?.narrative || '')}
+            onClick={handleSaveNarrative}
+            className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
+          >
+            {savingNarrative ? 'Saving...' : 'Save Narrative'}
+          </button>
+        )}
+      >
+        <p className="mb-3 max-w-3xl text-sm leading-relaxed text-text-dim">
+          This is the parent-centered story the Case Advocate helps assemble. Edits you save here stay in control unless you later accept a suggested revision.
+        </p>
+        <textarea
+          value={familyNarrative}
+          onChange={(event) => setFamilyNarrative(event.target.value)}
+          className="min-h-[150px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-relaxed text-text outline-none transition-colors focus:border-accent"
+          placeholder="Tell the story the way you would tell a trusted advocate: what happened, who was affected, what worries you now, and what you need next."
+        />
+      </Panel>
 
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
         <aside className="space-y-5">
@@ -247,7 +301,7 @@ export default function CaseDetail() {
         <main className="space-y-5">
           <Panel title="What USDWatch Sees" eyebrow="Current read">
             <p className="max-w-3xl text-sm leading-relaxed text-text-dim">
-              {packet?.what_usdwatch_sees || result?.executive_summary || 'Run an evaluation to generate a fuller case read.'}
+              {packet?.what_usdwatch_sees || result?.executive_summary || 'Run a Case Read to generate a fuller current read.'}
             </p>
             <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
               <div>

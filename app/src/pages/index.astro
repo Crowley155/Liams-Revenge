@@ -2,8 +2,8 @@
 import '../index.css';
 import App from '../App.jsx';
 
-const title = 'USDWatch | Free School-District Case Evaluation for Parents';
-const description = 'USDWatch helps parents organize school records, evidence, missing records, records requests, and next steps into a private self-advocacy case file.';
+const title = 'USDWatch | Case Advocate for Parents';
+const description = 'USDWatch helps parents start a private draft case, organize school records and evidence, identify missing records, and build a self-advocacy plan.';
 const canonical = 'https://usdwatch.com/';
 const image = 'https://usdwatch.com/images/hero-briefing.png';
 const schemas = [
@@ -49,7 +49,7 @@ const schemas = [
       '@type': 'Offer',
       price: '0',
       priceCurrency: 'USD',
-      description: 'Free case evaluation for parents and guardians.',
+      description: 'Free draft case workspace for parents and guardians.',
     },
     audience: {
       '@type': 'Audience',
@@ -73,7 +73,7 @@ const schemas = [
         name: 'Is USDWatch a law firm?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'No. USDWatch is not a law firm and does not provide legal advice. Evaluations are informational and should be reviewed by a qualified attorney or advocate before a parent relies on them legally.',
+          text: 'No. USDWatch is not a law firm and does not provide legal advice. Case Reads and packets are informational and should be reviewed by a qualified attorney or advocate before a parent relies on them legally.',
         },
       },
       {
@@ -94,10 +94,10 @@ const schemas = [
       },
       {
         '@type': 'Question',
-        name: 'What is included in the free evaluation?',
+        name: 'What is included in the free workspace?',
         acceptedAnswer: {
           '@type': 'Answer',
-          text: 'The free evaluation is designed to help a parent understand the story, evidence strength, likely gaps, useful records to request, meeting questions, and next steps for self-advocacy.',
+          text: 'The free workspace is designed to help a parent start a case file, work with the Case Advocate, understand evidence strength, identify gaps, draft records requests, prepare meeting questions, and plan next steps for self-advocacy.',
         },
       },
     ],
@@ -134,20 +134,20 @@ const schemas = [
     <noscript>
       <main class="min-h-screen bg-background text-text">
         <section class="mx-auto max-w-4xl px-4 py-12 sm:px-6 sm:py-16">
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Free case evaluation</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Free draft case workspace</p>
           <h1 class="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">USDWatch</h1>
           <p class="mt-5 text-base leading-7 text-text-dim">
-            USDWatch helps parents organize school records, emails, and evidence into a private case file. The evaluation is designed to identify evidence strength, missing records, records requests, meeting questions, and practical next steps.
+            USDWatch helps parents organize school records, emails, and evidence into a private draft case. The Case Advocate helps identify evidence strength, missing records, records requests, meeting questions, and practical next steps.
           </p>
           <div class="mt-6 flex flex-wrap gap-3">
-            <a href="/evaluate" class="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background">Evaluate My Case</a>
+            <a href="/evaluate" class="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background">Start My Case</a>
             <a href="/whats-next/" class="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text">How It Works</a>
             <a href="/trust/" class="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text">Trust Center</a>
           </div>
           <section class="mt-10 grid gap-4 sm:grid-cols-3">
             <article class="border-t border-border pt-4">
               <h2 class="font-semibold">Private workspace</h2>
-              <p class="mt-2 text-sm leading-6 text-text-dim">Free users get one active case evaluation assigned to their own account.</p>
+              <p class="mt-2 text-sm leading-6 text-text-dim">Free users get one draft or active case assigned to their own account.</p>
             </article>
             <article class="border-t border-border pt-4">
               <h2 class="font-semibold">Evidence Locker</h2>

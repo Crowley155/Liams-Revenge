@@ -297,7 +297,7 @@ export async function fetchDocuments(entityId = '', caseId = '') {
   return res.json();
 }
 
-// Workspaces and case evaluations
+// Workspaces and case reads
 export async function fetchWorkspace() {
   const res = await authFetch(`${API_BASE}/api/workspace`);
   if (!res.ok) throw new Error(`Failed to fetch workspace: ${res.status}`);
@@ -323,6 +323,15 @@ export async function createCase(data) {
   return res.json();
 }
 
+export async function openOrCreateDraftCase() {
+  const res = await authFetch(`${API_BASE}/api/cases/draft`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to open draft case: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function createIntakeSession() {
   const res = await authFetch(`${API_BASE}/api/intake/sessions`, { method: 'POST' });
   if (!res.ok) throw new Error(`Failed to start case advocate: ${res.status}`);
@@ -338,6 +347,27 @@ export async function sendIntakeMessage(sessionId, content) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || `Case advocate failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function fetchCaseAdvocateSession(caseId) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/session`);
+  if (!res.ok) throw new Error(`Failed to load Case Advocate: ${res.status}`);
+  return res.json();
+}
+
+export async function sendCaseAdvocateMessage(caseId, content) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Case Advocate failed: ${res.status}`);
   }
   return res.json();
 }
@@ -368,6 +398,20 @@ export async function createCaseFromIntake(sessionId, supportConsent) {
 export async function fetchCase(caseId) {
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}`);
   if (!res.ok) throw new Error(`Case not found: ${res.status}`);
+  return res.json();
+}
+
+export async function updateCase(caseId, data) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Update case failed: ${res.status}`);
+  }
   return res.json();
 }
 
@@ -519,20 +563,20 @@ export async function startCaseEvaluation(caseId) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Evaluation failed: ${res.status}`);
+    throw new Error(err.detail || `Case Read failed: ${res.status}`);
   }
   return res.json();
 }
 
 export async function fetchLatestEvaluation(caseId) {
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}/evaluations/latest`);
-  if (!res.ok) throw new Error(`Failed to fetch evaluation: ${res.status}`);
+  if (!res.ok) throw new Error(`Failed to fetch Case Read: ${res.status}`);
   return res.json();
 }
 
 export async function fetchCaseEvaluation(caseId, evaluationId) {
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}/evaluations/${evaluationId}`);
-  if (!res.ok) throw new Error(`Evaluation not found: ${res.status}`);
+  if (!res.ok) throw new Error(`Case Read not found: ${res.status}`);
   return res.json();
 }
 

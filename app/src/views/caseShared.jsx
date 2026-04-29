@@ -106,7 +106,7 @@ export function buildPacketText(packet, caseRecord) {
     packet.parent_story || 'No story entered.',
     '',
     'What USDWatch Sees',
-    packet.what_usdwatch_sees || 'Run an evaluation to generate this section.',
+    packet.what_usdwatch_sees || 'Run a Case Read to generate this section.',
     '',
     'Evidence Checklist',
     ...(packet.evidence_checklist || []).map((item) => `- [${formatLabel(item.status)}] ${item.item}: ${item.why_it_matters}`),

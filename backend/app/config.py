@@ -172,5 +172,30 @@ class Settings:
     def has_gmail_token_encryption(self) -> bool:
         return bool(self.gmail_token_encryption_key)
 
+    def validate_ai_model_providers(self) -> None:
+        """Keep production agent routing on the approved DeepInfra/NVIDIA path."""
+        disallowed = ("anthropic", "claude", "gemini")
+        model_fields = {
+            "PIPELINE_MODEL": self.pipeline_model,
+            "COLLECT_MODEL": self.collect_model,
+            "DISAMBIGUATE_MODEL": self.disambiguate_model,
+            "SYNTHESIZE_MODEL": self.synthesize_model,
+            "DEEPINFRA_EXTRACTION_MODEL": self.deepinfra_extraction_model,
+            "DEEPINFRA_REASONING_MODEL": self.deepinfra_reasoning_model,
+            "DEEPINFRA_PREMIUM_MODEL": self.deepinfra_premium_model,
+            "DEEPINFRA_FALLBACK_MODEL": self.deepinfra_fallback_model,
+        }
+        offenders = [
+            f"{name}={value}"
+            for name, value in model_fields.items()
+            if value and any(term in value.lower() for term in disallowed)
+        ]
+        if offenders:
+            raise RuntimeError(
+                "USDWatch AI model routing must not use Gemini, Anthropic, or Claude: "
+                + "; ".join(offenders)
+            )
+
 
 settings = Settings()
+settings.validate_ai_model_providers()

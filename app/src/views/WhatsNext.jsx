@@ -1,110 +1,45 @@
+import { Link } from 'react-router-dom';
+
 export default function WhatsNext() {
   return (
-    <div className="max-w-3xl mx-auto py-8 sm:py-14 px-2 space-y-12 animate-fade-up">
-
-      {/* Hero image */}
-      <div className="relative -mt-8 mb-2 rounded-2xl overflow-hidden">
-        <img
-          src="/images/whats-next-hero.webp"
-          alt=""
-          className="w-full h-48 sm:h-64 object-cover opacity-40"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-      </div>
-
-      {/* Headline */}
+    <div className="mx-auto max-w-4xl space-y-10 px-2 py-8 sm:py-14 animate-fade-up">
       <section className="space-y-5">
-        <h2 className="text-2xl sm:text-3xl font-bold leading-tight tracking-tight">
-          My son asked me to do something.
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">How It Works</p>
+        <h2 className="text-3xl font-bold leading-tight tracking-tight sm:text-5xl">
+          Talk to the Case Advocate. Build a case file. Leave with a plan.
         </h2>
-        <p className="text-[15px] leading-relaxed text-text/90">
-          He's six. He doesn't fully understand the system that failed him, but
-          he knows it did. And he asked me to make sure it doesn't happen to
-          other kids.
+        <p className="max-w-3xl text-base leading-relaxed text-text-dim">
+          USDWatch is built for parents trying to make sense of records, emails, meetings, discipline issues, bullying concerns, disability supports, retaliation worries, and unanswered records requests.
         </p>
-        <p className="text-[15px] leading-relaxed text-text/90">
-          I'm a dad who happens to know how to build things. So I spent nights
-          and weekends doing what any engineer-parent would do when the system
-          tells you to go pound sand: I built a tool that fights back.
-        </p>
-        <p className="text-[15px] leading-relaxed text-text/90">
-          No budget. No team. No venture funding. Just a parent with a laptop,
-          Cursor, and the kind of motivation that comes from watching a
-          bureaucracy shrug at your kid.
-        </p>
-      </section>
-
-      {/* What I built */}
-      <section className="space-y-5">
-        <h3 className="text-lg font-bold tracking-tight">
-          What a weekend project looks like when the stakes are real
-        </h3>
-        <div className="text-[15px] leading-relaxed text-text/90 space-y-5">
-          <p>
-            The Case Command Center isn't a chatbot and it isn't a wrapper around
-            ChatGPT. It's a <strong>multi-pass agentic pipeline</strong> — the
-            kind of architecture you'd normally see inside an enterprise
-            platform, except I pointed it at the public institutions that failed
-            my family.
-          </p>
-          <p>
-            A cheap model runs collection — web search, scraping school board
-            minutes, policy manuals, incident reports — and dumps everything into
-            a <strong>vector database</strong> for semantic retrieval. A
-            reasoning model handles{' '}
-            <strong>identity disambiguation</strong>, gating every document
-            through an identity anchor so the system knows who it's actually
-            looking at (and learns who the target is <em>not</em> through
-            negative anchors). A third pass synthesizes the final output with{' '}
-            <strong>four-tier confidence scoring</strong> — confirmed, probable,
-            uncertain, rejected — so nothing ambiguous makes it into the case
-            file.
-          </p>
-          <p>
-            It <strong>maps organizational relationships</strong> — who reports
-            to whom, which contracts bind which parties, where the policy says
-            one thing and the records say another. It analyzes the{' '}
-            <strong>gaps in your evidence</strong> and generates public records
-            request letters targeting exactly what's missing. When those records
-            come back, you upload them. The system parses, chunks, and
-            vector-indexes the new documents, then re-analyzes your case with
-            the fresh data folded in.
-          </p>
-          <p>
-            DSPy typed signatures instead of raw prompts. LiteLLM for
-            provider-agnostic model routing. Qdrant for semantic deduplication at
-            0.92 cosine similarity. Graceful degradation on every external
-            service. Human-in-the-loop gates on every enrichment action.
-          </p>
-          <p>
-            All of it running on a $20/month Railway container. The whole thing
-            is a feedback loop that hands your attorney a case file that would've
-            taken them untold billable hours to assemble. For free.
-          </p>
+        <div className="flex flex-wrap gap-3">
+          <Link to="/evaluate" className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background hover:bg-accent-hover">
+            Start My Case
+          </Link>
+          <a href="/trust" className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text hover:bg-surface-alt">
+            Trust Center
+          </a>
         </div>
       </section>
 
-      {/* The ask */}
-      <section className="border-t border-border pt-10 space-y-4">
-        <p className="text-[15px] leading-relaxed text-text/90">
-          One parent. A weekend project that kept growing because the
-          bureaucracy kept stonewalling. That's all this is. And if I can build
-          it alone, imagine what happens when other parents — other engineers,
-          other attorneys, other people who are tired of being told "that's not
-          our department" — start contributing.
-        </p>
-        <p className="text-[15px] leading-relaxed text-text/90">
-          The base promise is a free case evaluation: enough to understand your
-          evidence, gaps, records targets, and next steps without a credit card.
-          Organization plans fund the infrastructure so families can still start
-          without paying at the moment they need help.
-        </p>
-        <p className="text-base font-semibold text-accent">
-          If you're a parent fighting the same fight — you're not alone.
-          And soon, you won't be unarmed either.
-        </p>
+      <section className="grid gap-4 md:grid-cols-3">
+        {[
+          ['1. Draft the story', 'Start in plain English. The Case Advocate organizes draft facts and asks one useful follow-up question at a time.'],
+          ['2. Add evidence', 'Use the Evidence Locker for emails, PDFs, screenshots, IEP or 504 documents, incident reports, meeting notes, photos, and agency letters.'],
+          ['3. Run a Case Read', 'When you are ready, USDWatch summarizes what it sees, what is missing, what records may help, and what next steps are practical.'],
+        ].map(([title, body]) => (
+          <article key={title} className="rounded-lg border border-border bg-surface p-5">
+            <h3 className="font-bold">{title}</h3>
+            <p className="mt-3 text-sm leading-relaxed text-text-dim">{body}</p>
+          </article>
+        ))}
       </section>
 
+      <section className="rounded-lg border border-border bg-surface p-5 sm:p-6">
+        <h3 className="text-xl font-bold">Why the base workspace is free</h3>
+        <p className="mt-3 text-sm leading-relaxed text-text-dim">
+          Parents often need clarity before they know whether to call an attorney, file a records request, ask for a meeting, contact an advocate, or simply organize what they already have. The free workspace is meant to make that first step useful without a credit card.
+        </p>
+      </section>
     </div>
   );
 }

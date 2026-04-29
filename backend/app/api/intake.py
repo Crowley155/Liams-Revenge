@@ -160,6 +160,7 @@ async def create_case_from_intake(
         intake=_facts_to_intake(facts),
         support_consent=support_consent,
         summary=(facts.narrative or "")[:280],
+        family_narrative=facts.narrative or "",
         created_by=user["id"],
     )
     cases[case.id] = case

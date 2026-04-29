@@ -27,7 +27,7 @@ export default function Login() {
   return (
     <div className="max-w-md mx-auto py-14 space-y-8 animate-fade-up">
       <div className="space-y-3">
-        <p className="text-xs uppercase tracking-[0.18em] text-accent font-semibold">Free case evaluation</p>
+        <p className="text-xs uppercase tracking-[0.18em] text-accent font-semibold">Free draft case workspace</p>
         <h2 className="text-3xl font-bold tracking-tight">Sign in to USDWatch</h2>
         <p className="text-sm leading-relaxed text-text-dim">
           New sign-ups are temporarily closed while the private case workflow is being reviewed.
