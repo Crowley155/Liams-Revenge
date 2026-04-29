@@ -15,6 +15,8 @@ Flow:
 """
 from __future__ import annotations
 
+from app.time import utc_now
+
 import logging
 from datetime import datetime
 
@@ -55,7 +57,7 @@ def run_enrichment_pipeline(person: Person, job: ResearchJob) -> Person:
     Updates job status as it progresses.
     """
     job.status = JobStatus.ENRICHING
-    job.started_at = datetime.utcnow()
+    job.started_at = utc_now()
     jobs[job.id] = job
 
     worker_results: list[dict] = []
@@ -159,7 +161,7 @@ def run_enrichment_pipeline(person: Person, job: ResearchJob) -> Person:
     from app.pipeline.enrichment.unifier import unify_enrichment
     person = unify_enrichment(person, worker_results)
 
-    person.updated_at = datetime.utcnow()
+    person.updated_at = utc_now()
     profiles[person.id] = person
 
     logger.info(

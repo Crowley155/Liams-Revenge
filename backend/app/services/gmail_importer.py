@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import utc_now
+
 import base64
 import hashlib
 import html
@@ -88,12 +90,12 @@ def refresh_access_token(connection: GmailConnection) -> str:
     if response.status_code >= 400:
         connection.status = "error"
         connection.error = f"Google token refresh failed: {response.status_code}"
-        connection.updated_at = datetime.utcnow()
+        connection.updated_at = utc_now()
         gmail_connections[connection.id] = connection
         raise GmailImportError(connection.error)
     body = response.json()
-    connection.token_last_refreshed_at = datetime.utcnow()
-    connection.updated_at = datetime.utcnow()
+    connection.token_last_refreshed_at = utc_now()
+    connection.updated_at = utc_now()
     gmail_connections[connection.id] = connection
     return body["access_token"]
 
@@ -139,9 +141,9 @@ def store_refresh_token(connection: GmailConnection, tokens: dict[str, Any], *, 
     connection.error = ""
     connection.oauth_state_hash = ""
     connection.oauth_state_expires_at = None
-    connection.connected_at = datetime.utcnow()
+    connection.connected_at = utc_now()
     connection.disconnected_at = None
-    connection.updated_at = datetime.utcnow()
+    connection.updated_at = utc_now()
     gmail_connections[connection.id] = connection
     return connection
 
@@ -214,7 +216,7 @@ def import_matching_messages(
         rule=connection.rule,
         query=q,
         message_ids=message_ids or [],
-        started_at=datetime.utcnow(),
+        started_at=utc_now(),
     )
     gmail_import_runs[run.id] = run
 
@@ -243,17 +245,17 @@ def import_matching_messages(
                 run.imported_document_ids.append(body_doc.id)
             run.imported_attachments += attachment_count
 
-        connection.last_sync_at = datetime.utcnow()
-        connection.updated_at = datetime.utcnow()
+        connection.last_sync_at = utc_now()
+        connection.updated_at = utc_now()
         gmail_connections[connection.id] = connection
         run.status = "complete"
-        run.completed_at = datetime.utcnow()
+        run.completed_at = utc_now()
         gmail_import_runs[run.id] = run
         return run
     except Exception as exc:
         run.status = "failed"
         run.error = str(exc)
-        run.completed_at = datetime.utcnow()
+        run.completed_at = utc_now()
         gmail_import_runs[run.id] = run
         raise
 

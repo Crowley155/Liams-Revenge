@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import utc_now
+
 import hashlib
 import io
 import json
@@ -119,11 +121,11 @@ def _ensure_owner_workspace(owner_email: str) -> tuple[AppUser, Workspace]:
         if workspace:
             if owner_is_elevated and workspace.plan == WorkspacePlan.FREE:
                 workspace.plan = WorkspacePlan.ADMIN
-                workspace.updated_at = datetime.utcnow()
+                workspace.updated_at = utc_now()
                 workspaces[workspace.id] = workspace
             if owner_is_elevated and user.role != "admin":
                 user.role = "admin"
-                user.updated_at = datetime.utcnow()
+                user.updated_at = utc_now()
                 _save_user(user)
             return user, workspace
 
@@ -143,7 +145,7 @@ def _ensure_owner_workspace(owner_email: str) -> tuple[AppUser, Workspace]:
     )
     workspaces[workspace.id] = workspace
     user.workspace_id = workspace.id
-    user.updated_at = datetime.utcnow()
+    user.updated_at = utc_now()
     _save_user(user)
     return user, workspace
 
@@ -210,7 +212,7 @@ def _claim_or_create_case(case_id: str, user: AppUser, workspace: Workspace) -> 
         intake.safety_risk = True
         intake.urgent = True
 
-    case.updated_at = datetime.utcnow()
+    case.updated_at = utc_now()
     cases[case.id] = case
 
     if old_workspace_id == LEGACY_WORKSPACE_ID:
@@ -219,7 +221,7 @@ def _claim_or_create_case(case_id: str, user: AppUser, workspace: Workspace) -> 
                 if getattr(item, "case_id", "") == case_id and getattr(item, "workspace_id", "") == LEGACY_WORKSPACE_ID:
                     item.workspace_id = workspace.id
                     if hasattr(item, "updated_at"):
-                        item.updated_at = datetime.utcnow()
+                        item.updated_at = utc_now()
                     store[item_id] = item
 
     return case
@@ -493,7 +495,7 @@ def import_kora_zip(
     offset = max(0, offset)
     max_files = max(0, max_files)
     zip_file.seek(0)
-    batch_id = f"kora-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
+    batch_id = f"kora-{utc_now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:6]}"
 
     with zipfile.ZipFile(zip_file) as zf:
         manifest, by_hash = _manifest_for_zip(zf, inspect_text=True)
@@ -634,7 +636,7 @@ def import_kora_zip(
             doc.processing_status = doc.status
             doc.failure_reason = None if doc.status == "indexed" else (text_error or status_note or "No usable text extracted")
             doc.error = doc.failure_reason if doc.status != "indexed" else None
-            doc.processed_at = datetime.utcnow()
+            doc.processed_at = utc_now()
             case_documents[doc.id] = doc
 
             if doc.status == "indexed":
@@ -647,7 +649,7 @@ def import_kora_zip(
                 needs_review += 1
             imported += 1
 
-        case.updated_at = datetime.utcnow()
+        case.updated_at = utc_now()
         cases[case.id] = case
 
         return {

@@ -9,6 +9,8 @@ POST /api/kora/requests/{id}/mark-sent — mark as sent
 """
 from __future__ import annotations
 
+from app.time import utc_now
+
 import logging
 import uuid
 from datetime import datetime
@@ -31,7 +33,7 @@ def _run_kora_generation(job: ResearchJob):
         from app.pipeline.kora_generator import generate_kora_requests
 
         job.status = JobStatus.SEARCHING
-        job.started_at = datetime.utcnow()
+        job.started_at = utc_now()
         jobs[job.id] = job
 
         requests = generate_kora_requests()
@@ -42,7 +44,7 @@ def _run_kora_generation(job: ResearchJob):
             kora_requests[req.id] = req
 
         job.status = JobStatus.COMPLETE
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utc_now()
         job.facts_found = len(requests)
         jobs[job.id] = job
 
@@ -52,7 +54,7 @@ def _run_kora_generation(job: ResearchJob):
         logger.exception("KORA generation failed")
         job.status = JobStatus.FAILED
         job.error = str(e)
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utc_now()
         jobs[job.id] = job
     finally:
         try:
@@ -144,7 +146,7 @@ async def update_kora_request(request_id: str, body: KoraRequestUpdate, user: di
         entities_by_id = {e.id: e for e in entity_store.values()}
         req.letter_text = _render_letter(req, entities_by_id)
 
-    req.updated_at = datetime.utcnow()
+    req.updated_at = utc_now()
     kora_requests[request_id] = req
     return req
 
@@ -157,8 +159,8 @@ async def mark_sent(request_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="KORA request not found")
 
     req.status = "sent"
-    req.sent_at = datetime.utcnow()
-    req.updated_at = datetime.utcnow()
+    req.sent_at = utc_now()
+    req.updated_at = utc_now()
     kora_requests[request_id] = req
 
     logger.info("KORA request %s marked as sent", request_id)

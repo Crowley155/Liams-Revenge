@@ -10,6 +10,8 @@ After all workers run, this module:
 """
 from __future__ import annotations
 
+from app.time import utc_now
+
 import logging
 from collections import Counter
 
@@ -89,7 +91,7 @@ def unify_enrichment(person: Person, worker_results: list[dict]) -> Person:
         logger.warning("Identity contradictions for %s: %s", person.name, contradictions)
 
     from datetime import datetime
-    person.enriched_at = datetime.utcnow()
+    person.enriched_at = utc_now()
 
     return person
 

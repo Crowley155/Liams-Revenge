@@ -19,6 +19,8 @@ POST   /api/entities/{id}/facts/{fact_id}/verify — mark a fact as verified
 """
 from __future__ import annotations
 
+from app.time import utc_now
+
 import logging
 import re
 import uuid
@@ -180,7 +182,7 @@ async def update_entity(entity_id: str, req: EntityUpdate, user: dict = Depends(
     for field, value in update_data.items():
         setattr(ent, field, value)
 
-    ent.updated_at = datetime.utcnow()
+    ent.updated_at = utc_now()
     entities[entity_id] = ent
     logger.info("Updated entity %s: %s (fields: %s)", entity_id, ent.name, list(update_data.keys()))
     return ent
@@ -210,7 +212,7 @@ async def delete_entity_fact(entity_id: str, fact_id: str, user: dict = Depends(
     ent.facts = [f for f in ent.facts if f.id != fact_id]
     if len(ent.facts) == original_len:
         raise HTTPException(status_code=404, detail="Fact not found")
-    ent.updated_at = datetime.utcnow()
+    ent.updated_at = utc_now()
     entities[entity_id] = ent
     return {"status": "deleted", "fact_id": fact_id}
 
@@ -224,7 +226,7 @@ async def verify_entity_fact(entity_id: str, fact_id: str, user: dict = Depends(
     if not fact:
         raise HTTPException(status_code=404, detail="Fact not found")
     fact.verified = True
-    ent.updated_at = datetime.utcnow()
+    ent.updated_at = utc_now()
     entities[entity_id] = ent
     return fact
 
@@ -256,17 +258,17 @@ def _run_entity_research(entity_id: str, job: ResearchJob):
             raise ValueError(f"Entity {entity_id} not found")
 
         job.status = JobStatus.SEARCHING
-        job.started_at = datetime.utcnow()
+        job.started_at = utc_now()
         jobs[job.id] = job
 
         updated_entity = run_entity_research_pipeline(ent, job)
 
-        updated_entity.last_researched = datetime.utcnow()
-        updated_entity.updated_at = datetime.utcnow()
+        updated_entity.last_researched = utc_now()
+        updated_entity.updated_at = utc_now()
         entities[entity_id] = updated_entity
 
         job.status = JobStatus.COMPLETE
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utc_now()
         job.facts_found = len(updated_entity.facts)
         jobs[job.id] = job
 
@@ -278,7 +280,7 @@ def _run_entity_research(entity_id: str, job: ResearchJob):
         logger.exception("Entity research failed for %s", entity_id)
         job.status = JobStatus.FAILED
         job.error = str(e)
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utc_now()
         jobs[job.id] = job
     finally:
         try:
@@ -307,7 +309,7 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
             raise ValueError(f"Entity {entity_id} not found")
 
         job.status = JobStatus.SEARCHING
-        job.started_at = datetime.utcnow()
+        job.started_at = utc_now()
         jobs[job.id] = job
 
         discovered = discover_entity_members(ent, prompt=prompt)
@@ -378,11 +380,11 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
                 added += 1
                 logger.info("  Pending: %s (%s)", name, role)
 
-        ent.updated_at = datetime.utcnow()
+        ent.updated_at = utc_now()
         entities[entity_id] = ent
 
         job.status = JobStatus.COMPLETE
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utc_now()
         job.facts_found = added
         jobs[job.id] = job
 
@@ -392,7 +394,7 @@ def _run_discovery(entity_id: str, job: ResearchJob, prompt: str = ""):
         logger.exception("Discovery failed for entity %s", entity_id)
         job.status = JobStatus.FAILED
         job.error = str(e)
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utc_now()
         jobs[job.id] = job
     finally:
         try:
@@ -512,7 +514,7 @@ async def accept_member(entity_id: str, body: MemberAction, user: dict = Depends
     member.person_id = person.id
     member.status = "accepted"
 
-    ent.updated_at = datetime.utcnow()
+    ent.updated_at = utc_now()
     entities[entity_id] = ent
 
     logger.info("Member ACCEPTED for %s: %s -> person %s", ent.name, member.discovered_name, person.id)
@@ -565,7 +567,7 @@ def _merge_preview_data(person: Person, preview: dict | None) -> None:
             existing_sources.add(url)
             person.enrichment_sources.append(url)
 
-    person.updated_at = datetime.utcnow()
+    person.updated_at = utc_now()
 
 
 @router.post("/entities/{entity_id}/members/reject", response_model=Entity)
@@ -585,7 +587,7 @@ async def reject_member(entity_id: str, body: MemberAction, user: dict = Depends
 
     member.status = "rejected"
 
-    ent.updated_at = datetime.utcnow()
+    ent.updated_at = utc_now()
     entities[entity_id] = ent
 
     logger.info("Member REJECTED for %s: %s", ent.name, member.discovered_name)

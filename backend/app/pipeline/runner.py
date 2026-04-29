@@ -20,6 +20,8 @@ to group all LLM calls under a single trace per research job.
 """
 from __future__ import annotations
 
+from app.time import utc_now
+
 import json
 import logging
 import re
@@ -197,7 +199,7 @@ def _run_pipeline_phases(
     logger.info("Pass 1: COLLECT using %s", settings.collect_model)
 
     job.status = JobStatus.SEARCHING
-    job.started_at = datetime.utcnow()
+    job.started_at = utc_now()
     _persist_job(job)
 
     with dspy.context(lm=collect_lm):
@@ -267,9 +269,9 @@ def _run_pipeline_phases(
         _pass3_validate(profile_facts, url_to_text)
 
     job.status = JobStatus.COMPLETE
-    job.completed_at = datetime.utcnow()
+    job.completed_at = utc_now()
     _persist_job(job)
-    person.updated_at = datetime.utcnow()
+    person.updated_at = utc_now()
 
     person.facts = [f for f in all_facts if f.tier != ConfidenceTier.D_REJECTED]
 

@@ -21,52 +21,18 @@ import {
   formatBytes,
   formatLabel,
 } from './caseShared';
-
-const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp,.docx,.eml,.txt,.md';
-const IMAGE_COMPRESS_THRESHOLD = 10 * 1024 * 1024;
-const MAX_DIMENSION = 2600;
-
-const CATEGORY_OPTIONS = [
-  { value: '', label: 'All categories' },
-  { value: 'messages', label: 'Messages' },
-  { value: 'school_records', label: 'School records' },
-  { value: 'iep_504_services', label: 'IEP/504 and services' },
-  { value: 'incident_safety', label: 'Incident and safety' },
-  { value: 'medical_provider', label: 'Medical/outside provider' },
-  { value: 'complaints_agency', label: 'Complaints and agency letters' },
-  { value: 'photos_screenshots', label: 'Photos/screenshots' },
-  { value: 'other', label: 'Other' },
-];
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
-  { value: 'indexed', label: 'Indexed' },
-  { value: 'processing', label: 'Processing' },
-  { value: 'needs_review', label: 'Needs review' },
-  { value: 'failed', label: 'Failed' },
-];
-
-function statusOf(doc) {
-  return doc.processing_status || doc.status || 'uploaded';
-}
+import {
+  ACCEPTED_EVIDENCE_FILE_TYPES,
+  EVIDENCE_CATEGORY_OPTIONS,
+  EVIDENCE_STATUS_OPTIONS,
+  evidenceCategoryLabel,
+  evidenceStatusHelp,
+  evidenceStatusOf,
+  maybeCompressImage,
+} from '../utils/evidence';
 
 function categoryLabel(value) {
-  return CATEGORY_OPTIONS.find((item) => item.value === value)?.label || formatLabel(value || 'evidence');
-}
-
-async function maybeCompressImage(file) {
-  if (!file.type.startsWith('image/') || file.size <= IMAGE_COMPRESS_THRESHOLD) return { file, compressed: false };
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
-  if (!blob || blob.size >= file.size) return { file, compressed: false };
-  const nextName = file.name.replace(/\.[^.]+$/, '') + '-compressed.jpg';
-  return { file: new File([blob], nextName, { type: 'image/jpeg' }), compressed: true };
+  return evidenceCategoryLabel(value, formatLabel);
 }
 
 function UploadQueueItem({ item, onRemove }) {
@@ -101,7 +67,7 @@ function DocumentPreview({ preview, contentUrl, onClose }) {
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/80">Evidence preview</p>
             <h3 className="mt-1 truncate text-lg font-bold">{doc.filename}</h3>
-            <p className="mt-1 text-xs text-text-dim">{categoryLabel(doc.inferred_category)} - {formatBytes(doc.file_size)} - {formatLabel(statusOf(doc))}</p>
+            <p className="mt-1 text-xs text-text-dim">{categoryLabel(doc.inferred_category)} - {formatBytes(doc.file_size)} - {formatLabel(evidenceStatusOf(doc))}</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-md p-2 text-text-dim transition-colors hover:bg-surface-alt hover:text-text" title="Close preview" aria-label="Close preview">
             <X className="h-5 w-5" aria-hidden="true" />
@@ -200,7 +166,7 @@ export default function EvidenceLocker() {
   const counts = useMemo(() => {
     const next = { total: documents.length, indexed: 0, processing: 0, needs_review: 0, failed: 0 };
     for (const doc of documents) {
-      const status = statusOf(doc);
+      const status = evidenceStatusOf(doc);
       if (status === 'indexed') next.indexed += 1;
       else if (status === 'needs_review') next.needs_review += 1;
       else if (status === 'failed') next.failed += 1;
@@ -436,7 +402,7 @@ export default function EvidenceLocker() {
                 <FileUp className="h-7 w-7 text-accent" aria-hidden="true" />
                 <span className="mt-3 text-sm font-semibold text-text">Drop files here or browse</span>
                 <span className="mt-1 text-xs leading-relaxed text-text-dim">Multiple files. Up to 50 MB each. Large images may be compressed for indexing.</span>
-                <input className="hidden" type="file" multiple accept={ACCEPTED} onChange={(event) => addFiles(event.target.files)} />
+                <input className="hidden" type="file" multiple accept={ACCEPTED_EVIDENCE_FILE_TYPES} onChange={(event) => addFiles(event.target.files)} />
               </label>
               {queue.length > 0 && (
                 <div className="space-y-3">
@@ -450,8 +416,12 @@ export default function EvidenceLocker() {
             </div>
           </Panel>
 
-          <Panel title="Import From Gmail" eyebrow="Beta">
-            <div className="space-y-3">
+          <details className="rounded-lg border border-border bg-surface/70">
+            <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-text">
+              <span>Import from Gmail</span>
+              <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-dim">Beta</span>
+            </summary>
+            <div className="space-y-3 border-t border-border p-4">
               <div className="flex items-start gap-3 rounded-md border border-border bg-background p-3">
                 <Mail className="mt-0.5 h-5 w-5 text-accent" aria-hidden="true" />
                 <p className="text-xs leading-relaxed text-text-dim">
@@ -524,7 +494,7 @@ export default function EvidenceLocker() {
                 {gmailStatus?.configured ? 'OAuth and encrypted token storage are configured on the backend.' : gmailStatus?.message || 'Backend OAuth credentials are not configured yet, so this saves the rule but does not connect Gmail.'}
               </p>
             </div>
-          </Panel>
+          </details>
         </aside>
 
         <main className="space-y-5">
@@ -535,10 +505,10 @@ export default function EvidenceLocker() {
                 <input className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-accent" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Search filenames, tags, sources, or extracted text" />
               </label>
               <select className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}>
-                {CATEGORY_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                {EVIDENCE_CATEGORY_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
               <select className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
-                {STATUS_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                {EVIDENCE_STATUS_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
               <select className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={`${filters.sort}:${filters.direction}`} onChange={(event) => {
                 const [sort, direction] = event.target.value.split(':');
@@ -570,7 +540,7 @@ export default function EvidenceLocker() {
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="truncate text-sm font-semibold text-text">{doc.filename}</h3>
-                          <StatusPill status={statusOf(doc)} />
+                          <StatusPill status={evidenceStatusOf(doc)} />
                           {doc.ocr_status && doc.ocr_status !== 'not_required' && <StatusPill status={`ocr ${doc.ocr_status}`} />}
                         </div>
                         <p className="mt-1 text-xs text-text-dim">
@@ -578,6 +548,7 @@ export default function EvidenceLocker() {
                           {doc.document_date ? ` - ${doc.document_date}` : ''}
                           {doc.source_person ? ` - from ${doc.source_person}` : ''}
                         </p>
+                        <p className="mt-2 text-xs leading-relaxed text-text-dim">{evidenceStatusHelp(evidenceStatusOf(doc))}</p>
                         {!!doc.tags?.length && (
                           <div className="mt-2 flex flex-wrap gap-1">
                             {doc.tags.slice(0, 5).map((tag) => <span key={tag} className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-dim">{categoryLabel(tag)}</span>)}

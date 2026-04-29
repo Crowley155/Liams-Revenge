@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import utc_now
+
 import uuid
 from datetime import datetime
 
@@ -40,14 +42,14 @@ def _consent_with_timestamp(consent: SupportConsent) -> SupportConsent:
     opted_in = consent.attorney_contact_opt_in or consent.advocacy_contact_opt_in or consent.media_contact_opt_in
     if opted_in and consent.share_summary_consent:
         if not consent.consented_at:
-            consent.consented_at = datetime.utcnow()
+            consent.consented_at = utc_now()
         consent.revoked_at = None
     elif opted_in:
         consent.consented_at = None
         consent.revoked_at = None
     if not opted_in:
         consent.consented_at = None
-        consent.revoked_at = datetime.utcnow()
+        consent.revoked_at = utc_now()
         consent.share_summary_consent = False
     return consent
 
@@ -134,7 +136,7 @@ async def update_intake_facts(
     current.update(clean_patch)
     session.facts = CaseIntakeFacts(**current)
     session.user_overrides.update(clean_patch)
-    session.updated_at = datetime.utcnow()
+    session.updated_at = utc_now()
     case_intake_sessions[session.id] = session
     return session
 
@@ -163,6 +165,6 @@ async def create_case_from_intake(
     cases[case.id] = case
     session.status = "case_created"
     session.draft_case_id = case.id
-    session.updated_at = datetime.utcnow()
+    session.updated_at = utc_now()
     case_intake_sessions[session.id] = session
     return case

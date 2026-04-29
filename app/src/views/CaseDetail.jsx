@@ -22,18 +22,6 @@ import {
   formatLabel,
 } from './caseShared';
 
-function ActionLink({ to, title, detail }) {
-  return (
-    <Link
-      to={to}
-      className="block rounded-md border border-border px-3 py-3 text-sm transition-colors hover:border-accent/40 hover:bg-surface-alt"
-    >
-      <span className="font-semibold text-text">{title}</span>
-      <span className="mt-1 block leading-relaxed text-text-dim">{detail}</span>
-    </Link>
-  );
-}
-
 export default function CaseDetail() {
   const { caseId } = useParams();
   const [caseRecord, setCaseRecord] = useState(null);
@@ -242,7 +230,7 @@ export default function CaseDetail() {
         <Metric label="Records Requests" value={activeRecordCount} detail="Drafts and tracked requests." />
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[360px_1fr]">
+      <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
         <aside className="space-y-5">
           <Panel title="What To Do Next" eyebrow="Case plan">
             <ol className="divide-y divide-border">
@@ -253,15 +241,6 @@ export default function CaseDetail() {
                 </li>
               ))}
             </ol>
-          </Panel>
-
-          <Panel title="Go To" eyebrow="Focused work">
-            <div className="space-y-2">
-              <ActionLink to="locker" title="Evidence Locker" detail="Upload, describe, review, and remove case files." />
-              <ActionLink to="records" title="Records Requests" detail="Generate requests and track sent, partial, fulfilled, or denied responses." />
-              <ActionLink to="evaluation" title="Evaluation" detail="Refresh USDWatch analysis after you add important evidence." />
-              <ActionLink to="packet" title="Packet" detail="Print or export your self-advocacy packet." />
-            </div>
           </Panel>
         </aside>
 

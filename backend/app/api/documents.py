@@ -7,12 +7,12 @@ GET  /api/documents/{id}     — single document detail
 """
 from __future__ import annotations
 
+from app.time import normalize_utc, utc_now
+
 import logging
 import hashlib
 import mimetypes
 import uuid
-from datetime import datetime
-from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
@@ -22,88 +22,27 @@ from app.models import CaseDocument, CaseDocumentUpdate
 from app.api._store import case_documents, cases
 from app.api.deps import can_access_workspace, get_current_user, scoped_items
 from app.services.document_classifier import infer_document_metadata
+from app.services.document_ingestion import process_document_bytes
 from app.services.document_storage import delete_document_file, resolve_document_path, save_case_document_file
+from app.services.evidence_uploads import validate_evidence_upload
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["documents"])
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-SUPPORTED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".tiff", ".tif", ".webp", ".bmp", ".docx", ".eml", ".txt", ".md"}
-
-
-def _validate_upload(filename: str, content: bytes) -> None:
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Evidence Locker files must be 50 MB or smaller for this version.")
-    ext = Path(filename or "").suffix.lower()
-    if ext not in SUPPORTED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Unsupported evidence file type. Upload PDF, image, Word, email, text, or markdown files.")
-
-
-def _apply_processing_result(doc: CaseDocument, extracted: str, file_type: str) -> CaseDocument:
-    from app.services.text_chunker import chunk_text
-
-    doc.file_type = file_type
-    doc.extracted_text = extracted
-    category, confidence, tags, evidence_type = infer_document_metadata(doc.filename, extracted)
-    doc.inferred_category = doc.inferred_category or category
-    doc.category_confidence = doc.category_confidence or confidence
-    doc.tags = sorted(set([*doc.tags, *tags]))
-    if not doc.evidence_type:
-        doc.evidence_type = evidence_type
-
-    if extracted.startswith("[OCR extraction needed:"):
-        doc.status = "processing"
-        doc.processing_status = "needs_review"
-        doc.ocr_status = "queued"
-        doc.failure_reason = extracted
-        doc.chunk_count = 0
-    elif extracted and not extracted.startswith("["):
-        doc.chunk_count = len(chunk_text(extracted, doc.id))
-        doc.status = "indexed"
-        doc.processing_status = "indexed"
-        doc.error = None
-        doc.failure_reason = None
-    else:
-        doc.status = "failed"
-        doc.processing_status = "failed"
-        doc.error = "No text could be extracted"
-        doc.failure_reason = doc.error
-    doc.processed_at = datetime.utcnow()
-    return doc
 
 
 def _process_document(doc: CaseDocument, content: bytes):
     """Background task: parse file, chunk text, embed in Qdrant."""
     try:
-        from app.services.document_parser import parse_file
-        from app.services.qdrant_client import store_document_chunks
-
         logger.info("Processing document %s (%s, %d bytes)", doc.id, doc.filename, len(content))
-
-        extracted, file_type = parse_file(doc.filename, content)
-        doc = _apply_processing_result(doc, extracted, file_type)
-
-        if doc.processing_status != "indexed":
-            case_documents[doc.id] = doc
-            return
-
-        from app.services.text_chunker import chunk_text
-        chunks = chunk_text(extracted, doc.id)
-
-        point_ids = store_document_chunks(
-            chunks=chunks,
-            document_id=doc.id,
-            entity_ids=doc.entity_ids,
-            person_ids=doc.person_ids,
-            source=doc.source,
-            metadata={"filename": doc.filename, "case_id": doc.case_id},
-        )
-        doc.qdrant_point_ids = point_ids
-        case_documents[doc.id] = doc
-
-        logger.info("Document %s indexed: %d chunks, %d Qdrant points",
-                     doc.id, len(chunks), len(point_ids))
-
-        _extract_facts_from_document(doc)
+        processed = process_document_bytes(doc, content)
+        if processed.processing_status == "indexed":
+            logger.info(
+                "Document %s indexed: %d chunks, %d Qdrant points",
+                processed.id,
+                processed.chunk_count,
+                len(processed.qdrant_point_ids),
+            )
+            _extract_facts_from_document(processed)
 
     except Exception as e:
         logger.exception("Document processing failed for %s", doc.id)
@@ -111,7 +50,7 @@ def _process_document(doc: CaseDocument, content: bytes):
         doc.processing_status = "failed"
         doc.error = str(e)
         doc.failure_reason = str(e)
-        doc.processed_at = datetime.utcnow()
+        doc.processed_at = utc_now()
         case_documents[doc.id] = doc
 
 
@@ -165,7 +104,7 @@ def _extract_facts_from_document(doc: CaseDocument):
                     person.facts.append(fact)
                     total_facts += 1
 
-                person.updated_at = datetime.utcnow()
+                person.updated_at = utc_now()
                 profiles[person.id] = person
                 logger.info("Extracted %d facts for %s from doc %s",
                             len(facts_raw), person.name, doc.id)
@@ -187,7 +126,7 @@ async def upload_document(
     entity_ids: Optional[str] = Form(default=""),
     person_ids: Optional[str] = Form(default=""),
     kora_request_id: Optional[str] = Form(default=""),
-    case_id: Optional[str] = Form(default="crowley-v-usd232"),
+    case_id: Optional[str] = Form(default=""),
     source: Optional[str] = Form(default="manual_upload"),
     evidence_type: Optional[str] = Form(default=""),
     user_description: Optional[str] = Form(default=""),
@@ -196,6 +135,8 @@ async def upload_document(
     user: dict = Depends(get_current_user),
 ):
     """Upload a document for processing. Returns immediately; processing runs in background."""
+    if not case_id:
+        raise HTTPException(status_code=400, detail="case_id is required")
     target_case = cases.get(case_id or "")
     if not target_case or not can_access_workspace(user, target_case.workspace_id):
         raise HTTPException(status_code=404, detail="Case not found")
@@ -203,7 +144,7 @@ async def upload_document(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
-    _validate_upload(file.filename or "", content)
+    validate_evidence_upload(file.filename or "", content)
 
     ent_ids = [e.strip() for e in (entity_ids or "").split(",") if e.strip()]
     per_ids = [p.strip() for p in (person_ids or "").split(",") if p.strip()]
@@ -287,7 +228,7 @@ async def list_documents(
         "size": lambda d: d.file_size,
         "status": lambda d: d.processing_status or d.status,
         "document_date": lambda d: d.document_date or "",
-        "uploaded_at": lambda d: d.uploaded_at,
+        "uploaded_at": lambda d: normalize_utc(d.uploaded_at),
     }
     docs.sort(key=key_map.get(sort, key_map["uploaded_at"]), reverse=direction != "asc")
     return docs[offset:offset + limit]

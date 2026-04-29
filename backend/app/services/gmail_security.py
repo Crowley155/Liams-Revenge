@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import utc_now
+
 import base64
 import hashlib
 import hmac
@@ -72,7 +74,7 @@ def decrypt_token(value: str) -> str:
 
 def new_oauth_state() -> tuple[str, str, datetime]:
     state = secrets.token_urlsafe(32)
-    return state, hash_oauth_state(state), datetime.utcnow() + timedelta(minutes=STATE_TTL_MINUTES)
+    return state, hash_oauth_state(state), utc_now() + timedelta(minutes=STATE_TTL_MINUTES)
 
 
 def hash_oauth_state(state: str) -> str:

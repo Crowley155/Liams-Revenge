@@ -20,6 +20,13 @@ async function authFetch(url, options = {}) {
   return res;
 }
 
+function requireCaseId(caseId) {
+  if (!caseId) {
+    throw new Error('caseId is required');
+  }
+  return caseId;
+}
+
 // --- Protected endpoints ---
 
 export async function fetchProfiles(caseId = '') {
@@ -212,8 +219,8 @@ export async function fetchEntityGraph(caseId = '') {
 }
 
 // KORA requests
-export async function generateKoraRequests(caseId = 'crowley-v-usd232') {
-  const params = caseId ? `?case_id=${encodeURIComponent(caseId)}` : '';
+export async function generateKoraRequests(caseId) {
+  const params = `?case_id=${encodeURIComponent(requireCaseId(caseId))}`;
   const res = await authFetch(`${API_BASE}/api/kora/generate${params}`, { method: 'POST' });
   if (!res.ok) throw new Error(`KORA generation failed: ${res.status}`);
   return res.json();
@@ -250,13 +257,14 @@ export async function uploadDocument(file, {
   entityIds = [],
   personIds = [],
   koraRequestId = '',
-  caseId = 'crowley-v-usd232',
+  caseId = '',
   source = 'manual_upload',
   evidenceType = '',
   userDescription = '',
   documentDate = '',
   sourcePerson = '',
 } = {}) {
+  requireCaseId(caseId);
   const form = new FormData();
   form.append('file', file);
   form.append('entity_ids', entityIds.join(','));
@@ -370,6 +378,7 @@ export async function fetchCaseFile(caseId) {
 }
 
 export async function uploadCaseDocument(caseId, file, metadata = {}) {
+  requireCaseId(caseId);
   const form = new FormData();
   form.append('file', file);
   form.append('evidence_type', metadata.evidenceType || metadata.evidence_type || '');
@@ -394,6 +403,7 @@ export async function uploadCaseDocument(caseId, file, metadata = {}) {
 }
 
 export async function fetchCaseDocuments(caseId, filters = {}) {
+  requireCaseId(caseId);
   const params = new URLSearchParams();
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== '') params.set(key, value);

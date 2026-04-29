@@ -7,6 +7,8 @@ PUT  /api/profiles/{person_id}/identity — manually update identity fields
 """
 from __future__ import annotations
 
+from app.time import utc_now
+
 import logging
 import uuid
 from datetime import datetime
@@ -55,14 +57,14 @@ def _run_enrichment(person_id: str, job: ResearchJob):
         run_enrichment_pipeline(person, job)
 
         job.status = JobStatus.COMPLETE
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utc_now()
         jobs[job.id] = job
 
     except Exception as e:
         logger.exception("Enrichment failed for %s", person_id)
         job.status = JobStatus.FAILED
         job.error = str(e)
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utc_now()
         jobs[job.id] = job
     finally:
         try:
@@ -137,7 +139,7 @@ async def update_identity(person_id: str, update: IdentityUpdate, user: dict = D
     if update.identity_confidence is not None:
         person.identity_confidence = min(1.0, max(0.0, update.identity_confidence))
 
-    person.updated_at = datetime.utcnow()
+    person.updated_at = utc_now()
     profiles[person.id] = person
 
     logger.info("Identity updated manually for %s (%s)", person.name, person.id)
@@ -212,8 +214,8 @@ async def clay_callback(person_id: str, request: Request, user: dict = Depends(g
 
     if "clay" not in person.enrichment_sources:
         person.enrichment_sources.append("clay")
-    person.enriched_at = datetime.utcnow()
-    person.updated_at = datetime.utcnow()
+    person.enriched_at = utc_now()
+    person.updated_at = utc_now()
 
     # Bump confidence if Clay returned meaningful data
     clay_signals = (
@@ -252,7 +254,7 @@ async def clay_callback(person_id: str, request: Request, user: dict = Depends(g
                 text=enrichment_text,
                 metadata={
                     "type": "enrichment_callback",
-                    "date": datetime.utcnow().isoformat(),
+                    "date": utc_now().isoformat(),
                 },
             )
     except Exception as e:
@@ -291,7 +293,7 @@ async def confirm_social_profile(person_id: str, body: SocialProfileAction, bg: 
 
     sp.status = "confirmed"
     sp.verified = True
-    person.updated_at = datetime.utcnow()
+    person.updated_at = utc_now()
     profiles[person.id] = person
 
     bg.add_task(_scrape_confirmed_profile, person_id, body.url)
@@ -346,7 +348,7 @@ def _scrape_confirmed_profile(person_id: str, profile_url: str):
                 )
                 existing_intel.add(txt.strip().lower())
 
-        person.updated_at = datetime.utcnow()
+        person.updated_at = utc_now()
         profiles[person.id] = person
 
         logger.info(
@@ -389,7 +391,7 @@ async def dismiss_social_profile(person_id: str, body: SocialProfileAction, user
         item for item in person.profile_intel if item.source_url != body.url
     ]
 
-    person.updated_at = datetime.utcnow()
+    person.updated_at = utc_now()
     profiles[person.id] = person
 
     logger.info("Social profile DISMISSED for %s: %s (cascade delete done)", person.name, body.url)

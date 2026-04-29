@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import utc_now
+
 import json
 import re
 from datetime import datetime
@@ -306,9 +308,9 @@ def analyze_intake_session(session: CaseIntakeSession) -> CaseIntakeSession:
         session.next_question = analysis.next_question
         if analysis.assistant_message:
             session.messages.append(CaseIntakeMessage(role="assistant", content=analysis.assistant_message))
-        session.updated_at = datetime.utcnow()
+        session.updated_at = utc_now()
         run.output_tokens = len((analysis.assistant_message or "").split())
         return session
     finally:
-        run.completed_at = datetime.utcnow()
+        run.completed_at = utc_now()
         agent_runs[run.id] = run

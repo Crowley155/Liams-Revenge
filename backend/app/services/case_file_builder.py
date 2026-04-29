@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import utc_now
+
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -400,7 +402,7 @@ def build_private_case_file(case: CaseRecord, docs: list[CaseDocument]) -> dict:
             "documentCount": len(docs),
             "indexedDocumentCount": indexed,
             "needsReviewDocumentCount": needs_review,
-            "generatedAt": datetime.utcnow().isoformat(),
+            "generatedAt": utc_now().isoformat(),
         },
         "actors": KNOWN_ACTORS,
         "entities": KNOWN_ENTITIES,

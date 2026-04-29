@@ -7,7 +7,7 @@ export default function PublicHome() {
     <div className="-mx-4 -mt-6 sm:-mx-6">
       <section className="relative min-h-[72vh] overflow-hidden bg-background">
         <img
-          src="/images/hero-briefing.png"
+          src="/images/hero-briefing.webp"
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
         />

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import normalize_utc, utc_now
+
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException
@@ -50,13 +52,13 @@ def ensure_can_run_evaluation(user: dict, case_id: str) -> EntitlementSnapshot:
     if entitlements.evaluation_refresh_days <= 0:
         return entitlements
 
-    cutoff = datetime.utcnow() - timedelta(days=entitlements.evaluation_refresh_days)
+    cutoff = utc_now() - timedelta(days=entitlements.evaluation_refresh_days)
     recent = [
         evaluation for evaluation in case_evaluations.values()
         if evaluation.workspace_id == user["workspace_id"]
         and evaluation.case_id == case_id
         and evaluation.status in (EvaluationStatus.QUEUED, EvaluationStatus.RUNNING, EvaluationStatus.COMPLETE)
-        and evaluation.created_at >= cutoff
+        and normalize_utc(evaluation.created_at) >= cutoff
     ]
     if recent:
         raise HTTPException(

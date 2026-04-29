@@ -7,6 +7,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from app.time import utc_now
+
 
 # ---------------------------------------------------------------------------
 # Enums
@@ -90,8 +92,8 @@ class Workspace(BaseModel):
     plan: WorkspacePlan = WorkspacePlan.FREE
     owner_user_id: str = ""
     clerk_org_id: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class AppUser(BaseModel):
@@ -101,8 +103,8 @@ class AppUser(BaseModel):
     role: str = "member"
     workspace_id: str
     org_workspace_id: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class EntitlementSnapshot(BaseModel):
@@ -213,7 +215,7 @@ class CaseIntakeMessage(BaseModel):
     role: str = Field(default="user", description="user | assistant | system")
     content: str = ""
     structured: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class CaseIntakeSession(BaseModel):
@@ -229,8 +231,8 @@ class CaseIntakeSession(BaseModel):
     next_question: str = ""
     user_overrides: dict = Field(default_factory=dict)
     draft_case_id: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class CaseIntakeMessageCreate(BaseModel):
@@ -254,8 +256,8 @@ class CaseRecord(BaseModel):
     support_consent: SupportConsent = Field(default_factory=SupportConsent)
     summary: str = ""
     created_by: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class EvaluationIssueArea(BaseModel):
@@ -315,8 +317,8 @@ class CaseEvaluation(BaseModel):
     error: Optional[str] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class AgentRun(BaseModel):
@@ -332,7 +334,7 @@ class AgentRun(BaseModel):
     cached: bool = False
     error: Optional[str] = None
     data: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     completed_at: Optional[datetime] = None
 
 
@@ -343,7 +345,7 @@ class UsageEvent(BaseModel):
     case_id: str = ""
     quantity: int = 1
     data: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 # ---------------------------------------------------------------------------
@@ -601,7 +603,7 @@ class EntityFact(BaseModel):
     raw_text: Optional[str] = None
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     verified: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
 
 
 class EntityRelationship(BaseModel):
@@ -636,8 +638,8 @@ class Entity(BaseModel):
     news_summary: Optional[str] = None
     last_researched: Optional[datetime] = None
     metadata: dict = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class EntityCreate(BaseModel):
@@ -700,8 +702,8 @@ class Person(BaseModel):
     enrichment_sources: list[str] = Field(default_factory=list)
     enriched_at: Optional[datetime] = None
 
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class ResearchJob(BaseModel):
@@ -747,8 +749,8 @@ class KoraRequest(BaseModel):
     sent_at: Optional[datetime] = None
     response_notes: str = ""
     response_doc_ids: list[str] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 # ---------------------------------------------------------------------------
@@ -807,7 +809,7 @@ class CaseDocument(BaseModel):
     processing_status: str = Field(default="processing", description="uploaded | processing | indexed | needs_review | failed")
     failure_reason: Optional[str] = None
     error: Optional[str] = None
-    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    uploaded_at: datetime = Field(default_factory=utc_now)
     processed_at: Optional[datetime] = None
 
 
@@ -846,8 +848,8 @@ class GmailConnection(BaseModel):
     connected_at: Optional[datetime] = None
     disconnected_at: Optional[datetime] = None
     error: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
 
 
 class GmailImportRun(BaseModel):
@@ -866,5 +868,5 @@ class GmailImportRun(BaseModel):
     skipped_messages: int = 0
     error: str = ""
     started_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utc_now)
     completed_at: Optional[datetime] = None

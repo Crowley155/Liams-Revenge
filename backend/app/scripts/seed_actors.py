@@ -9,6 +9,8 @@ Run inside the container: python -m app.scripts.seed_actors
 """
 from __future__ import annotations
 
+from app.time import utc_now
+
 import json
 import logging
 from datetime import datetime
@@ -205,7 +207,7 @@ def seed():
                         existing.contact.email = mined.email
                     if mined.phone and not existing.contact.phone:
                         existing.contact.phone = mined.phone
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = utc_now()
             profiles[actor_id] = existing
             logger.info("  Updated existing: %s (%s)", actor["name"], actor_id)
             skipped += 1
@@ -226,7 +228,7 @@ def seed():
                 existing.source = PersonSource.BOTH
             else:
                 existing.source = PersonSource.MANUAL
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = utc_now()
 
             profiles.pop(old_key, None)
             profiles[actor_id] = existing

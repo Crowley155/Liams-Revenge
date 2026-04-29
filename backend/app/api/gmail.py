@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import normalize_utc, utc_now
+
 import uuid
 from datetime import datetime
 
@@ -142,7 +144,7 @@ async def save_gmail_import_rule(body: GmailRuleRequest, user: dict = Depends(ge
         connection.rule = rule
         if connection.status == "setup_required" and has_google_oauth_config() and token_encryption_configured():
             connection.status = "disconnected"
-        connection.updated_at = datetime.utcnow()
+        connection.updated_at = utc_now()
     else:
         connection = _new_connection(case, rule)
     gmail_connections[connection.id] = connection
@@ -173,7 +175,7 @@ async def start_gmail_oauth(body: GmailOAuthStartRequest, user: dict = Depends(g
     connection.oauth_state_hash = state_hash
     connection.oauth_state_expires_at = expires_at
     connection.status = "disconnected" if connection.status == "setup_required" else connection.status
-    connection.updated_at = datetime.utcnow()
+    connection.updated_at = utc_now()
     gmail_connections[connection.id] = connection
     return {
         "authorization_url": authorization_url(state, login_hint=user.get("email", "")),
@@ -197,12 +199,12 @@ async def gmail_oauth_callback(
     )
     if not connection:
         raise HTTPException(status_code=400, detail="Invalid Gmail OAuth state")
-    if connection.oauth_state_expires_at and connection.oauth_state_expires_at < datetime.utcnow():
+    if connection.oauth_state_expires_at and normalize_utc(connection.oauth_state_expires_at) < utc_now():
         connection.status = "error"
         connection.error = "Gmail OAuth state expired. Please reconnect."
         connection.oauth_state_hash = ""
         connection.oauth_state_expires_at = None
-        connection.updated_at = datetime.utcnow()
+        connection.updated_at = utc_now()
         gmail_connections[connection.id] = connection
         return RedirectResponse(gmail_redirect_for(connection, "expired"))
     if error:
@@ -210,7 +212,7 @@ async def gmail_oauth_callback(
         connection.error = error
         connection.oauth_state_hash = ""
         connection.oauth_state_expires_at = None
-        connection.updated_at = datetime.utcnow()
+        connection.updated_at = utc_now()
         gmail_connections[connection.id] = connection
         return RedirectResponse(gmail_redirect_for(connection, "denied"))
     if not code:
@@ -227,7 +229,7 @@ async def gmail_oauth_callback(
         connection.error = str(exc)
         connection.oauth_state_hash = ""
         connection.oauth_state_expires_at = None
-        connection.updated_at = datetime.utcnow()
+        connection.updated_at = utc_now()
         gmail_connections[connection.id] = connection
         return RedirectResponse(gmail_redirect_for(connection, "error"))
 
@@ -279,8 +281,8 @@ async def disconnect_gmail(case_id: str, user: dict = Depends(get_current_user))
         connection.encrypted_refresh_token = ""
         connection.oauth_state_hash = ""
         connection.oauth_state_expires_at = None
-        connection.disconnected_at = datetime.utcnow()
-        connection.updated_at = datetime.utcnow()
+        connection.disconnected_at = utc_now()
+        connection.updated_at = utc_now()
         gmail_connections[connection.id] = connection
         disconnected += 1
     return {"ok": True, "disconnected": disconnected, "revoked": revoked}

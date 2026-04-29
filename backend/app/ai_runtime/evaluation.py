@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import utc_now
+
 import json
 import logging
 from datetime import datetime
@@ -248,9 +250,9 @@ def _fallback_result(case: CaseRecord | None, documents: list[CaseDocument], raw
 
 def run_case_evaluation(case: CaseRecord, documents: list[CaseDocument], evaluation: CaseEvaluation, *, premium: bool = False) -> CaseEvaluation:
     evaluation.status = EvaluationStatus.RUNNING
-    evaluation.started_at = datetime.utcnow()
+    evaluation.started_at = utc_now()
     evaluation.workflow_steps = WORKFLOW_STEPS.copy()
-    evaluation.updated_at = datetime.utcnow()
+    evaluation.updated_at = utc_now()
     case_evaluations[evaluation.id] = evaluation
 
     context = _case_context(case, documents)
@@ -300,7 +302,7 @@ def run_case_evaluation(case: CaseRecord, documents: list[CaseDocument], evaluat
             run.status = "fallback"
             run.error = str(exc)
         finally:
-            run.completed_at = datetime.utcnow()
+            run.completed_at = utc_now()
             agent_runs[run.id] = run
 
     try:
@@ -312,14 +314,14 @@ def run_case_evaluation(case: CaseRecord, documents: list[CaseDocument], evaluat
 
         evaluation.result = result
         evaluation.status = EvaluationStatus.COMPLETE
-        evaluation.completed_at = datetime.utcnow()
-        evaluation.updated_at = datetime.utcnow()
+        evaluation.completed_at = utc_now()
+        evaluation.updated_at = utc_now()
         case_evaluations[evaluation.id] = evaluation
         return evaluation
     except Exception as exc:
         evaluation.status = EvaluationStatus.FAILED
         evaluation.error = str(exc)
-        evaluation.completed_at = datetime.utcnow()
-        evaluation.updated_at = datetime.utcnow()
+        evaluation.completed_at = utc_now()
+        evaluation.updated_at = utc_now()
         case_evaluations[evaluation.id] = evaluation
         raise

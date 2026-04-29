@@ -13,6 +13,10 @@ import {
   uploadCaseDocument,
 } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+import {
+  ACCEPTED_EVIDENCE_FILE_TYPES,
+  maybeCompressImage,
+} from '../utils/evidence';
 
 const STEPS = [
   { key: 'advocate', label: 'Case Advocate' },
@@ -39,10 +43,6 @@ const EMPTY_SUPPORT = {
   sensitivity_notes: '',
   share_summary_consent: false,
 };
-
-const ACCEPTED = '.pdf,.jpg,.jpeg,.png,.tiff,.tif,.webp,.bmp,.docx,.eml,.txt,.md';
-const IMAGE_COMPRESS_THRESHOLD = 10 * 1024 * 1024;
-const MAX_DIMENSION = 2600;
 
 function formatBytes(value = 0) {
   if (!value) return '';
@@ -71,21 +71,6 @@ function statusClass(status) {
     needs_review: 'border-warning/30 bg-warning/10 text-warning',
     failed: 'border-danger/30 bg-danger/10 text-danger',
   }[status] || 'border-border bg-surface text-text-dim';
-}
-
-async function maybeCompressImage(file) {
-  if (!file.type.startsWith('image/') || file.size <= IMAGE_COMPRESS_THRESHOLD) return { file, compressed: false };
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
-  if (!blob || blob.size >= file.size) return { file, compressed: false };
-  const nextName = file.name.replace(/\.[^.]+$/, '') + '-compressed.jpg';
-  return { file: new File([blob], nextName, { type: 'image/jpeg' }), compressed: true };
 }
 
 function StepNav({ activeStep, setStepIndex }) {
@@ -463,7 +448,7 @@ export default function EvaluateCase() {
                 <span className="mt-1 max-w-xl text-xs leading-relaxed text-text-dim">
                   Multiple files are fine. Up to 50 MB each. Large images may be compressed for storage and indexing while keeping the evidence usable.
                 </span>
-                <input className="hidden" type="file" multiple accept={ACCEPTED} onChange={(event) => addLockerFiles(event.target.files)} />
+                <input className="hidden" type="file" multiple accept={ACCEPTED_EVIDENCE_FILE_TYPES} onChange={(event) => addLockerFiles(event.target.files)} />
               </label>
               <div className="space-y-3">
                 {lockerItems.map((item) => (

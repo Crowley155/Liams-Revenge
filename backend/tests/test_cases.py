@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
@@ -11,6 +12,10 @@ from app.services.gmail_importer import import_matching_messages
 from app.services.gmail_security import encrypt_token
 
 client = TestClient(app)
+
+
+def _parsed_datetime(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def _user(workspace_id: str | None = None, plan: str = "free") -> dict:
@@ -146,6 +151,7 @@ def test_guided_intake_fields_and_support_consent_are_persisted():
     created = client.post("/api/cases", json=payload)
     assert created.status_code == 200
     body = created.json()
+    assert _parsed_datetime(body["created_at"]).tzinfo is not None
     assert body["intake"]["issue_categories"] == ["student_safety", "records"]
     assert body["intake"]["impacted_party_age"] == 8
     assert body["intake"]["grade_level"] == "2nd grade"
@@ -209,6 +215,15 @@ def test_case_advocate_intake_creates_case_without_required_form_fields(monkeypa
 
 def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypatch, tmp_path):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    stored_chunks = {}
+
+    def fake_store_document_chunks(chunks, document_id, entity_ids=None, person_ids=None, source="", metadata=None):
+        stored_chunks["document_id"] = document_id
+        stored_chunks["chunk_count"] = len(chunks)
+        stored_chunks["metadata"] = metadata or {}
+        return [f"point-{document_id}-0"]
+
+    monkeypatch.setattr("app.services.qdrant_client.store_document_chunks", fake_store_document_chunks)
     owner = _user()
     outsider = _user()
     _override_user(owner)
@@ -230,6 +245,11 @@ def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypat
     assert uploaded.status_code == 200
     doc = uploaded.json()
     assert doc["processing_status"] == "indexed"
+    assert doc["qdrant_point_ids"] == [f"point-{doc['id']}-0"]
+    assert stored_chunks["document_id"] == doc["id"]
+    assert stored_chunks["metadata"]["case_id"] == case_id
+    assert _parsed_datetime(doc["uploaded_at"]).tzinfo is not None
+    assert _parsed_datetime(doc["processed_at"]).tzinfo is not None
     assert doc["evidence_type"] == "meeting_notes"
     assert doc["user_description"] == "This shows the school knew about the incident."
     assert doc["storage_path"]
@@ -259,6 +279,52 @@ def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypat
     assert hidden_docs.status_code == 404
     hidden_preview = client.get(f"/api/documents/{doc['id']}/preview")
     assert hidden_preview.status_code == 404
+
+
+def test_legacy_document_upload_requires_explicit_case_id():
+    user = _user()
+    _override_user(user)
+
+    uploaded = client.post(
+        "/api/documents/upload",
+        files={"file": ("floating-note.txt", b"This should not attach to a fallback case.", "text/plain")},
+    )
+    assert uploaded.status_code == 400
+    assert uploaded.json()["detail"] == "case_id is required"
+
+
+def test_document_delete_cleans_qdrant_points(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+
+    def fake_store_document_chunks(chunks, document_id, entity_ids=None, person_ids=None, source="", metadata=None):
+        return [f"point-{document_id}-0", f"point-{document_id}-1"]
+
+    deleted_points = []
+
+    def fake_delete_points(point_ids):
+        deleted_points.extend(point_ids)
+
+    monkeypatch.setattr("app.services.qdrant_client.store_document_chunks", fake_store_document_chunks)
+    monkeypatch.setattr("app.services.qdrant_client.delete_points", fake_delete_points)
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Delete evidence case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    uploaded = client.post(
+        f"/api/cases/{case_id}/documents",
+        files={"file": ("delete-me.txt", b"Delete this indexed evidence after cleanup.", "text/plain")},
+    )
+    assert uploaded.status_code == 200
+    doc = uploaded.json()
+    assert doc["qdrant_point_ids"] == [f"point-{doc['id']}-0", f"point-{doc['id']}-1"]
+
+    deleted = client.delete(f"/api/documents/{doc['id']}")
+    assert deleted.status_code == 200
+    assert deleted_points == doc["qdrant_point_ids"]
+    assert doc["id"] not in case_documents
 
 
 def test_gmail_import_rule_scaffolding_is_private_to_workspace(monkeypatch):

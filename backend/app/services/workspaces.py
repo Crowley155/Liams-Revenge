@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from app.time import utc_now
+
 import json
 import os
 import uuid
@@ -97,7 +99,7 @@ def _claim_legacy_case_for_owner(user: AppUser, workspace: Workspace) -> None:
     if case and case.workspace_id != workspace.id:
         case.workspace_id = workspace.id
         case.created_by = case.created_by or user.id
-        case.updated_at = datetime.utcnow()
+        case.updated_at = utc_now()
         cases[case.id] = case
 
     for store in (
@@ -114,7 +116,7 @@ def _claim_legacy_case_for_owner(user: AppUser, workspace: Workspace) -> None:
             if getattr(item, "case_id", "") == LEGACY_CASE_ID and getattr(item, "workspace_id", "") == LEGACY_WORKSPACE_ID:
                 item.workspace_id = workspace.id
                 if hasattr(item, "updated_at"):
-                    item.updated_at = datetime.utcnow()
+                    item.updated_at = utc_now()
                 store[item_id] = item
 
 
@@ -124,7 +126,7 @@ def _workspace_for_org(clerk_org_id: str, org_name: str = "") -> Workspace:
         workspace = found[0]
         if org_name and workspace.name != org_name:
             workspace.name = org_name
-            workspace.updated_at = datetime.utcnow()
+            workspace.updated_at = utc_now()
             workspaces[workspace.id] = workspace
         return workspace
 
@@ -179,7 +181,7 @@ def resolve_user_workspace(
     user.clerk_user_id = clerk_user_id
     user.email = normalized_email or user.email
     user.role = role
-    user.updated_at = datetime.utcnow()
+    user.updated_at = utc_now()
 
     if clerk_org_id:
         workspace = _workspace_for_org(clerk_org_id, clerk_org_name)

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from app.time import utc_now
+
 import logging
-from datetime import datetime
 
 from app.api._store import case_documents
 from app.models import CaseDocument
@@ -59,14 +60,14 @@ def process_document_bytes(doc: CaseDocument, content: bytes) -> CaseDocument:
             doc.processing_status = "failed"
             doc.error = "No text could be extracted"
             doc.failure_reason = doc.error
-        doc.processed_at = datetime.utcnow()
+        doc.processed_at = utc_now()
     except Exception as exc:
         logger.exception("Document processing failed for %s", doc.id)
         doc.status = "failed"
         doc.processing_status = "failed"
         doc.error = str(exc)
         doc.failure_reason = str(exc)
-        doc.processed_at = datetime.utcnow()
+        doc.processed_at = utc_now()
 
     case_documents[doc.id] = doc
     return doc

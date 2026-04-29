@@ -6,6 +6,8 @@ GET  /api/research/{job_id} — check job status
 """
 from __future__ import annotations
 
+from app.time import utc_now
+
 import logging
 import uuid
 from datetime import datetime
@@ -72,7 +74,7 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
                 existing.rejected_facts.extend(person.rejected_facts)
 
             existing.source = PersonSource.BOTH
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = utc_now()
             profiles[existing.id] = existing
             logger.info("Enriched existing person %s (%s)", existing.name, existing.id)
         else:
@@ -85,7 +87,7 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
         logger.exception("Pipeline failed for %s", request.name)
         job.status = JobStatus.FAILED
         job.error = str(e)
-        job.completed_at = datetime.utcnow()
+        job.completed_at = utc_now()
         jobs[job.id] = job
     finally:
         try:
@@ -146,7 +148,7 @@ async def cancel_job(job_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail=f"Job already {job.status.value}")
     job.status = JobStatus.FAILED
     job.error = "Cancelled by user"
-    job.completed_at = datetime.utcnow()
+    job.completed_at = utc_now()
     jobs[job.id] = job
     logger.info("Job %s cancelled by user", job_id)
     return job

@@ -5,7 +5,7 @@ export default function WhatsNext() {
       {/* Hero image */}
       <div className="relative -mt-8 mb-2 rounded-2xl overflow-hidden">
         <img
-          src="/images/whats-next-hero.png"
+          src="/images/whats-next-hero.webp"
           alt=""
           className="w-full h-48 sm:h-64 object-cover opacity-40"
         />

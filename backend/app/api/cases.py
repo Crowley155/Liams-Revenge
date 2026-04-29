@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from app.time import normalize_utc, utc_now
+
 import logging
 import hashlib
 import json
 import mimetypes
 import os
 import uuid
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
@@ -31,22 +32,14 @@ from app.models import (
 from app.services.entitlements import ensure_can_create_case, ensure_can_run_evaluation, ensure_can_upload_document
 from app.services.case_file_builder import build_private_case_file
 from app.services.document_classifier import infer_document_metadata
+from app.services.document_ingestion import process_document_bytes
 from app.services.document_storage import save_case_document_file
+from app.services.evidence_uploads import validate_evidence_upload
 from app.services.workspaces import entitlements_for_workspace
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["cases"])
 CASE_DATA_PATH = Path(os.getenv("CASE_DATA_PATH", "/app/case-data/case-data.json"))
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
-SUPPORTED_EVIDENCE_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".tiff", ".tif", ".webp", ".bmp", ".docx", ".eml", ".txt", ".md"}
-
-
-def _validate_evidence_upload(filename: str, content: bytes) -> None:
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Evidence Locker files must be 50 MB or smaller for this version.")
-    ext = Path(filename or "").suffix.lower()
-    if ext not in SUPPORTED_EVIDENCE_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Unsupported evidence file type. Upload PDF, image, Word, email, text, or markdown files.")
 
 
 def _visible_case(case: CaseRecord, user: dict) -> bool:
@@ -65,7 +58,7 @@ def _case_docs(case: CaseRecord) -> list[CaseDocument]:
         doc for doc in case_documents.values()
         if doc.workspace_id == case.workspace_id and doc.case_id == case.id
     ]
-    docs.sort(key=lambda doc: doc.uploaded_at, reverse=True)
+    docs.sort(key=lambda doc: normalize_utc(doc.uploaded_at), reverse=True)
     return docs
 
 
@@ -117,7 +110,7 @@ def _latest_case_evaluation(case: CaseRecord) -> CaseEvaluation | None:
         evaluation for evaluation in case_evaluations.values()
         if evaluation.workspace_id == case.workspace_id and evaluation.case_id == case.id
     ]
-    evaluations.sort(key=lambda evaluation: evaluation.created_at, reverse=True)
+    evaluations.sort(key=lambda evaluation: normalize_utc(evaluation.created_at), reverse=True)
     return evaluations[0] if evaluations else None
 
 
@@ -125,14 +118,14 @@ def _consent_with_timestamp(consent: SupportConsent) -> SupportConsent:
     opted_in = consent.attorney_contact_opt_in or consent.advocacy_contact_opt_in or consent.media_contact_opt_in
     if opted_in and consent.share_summary_consent:
         if not consent.consented_at:
-            consent.consented_at = datetime.utcnow()
+            consent.consented_at = utc_now()
         consent.revoked_at = None
     elif opted_in:
         consent.consented_at = None
         consent.revoked_at = None
     if not opted_in:
         consent.consented_at = None
-        consent.revoked_at = datetime.utcnow()
+        consent.revoked_at = utc_now()
         consent.share_summary_consent = False
     return consent
 
@@ -268,7 +261,7 @@ def _self_advocacy_packet(case: CaseRecord) -> dict:
             "Use the recommended records list to fill evidence gaps.",
         ],
         "support_preferences": case.support_consent.model_dump(mode="json"),
-        "generated_at": datetime.utcnow().isoformat(),
+        "generated_at": utc_now().isoformat(),
     }
 
 
@@ -350,7 +343,7 @@ async def workspace_summary(user: dict = Depends(get_current_user)):
 @router.get("/cases", response_model=list[CaseRecord])
 async def list_cases(user: dict = Depends(get_current_user)):
     visible = [case for case in cases.values() if _visible_case(case, user)]
-    visible.sort(key=lambda case: case.updated_at, reverse=True)
+    visible.sort(key=lambda case: normalize_utc(case.updated_at), reverse=True)
     return visible
 
 
@@ -448,7 +441,7 @@ async def upload_case_document(
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
-    _validate_evidence_upload(file.filename or "", content)
+    validate_evidence_upload(file.filename or "", content)
 
     doc = CaseDocument(
         id=str(uuid.uuid4())[:8],
@@ -471,49 +464,7 @@ async def upload_case_document(
     if not doc.evidence_type:
         doc.evidence_type = inferred_type
     doc.storage_path = save_case_document_file(doc.workspace_id, doc.case_id, doc.id, doc.filename, content)
-
-    try:
-        from app.services.document_parser import parse_file
-        from app.services.text_chunker import chunk_text
-
-        extracted, file_type = parse_file(doc.filename, content)
-        doc.file_type = file_type
-        doc.extracted_text = extracted
-        category, confidence, tags, inferred_type = infer_document_metadata(doc.filename, extracted)
-        doc.inferred_category = doc.inferred_category or category
-        doc.category_confidence = doc.category_confidence or confidence
-        doc.tags = sorted(set([*doc.tags, *tags]))
-        if not doc.evidence_type:
-            doc.evidence_type = inferred_type
-        if extracted.startswith("[OCR extraction needed:"):
-            doc.chunk_count = 0
-            doc.status = "processing"
-            doc.processing_status = "needs_review"
-            doc.ocr_status = "queued"
-            doc.failure_reason = extracted
-        elif extracted and not extracted.startswith("["):
-            doc.chunk_count = len(chunk_text(extracted, doc.id))
-            doc.status = "indexed"
-            doc.processing_status = "indexed"
-            doc.error = None
-            doc.failure_reason = None
-        else:
-            doc.chunk_count = 0
-            doc.status = "failed"
-            doc.processing_status = "failed"
-            doc.error = "No text could be extracted"
-            doc.failure_reason = doc.error
-        doc.processed_at = datetime.utcnow()
-    except Exception as exc:
-        logger.warning("Case document parse failed for %s: %s", doc.filename, exc)
-        doc.status = "failed"
-        doc.processing_status = "failed"
-        doc.error = str(exc)
-        doc.failure_reason = str(exc)
-        doc.processed_at = datetime.utcnow()
-
-    case_documents[doc.id] = doc
-    return doc
+    return process_document_bytes(doc, content)
 
 
 def _run_evaluation_background(case: CaseRecord, evaluation: CaseEvaluation):
@@ -568,7 +519,7 @@ async def get_evaluation(case_id: str, evaluation_id: str, user: dict = Depends(
 async def update_support_consent(case_id: str, body: SupportConsent, user: dict = Depends(get_current_user)):
     case = _get_case(case_id, user)
     case.support_consent = _consent_with_timestamp(body)
-    case.updated_at = datetime.utcnow()
+    case.updated_at = utc_now()
     cases[case.id] = case
     return case
 
@@ -628,5 +579,5 @@ async def support_review_queue(user: dict = Depends(get_current_user)):
             "support_consent": consent.model_dump(mode="json"),
             "updated_at": case.updated_at,
         })
-    queue.sort(key=lambda item: item["updated_at"], reverse=True)
+    queue.sort(key=lambda item: normalize_utc(item["updated_at"]), reverse=True)
     return queue

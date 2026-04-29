@@ -8,6 +8,8 @@ DELETE /api/profiles/{id}                   — full delete
 """
 from __future__ import annotations
 
+from app.time import utc_now
+
 import logging
 from datetime import datetime
 
@@ -72,7 +74,7 @@ async def reset_research(person_id: str, user: dict = Depends(get_current_user))
     person.photo_url = None
 
     person.source = PersonSource.MANUAL
-    person.updated_at = datetime.utcnow()
+    person.updated_at = utc_now()
     profiles[person.id] = person
 
     logger.info("Full reset for %s (%s) — all research + enrichment cleared", person.name, person.id)
