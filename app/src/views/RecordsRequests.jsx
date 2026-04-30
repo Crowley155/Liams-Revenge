@@ -125,8 +125,8 @@ export default function RecordsRequests() {
     <div className="mx-auto max-w-6xl space-y-6 py-8 animate-fade-up">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/80">Records tracking</p>
-          <h2 className="mt-1 text-3xl font-bold tracking-tight">Records Requests</h2>
+          <p className="text-xs font-medium text-accent/80">Records tracking</p>
+          <h2 className="mt-1 text-3xl font-bold">Records Requests</h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-dim">
             Generate request drafts, send them yourself, and track whether responses are pending, partial, fulfilled, or denied.
           </p>
@@ -134,7 +134,7 @@ export default function RecordsRequests() {
         <button
           onClick={handleGenerate}
           disabled={generating}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
+          className="min-h-10 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
         >
           {generating ? 'Generating...' : requests.length ? 'Regenerate Requests' : 'Generate Requests'}
         </button>

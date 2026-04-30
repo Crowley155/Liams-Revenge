@@ -47,7 +47,7 @@ export function StatusPill({ status }) {
   }[status] || 'bg-text-dim/10 text-text-dim border-border';
 
   return (
-    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${style}`}>
+    <span className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium leading-none ${style}`}>
       {formatLabel(status || 'pending')}
     </span>
   );
@@ -55,11 +55,11 @@ export function StatusPill({ status }) {
 
 export function Panel({ title, eyebrow, action, children }) {
   return (
-    <section className="rounded-lg border border-border bg-surface p-4">
+    <section className="rounded-md border border-border bg-surface p-4">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          {eyebrow && <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-accent/80">{eyebrow}</p>}
-          <h3 className="text-lg font-bold tracking-tight">{title}</h3>
+          {eyebrow && <p className="text-xs font-medium text-accent/80">{eyebrow}</p>}
+          <h3 className="text-lg font-bold">{title}</h3>
         </div>
         {action}
       </div>
@@ -70,8 +70,8 @@ export function Panel({ title, eyebrow, action, children }) {
 
 export function Metric({ label, value, detail }) {
   return (
-    <div className="rounded-lg border border-border bg-surface p-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-dim">{label}</p>
+    <div className="rounded-md border border-border bg-surface p-4">
+      <p className="text-xs font-medium text-text-dim">{label}</p>
       <p className="mt-2 text-2xl font-bold">{value}</p>
       {detail && <p className="mt-1 text-xs leading-relaxed text-text-dim">{detail}</p>}
     </div>

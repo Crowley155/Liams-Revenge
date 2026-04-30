@@ -73,7 +73,7 @@ function DocumentPreview({ preview, contentUrl, onClose }) {
       <section className="mx-auto flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-border p-4">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/80">Evidence preview</p>
+            <p className="text-xs font-medium text-accent/80">Evidence preview</p>
             <h3 className="mt-1 truncate text-lg font-bold">{doc.filename}</h3>
             <p className="mt-1 text-xs text-text-dim">{categoryLabel(doc.inferred_category)} - {formatBytes(doc.file_size)} - {formatLabel(evidenceStatusOf(doc))}</p>
           </div>
@@ -442,8 +442,8 @@ export default function EvidenceLocker() {
     <div className="mx-auto max-w-7xl space-y-6 py-8 animate-fade-up">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/80">Private evidence</p>
-          <h2 className="mt-1 text-3xl font-bold tracking-tight">Evidence Locker</h2>
+          <p className="text-xs font-medium text-accent/80">Private evidence</p>
+          <h2 className="mt-1 text-3xl font-bold">Evidence Locker</h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-dim">
             Import emails, PDFs, screenshots, records, photos, and agency letters. USDWatch stores originals privately, extracts what it can, and flags anything that needs review.
           </p>
@@ -489,7 +489,7 @@ export default function EvidenceLocker() {
           <details className="rounded-lg border border-border bg-surface/70">
             <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-text">
               <span>Import from Gmail</span>
-              <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-dim">Beta</span>
+              <span className="rounded-md border border-border px-2 py-1 text-xs font-medium text-text-dim">Beta</span>
             </summary>
             <div className="space-y-3 border-t border-border p-4">
               <div className="flex items-start gap-3 rounded-md border border-border bg-background p-3">
@@ -621,15 +621,15 @@ export default function EvidenceLocker() {
                         <p className="mt-2 text-xs leading-relaxed text-text-dim">{evidenceStatusHelp(evidenceStatusOf(doc))}</p>
                         {!!doc.tags?.length && (
                           <div className="mt-2 flex flex-wrap gap-1">
-                            {doc.tags.slice(0, 5).map((tag) => <span key={tag} className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-dim">{categoryLabel(tag)}</span>)}
+                            {doc.tags.slice(0, 5).map((tag) => <span key={tag} className="rounded-md border border-border px-2 py-1 text-xs font-medium text-text-dim">{categoryLabel(tag)}</span>)}
                           </div>
                         )}
                       </div>
                       <div className="flex shrink-0 gap-2">
-                        <button type="button" disabled={busy} onClick={() => handlePreview(doc)} className="rounded-md border border-border p-2 text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60" title="View evidence" aria-label={`View ${doc.filename}`}>
+                        <button type="button" disabled={busy} onClick={() => handlePreview(doc)} className="grid min-h-10 min-w-10 place-items-center rounded-md border border-border p-2 text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60" title="View evidence" aria-label={`View ${doc.filename}`}>
                           <Eye className="h-4 w-4" aria-hidden="true" />
                         </button>
-                        <button type="button" disabled={busy} onClick={() => setDeleteTarget(doc)} className="rounded-md border border-border p-2 text-text-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60" title="Delete evidence" aria-label={`Delete ${doc.filename}`}>
+                        <button type="button" disabled={busy} onClick={() => setDeleteTarget(doc)} className="grid min-h-10 min-w-10 place-items-center rounded-md border border-border p-2 text-text-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60" title="Delete evidence" aria-label={`Delete ${doc.filename}`}>
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </div>

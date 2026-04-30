@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { Download, FileText, Loader2, Printer } from 'lucide-react';
 import {
   fetchCase,
   fetchCaseDocuments,
@@ -254,7 +255,7 @@ export default function CaseDetail() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-2">
           <Link to="/cases" className="text-sm font-semibold text-accent hover:text-accent-hover">Cases</Link>
-          <h2 className="text-3xl font-bold tracking-tight">{caseRecord.title}</h2>
+          <h2 className="text-3xl font-bold">{caseRecord.title}</h2>
           <p className="max-w-3xl text-sm leading-relaxed text-text-dim">
             A calmer working desk for your Family Narrative, evidence, records requests, Case Read, and self-advocacy packet.
           </p>
@@ -270,22 +271,25 @@ export default function CaseDetail() {
           <button
             disabled={busy || !packet}
             onClick={handlePrintPacket}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60"
           >
+            <Printer className="h-4 w-4" aria-hidden="true" />
             Print Packet
           </button>
           <button
             disabled={busy}
             onClick={handleExportCase}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60"
           >
+            <Download className="h-4 w-4" aria-hidden="true" />
             Export Case
           </button>
           <button
             disabled={busy || caseReadInProgress}
             onClick={handleRunEvaluation}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
           >
+            {busy || caseReadInProgress ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileText className="h-4 w-4" aria-hidden="true" />}
             {caseReadInProgress ? 'Case Read running...' : evaluation ? 'Refresh Case Read' : 'Run Case Read'}
           </button>
         </div>
@@ -329,7 +333,7 @@ export default function CaseDetail() {
           <Panel title="What To Do Next" eyebrow="Case plan">
             <div className="mb-3 rounded-md border border-border bg-background px-3 py-3 text-xs leading-relaxed text-text-dim">
               <div className="mb-1 flex flex-wrap items-center gap-2">
-                <span className="font-semibold uppercase tracking-[0.14em] text-text-dim">Case Read</span>
+                <span className="font-semibold text-text-dim">Case Read</span>
                 <StatusPill status={formatLabel(caseReadStatus)} />
               </div>
               <p>{caseReadStatusDetail}</p>
@@ -352,22 +356,22 @@ export default function CaseDetail() {
             </p>
             <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-dim">District</dt>
+                <dt className="text-xs font-semibold text-text-dim">District</dt>
                 <dd className="mt-1 text-text">{caseRecord.intake?.district || 'Not entered'}</dd>
               </div>
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-dim">School</dt>
+                <dt className="text-xs font-semibold text-text-dim">School</dt>
                 <dd className="mt-1 text-text">{caseRecord.intake?.school || 'Not entered'}</dd>
               </div>
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-dim">Impacted person</dt>
+                <dt className="text-xs font-semibold text-text-dim">Impacted person</dt>
                 <dd className="mt-1 text-text">
                   {caseRecord.intake?.grade_level || 'Grade not entered'}
                   {caseRecord.intake?.impacted_party_age ? `, age ${caseRecord.intake.impacted_party_age}` : ''}
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-text-dim">IEP / 504</dt>
+                <dt className="text-xs font-semibold text-text-dim">IEP / 504</dt>
                 <dd className="mt-1 text-text">{formatLabel(caseRecord.intake?.iep_504_status || 'not specified')}</dd>
               </div>
             </dl>

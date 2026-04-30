@@ -40,7 +40,16 @@ body::before {
 
 h1, h2, h3 {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
+}
+
+:where(a, button, input, textarea, select, summary):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+:where(button, summary) {
+  touch-action: manipulation;
 }
 
 ::-webkit-scrollbar {

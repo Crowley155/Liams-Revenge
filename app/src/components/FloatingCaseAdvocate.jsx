@@ -312,8 +312,8 @@ export default function FloatingCaseAdvocate() {
             <div className="flex min-w-0 items-center gap-3">
               <AdvocateCharacter state={characterState} />
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Case Advocate</p>
-                <h2 className="truncate text-base font-bold tracking-tight">Building with you</h2>
+                <p className="text-xs font-medium text-accent">Case Advocate</p>
+                <h2 className="truncate text-base font-bold">Building with you</h2>
                 <p className="truncate text-xs text-text-dim">{context.mode}</p>
               </div>
             </div>

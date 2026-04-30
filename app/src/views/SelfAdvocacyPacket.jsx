@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { Download, Printer } from 'lucide-react';
 import {
   fetchCase,
   fetchCaseExport,
@@ -88,8 +89,8 @@ export default function SelfAdvocacyPacket() {
     <div className="mx-auto max-w-6xl space-y-6 py-8 animate-fade-up">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent/80">Working output</p>
-          <h2 className="mt-1 text-3xl font-bold tracking-tight">Self-Advocacy Packet</h2>
+          <p className="text-xs font-medium text-accent/80">Working output</p>
+          <h2 className="mt-1 text-3xl font-bold">Self-Advocacy Packet</h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-dim">
             A plain-language packet you can print, review before meetings, and update as new evidence comes in.
           </p>
@@ -98,15 +99,17 @@ export default function SelfAdvocacyPacket() {
           <button
             disabled={busy || !packet}
             onClick={handlePrintPacket}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
           >
+            <Printer className="h-4 w-4" aria-hidden="true" />
             Print / Save PDF
           </button>
           <button
             disabled={busy}
             onClick={handleExportCase}
-            className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60"
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60"
           >
+            <Download className="h-4 w-4" aria-hidden="true" />
             Export Case JSON
           </button>
         </div>
