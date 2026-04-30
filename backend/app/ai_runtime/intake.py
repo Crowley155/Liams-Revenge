@@ -299,7 +299,7 @@ def _assistant_message(facts: CaseIntakeFacts, missing: list[str], next_question
     if understood:
         prefix += " I am seeing " + "; ".join(understood) + "."
     if missing:
-        prefix += " The biggest gap is " + missing[0] + "."
+        prefix += " One helpful next detail would make the case file stronger."
     if next_question:
         prefix += " I put one focused question below so you can answer it directly."
     return prefix

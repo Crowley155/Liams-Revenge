@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FileUp, Loader2, MessageCircle, Send, ShieldCheck, Sparkles, X } from 'lucide-react';
+import { ClipboardList, FileText, FileUp, FolderOpen, Home, Loader2, MessageCircle, Send, Sparkles, Users, X } from 'lucide-react';
 import {
   fetchCaseAdvocateSession,
   openOrCreateDraftCase,
@@ -17,50 +17,25 @@ function routeContext(pathname) {
   if (pathname.includes('/locker')) {
     return {
       mode: 'Evidence Locker',
-      tip: 'I can help decide what to upload next or explain a document status.',
-      actions: [
-        { label: 'Ask what evidence matters', prompt: 'What evidence would be most useful to add next?' },
-        { label: 'Explain locker status', prompt: 'Explain what my Evidence Locker statuses mean.' },
-      ],
     };
   }
   if (pathname.includes('/records')) {
     return {
       mode: 'Records Requests',
-      tip: 'I can help prioritize records requests and keep the tracking plain.',
-      actions: [
-        { label: 'Prioritize requests', prompt: 'Which records requests should I send first?' },
-        { label: 'Draft follow-up', prompt: 'Help me think through a follow-up if records are delayed.' },
-      ],
     };
   }
   if (pathname.includes('/packet')) {
     return {
       mode: 'Packet',
-      tip: 'I can explain what is ready for your self-advocacy packet and what is still thin.',
-      actions: [
-        { label: 'Packet gaps', prompt: 'What would make my packet stronger before I share it?' },
-        { label: 'Meeting prep', prompt: 'What questions should I prepare for a school meeting?' },
-      ],
     };
   }
   if (pathname.includes('/people')) {
     return {
       mode: 'People',
-      tip: 'I can help keep people, roles, and responsibilities straight.',
-      actions: [
-        { label: 'Who matters?', prompt: 'Which people or roles matter most in this case file?' },
-        { label: 'Responsibility map', prompt: 'Help me organize who knew what and when.' },
-      ],
     };
   }
   return {
     mode: 'Case Plan',
-    tip: 'I can help build your Family Narrative, spot gaps, and choose the next useful step.',
-    actions: [
-      { label: 'Fill gaps', prompt: 'What important facts are still missing from my case file?' },
-      { label: 'Family Narrative', prompt: 'Help me write a clear Family Narrative from what I have shared.' },
-    ],
   };
 }
 
@@ -83,9 +58,9 @@ function questionCardsForSession(session, structured) {
   return [{
     id: 'next-question',
     field: missing || 'case_context',
-    label: missing ? `Fill gap: ${missing}` : 'Next case-file question',
+    label: 'Next question',
     question: fallbackQuestion,
-    why: 'Answering this helps the Case Advocate keep the case file structured while you stay in plain English.',
+    why: '',
     input_type: 'free_text',
     options: [],
     priority: 1,
@@ -110,10 +85,12 @@ function StructuredQuestionCard({ card, onAnswer, busy }) {
   const options = Array.isArray(card.options) ? card.options.filter(Boolean).slice(0, 5) : [];
   return (
     <div className="case-advocate-question-card">
-      <div>
-        <p className="case-advocate-question-label">{card.label || 'Next useful question'}</p>
+      <div className="case-advocate-question-header">
+        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+        <p className="case-advocate-question-label">Next question</p>
+      </div>
+      <div className="case-advocate-question-body">
         <p className="case-advocate-question-text">{card.question}</p>
-        {card.why && <p className="case-advocate-question-why">{card.why}</p>}
       </div>
       {options.length > 0 ? (
         <div className="case-advocate-question-options">
@@ -125,7 +102,7 @@ function StructuredQuestionCard({ card, onAnswer, busy }) {
         </div>
       ) : (
         <button type="button" className="case-advocate-answer-button" onClick={() => onAnswer(card)} disabled={busy}>
-          Answer this
+          Answer in chat
         </button>
       )}
     </div>
@@ -180,16 +157,16 @@ export default function FloatingCaseAdvocate() {
   const routeShortcuts = useMemo(() => {
     if (!caseId) return [];
     return [
-      { label: 'Plan', to: `/cases/${caseId}` },
-      { label: 'Locker', to: `/cases/${caseId}/locker` },
-      { label: 'Records', to: `/cases/${caseId}/records` },
-      { label: 'Packet', to: `/cases/${caseId}/packet` },
+      { label: 'Plan', title: 'Open Case Plan', icon: Home, to: `/cases/${caseId}` },
+      { label: 'Evidence', title: 'Open Evidence Locker', icon: FolderOpen, to: `/cases/${caseId}/locker` },
+      { label: 'Records', title: 'Open Records Requests', icon: ClipboardList, to: `/cases/${caseId}/records` },
+      { label: 'People', title: 'Open People', icon: Users, to: `/cases/${caseId}/people` },
+      { label: 'Packet', title: 'Open Self-Advocacy Packet', icon: FileText, to: `/cases/${caseId}/packet` },
     ].filter((item) => item.to !== location.pathname);
   }, [caseId, location.pathname]);
   const structured = latestStructured(session);
   const questionCards = useMemo(() => questionCardsForSession(session, structured), [session, structured]);
   const currentQuestion = questionCards[0] || null;
-  const suggestedActions = structured.suggested_actions?.length ? structured.suggested_actions : context.actions.map((item) => item.prompt);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -325,7 +302,7 @@ export default function FloatingCaseAdvocate() {
 
   if (!isAuthenticated) return null;
 
-  const characterState = busy ? 'thinking' : (suggestedActions.length ? 'gap' : 'ready');
+  const characterState = busy ? 'thinking' : (currentQuestion ? 'gap' : 'ready');
 
   return (
     <div className={`case-advocate-widget ${open ? 'is-open' : ''}`}>
@@ -350,11 +327,6 @@ export default function FloatingCaseAdvocate() {
             </button>
           </header>
 
-          <div className="case-advocate-context">
-            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-            <p>{context.tip}</p>
-          </div>
-
           <div className="case-advocate-messages">
             {(session?.messages || []).map((item) => (
               <div key={item.id} className={`case-advocate-message ${item.role === 'user' ? 'from-user' : 'from-advocate'}`}>
@@ -375,28 +347,17 @@ export default function FloatingCaseAdvocate() {
             <div ref={chatEndRef} />
           </div>
 
-          <div className="case-advocate-actions">
-            {context.actions.map((action) => (
-              <button key={action.label} type="button" onClick={() => sendMessage(action.prompt)} disabled={busy || !caseId}>
-                {action.label}
-              </button>
-            ))}
-          </div>
-
           {!!routeShortcuts.length && (
             <div className="case-advocate-shortcuts" aria-label="Case navigation shortcuts">
-              {routeShortcuts.map((item) => (
-                <button key={item.to} type="button" onClick={() => navigate(item.to)}>
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {suggestedActions.length > 0 && (
-            <div className="case-advocate-next">
-              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-success" aria-hidden="true" />
-              <p>{suggestedActions[0]}</p>
+              {routeShortcuts.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button key={item.to} type="button" onClick={() => navigate(item.to)} title={item.title} aria-label={item.title}>
+                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                    {item.label}
+                  </button>
+                );
+              })}
             </div>
           )}
 

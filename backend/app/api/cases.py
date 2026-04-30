@@ -279,7 +279,7 @@ def _case_advocate_session(case: CaseRecord, user: dict) -> CaseIntakeSession:
                 role="assistant",
                 content=(
                     "I am here with you while we build this case file. Tell me what feels most important, "
-                    "and I will organize the facts, look for gaps, and suggest the next useful step."
+                    "and I will organize the facts and suggest the next useful step."
                 ),
                 structured={
                     "next_question": "What happened, and what are you most worried about right now?",
@@ -288,13 +288,13 @@ def _case_advocate_session(case: CaseRecord, user: dict) -> CaseIntakeSession:
                         "field": "family_narrative",
                         "label": "Start with what happened",
                         "question": "What happened, and what are you most worried about right now?",
-                        "why": "This gives USDWatch enough context to begin a Family Narrative and spot the next useful gap.",
+                        "why": "This gives USDWatch enough context to begin organizing the case file.",
                         "input_type": "free_text",
                         "options": [],
                         "priority": 1,
                     }],
                     "suggested_actions": [
-                        "Share the family narrative in plain English.",
+                        "Tell the Case Advocate what happened in plain English.",
                         "Add any emails, records, screenshots, or notes to the Evidence Locker.",
                     ],
                     "route_suggestion": "",
