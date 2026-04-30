@@ -88,8 +88,7 @@ export default function Contradictions() {
           return (
             <div
               key={c.id}
-              className="bg-surface border border-border rounded-lg overflow-hidden card-hover"
-              style={{ borderLeftWidth: 3, borderLeftColor: `var(--tw-${style.dot?.replace('bg-', '')}, currentColor)`, boxShadow: 'var(--shadow-card)' }}
+              className="bg-surface border border-border rounded-lg overflow-hidden transition-colors hover:border-accent/30"
             >
               <button
                 onClick={() => setExpandedId(isExpanded ? null : c.id)}

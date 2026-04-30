@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import {
   fetchCase,
   fetchCaseDocuments,
+  fetchCaseEvaluation,
   fetchCaseExport,
   fetchEvidenceChecklist,
   fetchLatestEvaluation,
@@ -89,7 +90,46 @@ export default function CaseDetail() {
     return () => window.removeEventListener('usdwatch:case-updated', handleCaseUpdated);
   }, [caseId, loadCase]);
 
+  const caseReadInProgress = ['queued', 'running'].includes(evaluation?.status);
+
+  useEffect(() => {
+    if (!caseReadInProgress || !evaluation?.id) return undefined;
+
+    let cancelled = false;
+    const pollEvaluation = async () => {
+      try {
+        const nextEvaluation = await fetchCaseEvaluation(caseId, evaluation.id);
+        if (cancelled) return;
+        setEvaluation(nextEvaluation);
+        if (nextEvaluation.status === 'complete') {
+          loadCase();
+        } else if (nextEvaluation.status === 'failed') {
+          setError(nextEvaluation.error || 'Case Read failed');
+        }
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to refresh Case Read status');
+      }
+    };
+
+    pollEvaluation();
+    const timer = window.setInterval(pollEvaluation, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [caseId, caseReadInProgress, evaluation?.id, loadCase]);
+
   const result = evaluation?.result;
+  const caseReadStatus = evaluation?.status || 'not_started';
+  const latestWorkflowStep = evaluation?.workflow_steps?.at?.(-1) || '';
+  const caseReadStatusDetail = (() => {
+    if (!evaluation) return 'No Case Read has been started yet.';
+    if (evaluation.status === 'queued') return 'The Case Read is queued and will start shortly.';
+    if (evaluation.status === 'running') return latestWorkflowStep ? `Working on ${formatLabel(latestWorkflowStep)}.` : 'The Case Read is running now.';
+    if (evaluation.status === 'failed') return evaluation.error || 'The last Case Read failed.';
+    if (evaluation.completed_at) return `Last completed ${new Date(evaluation.completed_at).toLocaleString()}.`;
+    return 'The latest Case Read is complete.';
+  })();
   const issueCategories = caseRecord?.intake?.issue_categories?.length
     ? caseRecord.intake.issue_categories
     : [caseRecord?.intake?.issue_type].filter(Boolean);
@@ -242,11 +282,11 @@ export default function CaseDetail() {
             Export Case
           </button>
           <button
-            disabled={busy}
+            disabled={busy || caseReadInProgress}
             onClick={handleRunEvaluation}
             className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
           >
-            {evaluation ? 'Refresh Case Read' : 'Run Case Read'}
+            {caseReadInProgress ? 'Case Read running...' : evaluation ? 'Refresh Case Read' : 'Run Case Read'}
           </button>
         </div>
       </div>
@@ -287,6 +327,13 @@ export default function CaseDetail() {
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
         <aside className="space-y-5">
           <Panel title="What To Do Next" eyebrow="Case plan">
+            <div className="mb-3 rounded-md border border-border bg-background px-3 py-3 text-xs leading-relaxed text-text-dim">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <span className="font-semibold uppercase tracking-[0.14em] text-text-dim">Case Read</span>
+                <StatusPill status={formatLabel(caseReadStatus)} />
+              </div>
+              <p>{caseReadStatusDetail}</p>
+            </div>
             <ol className="divide-y divide-border">
               {nextActions.map((action, index) => (
                 <li key={action} className="grid grid-cols-[28px_1fr] gap-3 py-3 text-sm">

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { fetchCases } from '../api/client';
+import { Link, useNavigate } from 'react-router-dom';
+import { fetchCases, openOrCreateDraftCase } from '../api/client';
 
 export default function Cases() {
+  const navigate = useNavigate();
   const [cases, setCases] = useState([]);
   const [error, setError] = useState('');
+  const [starting, setStarting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -20,6 +22,19 @@ export default function Cases() {
     };
   }, []);
 
+  const handleStartCase = async () => {
+    setStarting(true);
+    setError('');
+    try {
+      const caseRecord = await openOrCreateDraftCase();
+      navigate(`/cases/${caseRecord.id}?advocate=open`);
+    } catch (err) {
+      setError(err.message || 'Could not open your draft case');
+    } finally {
+      setStarting(false);
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto py-8 space-y-6 animate-fade-up">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -27,9 +42,14 @@ export default function Cases() {
           <p className="text-xs uppercase tracking-[0.18em] text-accent font-semibold">Workspace</p>
           <h2 className="text-3xl font-bold tracking-tight">Cases</h2>
         </div>
-        <Link to="/evaluate" className="px-4 py-2 rounded-md bg-accent text-background text-sm font-semibold hover:bg-accent-hover transition-colors">
-          Start My Case
-        </Link>
+        <button
+          type="button"
+          onClick={handleStartCase}
+          disabled={starting}
+          className="px-4 py-2 rounded-md bg-accent text-background text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-60"
+        >
+          {starting ? 'Opening...' : 'Start My Case'}
+        </button>
       </div>
 
       {error && <p className="text-sm text-red-300">{error}</p>}

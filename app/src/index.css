@@ -127,6 +127,7 @@ h1, h2, h3 {
   box-shadow: 0 1.25rem 4rem rgba(0, 0, 0, 0.46), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
   display: grid;
   gap: 0.75rem;
+  grid-template-rows: auto auto minmax(8rem, 1fr) auto auto auto auto;
   max-height: min(76vh, 44rem);
   overflow: hidden;
   padding: 0.9rem;
@@ -161,11 +162,80 @@ h1, h2, h3 {
   margin: 0;
 }
 
+.case-advocate-question-card {
+  background: color-mix(in oklch, var(--color-bg) 76%, var(--color-success) 5%);
+  border: 1px solid color-mix(in oklch, var(--color-border) 72%, var(--color-success) 28%);
+  border-radius: 0.75rem;
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.7rem 0.75rem;
+}
+
+.case-advocate-question-label {
+  color: var(--color-success);
+  font-size: 0.66rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.case-advocate-question-text {
+  color: var(--color-text);
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.35;
+  margin: 0.15rem 0 0;
+}
+
+.case-advocate-question-why {
+  color: var(--color-text-dim);
+  font-size: 0.73rem;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.case-advocate-question-options {
+  display: grid;
+  gap: 0.42rem;
+}
+
+.case-advocate-question-options button,
+.case-advocate-answer-button {
+  background: color-mix(in oklch, var(--color-surface) 82%, var(--color-success) 8%);
+  border: 1px solid color-mix(in oklch, var(--color-border) 70%, var(--color-success) 30%);
+  border-radius: 0.62rem;
+  color: var(--color-text);
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1.35;
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.case-advocate-answer-button {
+  justify-self: start;
+}
+
+.case-advocate-question-options button:hover:not(:disabled),
+.case-advocate-answer-button:hover:not(:disabled) {
+  background: color-mix(in oklch, var(--color-surface-alt) 78%, var(--color-success) 10%);
+  border-color: var(--color-success);
+  transform: translateY(-1px);
+}
+
+.case-advocate-question-options button:disabled,
+.case-advocate-answer-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .case-advocate-messages {
   align-content: start;
   display: grid;
   gap: 0.55rem;
-  min-height: 12rem;
+  min-height: 0;
   overflow-y: auto;
   padding-right: 0.2rem;
 }
@@ -177,7 +247,9 @@ h1, h2, h3 {
   font-size: 0.82rem;
   line-height: 1.45;
   max-width: 90%;
+  overflow-wrap: anywhere;
   padding: 0.65rem 0.75rem;
+  white-space: pre-wrap;
 }
 
 .case-advocate-message.from-user {
@@ -272,6 +344,7 @@ h1, h2, h3 {
   padding: 0.7rem 0.8rem;
   resize: none;
   transition: border-color 160ms ease, box-shadow 160ms ease;
+  white-space: pre-wrap;
 }
 
 .case-advocate-form textarea:focus {
@@ -374,6 +447,7 @@ h1, h2, h3 {
 
 .advocate-body,
 .advocate-folder,
+.advocate-eye,
 .advocate-spark {
   transform-box: fill-box;
   transform-origin: center;
@@ -420,8 +494,26 @@ h1, h2, h3 {
   animation: advocate-think 1.25s cubic-bezier(0.25, 1, 0.5, 1) infinite;
 }
 
-.advocate-character-gap .advocate-spark.one {
-  animation: advocate-spark 1.8s ease-in-out infinite;
+.advocate-character-ready .advocate-eye,
+.advocate-character-gap .advocate-eye,
+.advocate-character-thinking .advocate-eye {
+  animation: advocate-blink 6.4s linear infinite;
+}
+
+.advocate-character-ready .advocate-eye.right,
+.advocate-character-gap .advocate-eye.right,
+.advocate-character-thinking .advocate-eye.right {
+  animation-delay: 70ms;
+}
+
+.advocate-character-ready .advocate-spark,
+.advocate-character-gap .advocate-spark {
+  animation: advocate-spark 3.2s ease-in-out infinite;
+}
+
+.advocate-character-ready .advocate-spark.two,
+.advocate-character-gap .advocate-spark.two {
+  animation-delay: 0.8s;
 }
 
 .advocate-character-thinking .advocate-spark {
@@ -471,6 +563,15 @@ h1, h2, h3 {
   }
 }
 
+@keyframes advocate-blink {
+  0%, 88%, 92%, 100% {
+    transform: scaleY(1);
+  }
+  90% {
+    transform: scaleY(0.08);
+  }
+}
+
 @media (max-width: 640px) {
   .case-advocate-widget {
     bottom: 0.85rem;
@@ -495,12 +596,18 @@ h1, h2, h3 {
   .advocate-character-ready .advocate-body,
   .advocate-character-gap .advocate-body,
   .advocate-character-thinking .advocate-body,
-  .advocate-character-gap .advocate-spark.one,
+  .advocate-character-ready .advocate-eye,
+  .advocate-character-gap .advocate-eye,
+  .advocate-character-thinking .advocate-eye,
+  .advocate-character-ready .advocate-spark,
+  .advocate-character-gap .advocate-spark,
   .advocate-character-thinking .advocate-spark {
     animation: none;
   }
 
   .case-advocate-actions button,
+  .case-advocate-question-options button,
+  .case-advocate-answer-button,
   .case-advocate-shortcuts button,
   .case-advocate-form button,
   .case-advocate-launcher,

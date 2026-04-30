@@ -27,7 +27,7 @@ export default function PublicHome() {
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
-                to={isAuthenticated ? '/evaluate' : '/login'}
+                to={isAuthenticated ? '/cases' : '/login'}
                 className="inline-flex items-center justify-center rounded-md bg-accent px-5 py-3 text-sm font-bold text-background transition-colors hover:bg-accent-hover"
               >
                 Start My Case

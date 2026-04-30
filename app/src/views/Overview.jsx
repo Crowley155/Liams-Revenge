@@ -47,7 +47,7 @@ export default function Overview() {
           {videoUrl && (
             <button
               onClick={() => setShowVideo(true)}
-              className="w-full sm:w-auto shrink-0 px-5 py-3 sm:py-2.5 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-accent-hover transition-all animate-pulse-subtle text-center shadow-[0_0_20px_var(--color-accent-glow)]"
+              className="w-full sm:w-auto shrink-0 px-5 py-3 sm:py-2.5 rounded-md text-sm font-semibold bg-accent text-background hover:bg-accent-hover transition-colors text-center"
             >
               ▶ Tell me why I care
             </button>
@@ -100,7 +100,7 @@ export default function Overview() {
           </p>
         </div>
 
-        <div className="mt-8 sm:mt-10 bg-surface-alt border-l-4 border-accent rounded-r-xl p-6 sm:p-8 relative overflow-hidden">
+        <div className="mt-8 sm:mt-10 bg-surface-alt border border-border rounded-xl p-6 sm:p-8 relative overflow-hidden">
           <img
             src="/images/core-problem.webp"
             alt=""
@@ -671,7 +671,7 @@ function VideoModal({ url, onClose }) {
 
 function EvidenceCluster({ title, intro, items }) {
   return (
-    <div className="bg-surface border border-border rounded-xl overflow-hidden" style={{ boxShadow: 'var(--shadow-card)' }}>
+      <div className="bg-surface border border-border rounded-xl overflow-hidden">
       <div className="px-6 pt-6 pb-4">
         <h4 className="text-base font-bold tracking-tight mb-1.5">{title}</h4>
         <p className="text-sm text-text-dim/80 leading-relaxed">{intro}</p>
@@ -680,7 +680,7 @@ function EvidenceCluster({ title, intro, items }) {
         {items.map((item, i) => (
           <div key={i} className="px-6 py-5">
             {item.quote && (
-              <blockquote className="text-sm italic text-text-dim/90 leading-relaxed border-l-2 border-accent/40 pl-4 mb-3">
+              <blockquote className="rounded-md border border-border bg-surface-alt px-4 py-3 text-sm italic text-text-dim/90 leading-relaxed mb-3">
                 "{item.quote}"
               </blockquote>
             )}

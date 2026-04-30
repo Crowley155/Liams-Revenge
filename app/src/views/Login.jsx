@@ -8,7 +8,7 @@ export default function Login() {
   const location = useLocation();
   const [email, setEmail] = useState('dev@example.com');
   const [error, setError] = useState('');
-  const redirectTo = location.state?.from?.pathname || '/evaluate';
+  const redirectTo = location.state?.from?.pathname || '/cases';
 
   if (isAuthenticated) {
     return <Navigate to={redirectTo} replace />;
@@ -36,7 +36,7 @@ export default function Login() {
 
       {clerkEnabled ? (
         <div className="bg-surface border border-border rounded-lg p-5 space-y-3">
-          <SignInButton mode="modal" forceRedirectUrl="/evaluate">
+          <SignInButton mode="modal" forceRedirectUrl="/cases">
             <button className="w-full px-4 py-3 rounded-md bg-accent text-background font-semibold hover:bg-accent-hover transition-colors">
               Sign In
             </button>

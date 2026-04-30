@@ -68,14 +68,14 @@ export default function NonCompliance() {
           </div>
 
           {section.rules.map((rule, ri) => (
-            <RuleCard key={ri} rule={rule} color={section.color} />
+            <RuleCard key={ri} rule={rule} />
           ))}
         </div>
       ))}
 
       {/* Summary */}
       <div className="border-t border-border pt-6 mt-8">
-        <div className="bg-surface-alt border border-border rounded-lg p-5" style={{ boxShadow: 'var(--shadow-card)' }}>
+        <div className="bg-surface-alt border border-border rounded-lg p-5">
           <h4 className="text-sm font-bold mb-2">What the Records Show</h4>
           <p className="text-sm leading-relaxed text-text-dim">
             Across the lease, KDHE licensing, and district statutes, the available evidence
@@ -97,7 +97,7 @@ function StructuredContent({ intro, points }) {
       {points?.length > 0 && (
         <dl className="space-y-2 mt-2">
           {points.map((pt, i) => (
-            <div key={i} className="pl-3 border-l-2 border-border">
+            <div key={i} className="rounded-md border border-border bg-background/40 px-3 py-2">
               <dt className="text-[11px] font-semibold text-text">{pt.label}</dt>
               <dd className="text-xs leading-relaxed text-text-dim mt-0.5">{pt.text}</dd>
             </div>
@@ -108,14 +108,13 @@ function StructuredContent({ intro, points }) {
   );
 }
 
-function RuleCard({ rule, color }) {
+function RuleCard({ rule }) {
   const [expanded, setExpanded] = useState(false);
   const hasStructured = rule.requiresIntro || rule.actualIntro;
 
   return (
     <div
-      className="bg-surface border border-border rounded-lg overflow-hidden card-hover"
-      style={{ borderLeftColor: color, borderLeftWidth: 3, boxShadow: 'var(--shadow-card)' }}
+      className="bg-surface border border-border rounded-lg overflow-hidden transition-colors hover:border-accent/30"
     >
       <button
         onClick={() => setExpanded(!expanded)}

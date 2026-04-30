@@ -106,8 +106,7 @@ export default function EvidenceGaps() {
           return (
             <div
               key={gap.id}
-              className="bg-surface border border-border rounded-lg p-5 card-hover"
-              style={{ boxShadow: 'var(--shadow-card)' }}
+              className="bg-surface border border-border rounded-lg p-5 transition-colors hover:border-accent/30"
             >
               <div className="flex items-start gap-3">
                 <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shrink-0 mt-0.5 ${style.bg} ${style.text}`}>
@@ -172,7 +171,7 @@ export default function EvidenceGaps() {
 
       {/* Summary footer */}
       <div className="border-t border-border pt-8">
-        <div className="bg-surface-alt border border-border rounded-xl p-6 sm:p-8" style={{ boxShadow: 'var(--shadow-card)' }}>
+        <div className="bg-surface-alt border border-border rounded-xl p-6 sm:p-8">
           <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
             Every gap in this list is a question the institutions could answer but haven't.
             Some require KORA requests. Some require subpoenas. Some just require someone

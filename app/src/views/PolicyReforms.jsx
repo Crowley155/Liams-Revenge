@@ -192,12 +192,7 @@ export default function PolicyReforms() {
             return (
               <div
                 key={key}
-                className="bg-surface border border-border rounded-lg overflow-hidden card-hover"
-                style={{
-                  borderLeftColor: section.color,
-                  borderLeftWidth: 3,
-                  boxShadow: 'var(--shadow-card)',
-                }}
+                className="bg-surface border border-border rounded-lg overflow-hidden transition-colors hover:border-accent/30"
               >
                 <button
                   onClick={() => setExpandedId(isExpanded ? null : key)}
@@ -242,7 +237,6 @@ export default function PolicyReforms() {
       <div className="border-t border-border pt-8 mt-8">
         <div
           className="bg-surface-alt border border-border rounded-xl p-6 sm:p-8"
-          style={{ boxShadow: 'var(--shadow-card)' }}
         >
           <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
             None of these reforms require new legislation. They require the institutions

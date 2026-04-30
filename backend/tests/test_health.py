@@ -1,3 +1,5 @@
+import sys
+import types
 import uuid
 
 import pytest
@@ -5,6 +7,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from jwt import ExpiredSignatureError, InvalidTokenError
 
+import app.main as main_module
 from app.api import deps
 from app.api.deps import get_current_user
 from app.main import app
@@ -54,6 +57,31 @@ def test_health_endpoint():
 def test_protected_routes_require_auth():
     resp = client.get("/api/profiles")
     assert resp.status_code == 401
+
+
+def test_seed_requires_admin_role(monkeypatch):
+    calls = {"seed": 0, "ingest": 0}
+
+    def fake_seed():
+        calls["seed"] += 1
+
+    def fake_ingest():
+        calls["ingest"] += 1
+
+    fake_seed_module = types.ModuleType("app.scripts.seed_actors")
+    fake_seed_module.seed = fake_seed
+    monkeypatch.setitem(sys.modules, "app.scripts.seed_actors", fake_seed_module)
+    monkeypatch.setattr(main_module, "_ingest_evidence_to_qdrant", fake_ingest)
+
+    _override_user(_user(role="member"))
+    denied = client.post("/api/seed")
+    assert denied.status_code == 403
+    assert calls == {"seed": 0, "ingest": 0}
+
+    _override_user(_user(role="admin"))
+    allowed = client.post("/api/seed")
+    assert allowed.status_code == 200
+    assert calls == {"seed": 1, "ingest": 1}
 
 
 def test_job_not_found_for_authenticated_user():

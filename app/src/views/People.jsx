@@ -223,7 +223,7 @@ export default function People() {
             Every person involved — curated case evidence and pipeline-researched profiles in one place.
           </p>
         </div>
-        {people.length === 0 && (
+        {people.length === 0 && isDemoCase && (
           <button
             onClick={handleSeed}
             disabled={seeding}

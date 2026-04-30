@@ -3,7 +3,7 @@ import os
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -155,8 +155,11 @@ async def startup_ingest():
 
 
 @app.post("/api/seed")
-async def seed_actors(_user: dict = Depends(get_current_user)):
+async def seed_actors(user: dict = Depends(get_current_user)):
     """One-shot: import case-data.json actors into the backend store."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
     from app.scripts.seed_actors import seed
     seed()
     _ingest_evidence_to_qdrant()

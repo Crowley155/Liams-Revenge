@@ -201,12 +201,24 @@ class CaseIntakeFacts(BaseModel):
     urgent: bool = False
 
 
+class CaseIntakeQuestion(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    field: str = ""
+    label: str = ""
+    question: str = ""
+    why: str = ""
+    input_type: str = Field(default="free_text", description="free_text | single_choice | multi_choice | yes_no")
+    options: list[str] = Field(default_factory=list)
+    priority: int = Field(default=1, ge=1, le=5)
+
+
 class CaseIntakeAnalysis(BaseModel):
     facts: CaseIntakeFacts = Field(default_factory=CaseIntakeFacts)
     confidence: dict[str, float] = Field(default_factory=dict)
     missing_fields: list[str] = Field(default_factory=list)
     issue_tags: list[str] = Field(default_factory=list)
     next_question: str = ""
+    question_cards: list[CaseIntakeQuestion] = Field(default_factory=list)
     assistant_message: str = ""
     draft_title: str = ""
     family_narrative_patch: str = ""

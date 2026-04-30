@@ -8,6 +8,7 @@ import {
   fetchDocumentContentBlob,
   fetchDocumentPreview,
   fetchGmailStatus,
+  fetchWorkspace,
   importGmailMessages,
   saveGmailImportRule,
   searchGmailMessages,
@@ -34,6 +35,13 @@ import {
 function categoryLabel(value) {
   return evidenceCategoryLabel(value, formatLabel);
 }
+
+const NOTICE_STYLES = {
+  success: 'border-success/30 bg-success/8 text-success',
+  info: 'border-info/30 bg-info/8 text-info',
+  warning: 'border-warning/30 bg-warning/8 text-warning',
+  error: 'border-danger/30 bg-danger/10 text-danger',
+};
 
 function UploadQueueItem({ item, onRemove }) {
   return (
@@ -112,28 +120,54 @@ export default function EvidenceLocker() {
   const [gmailMessages, setGmailMessages] = useState([]);
   const [gmailQuery, setGmailQuery] = useState('');
   const [selectedGmailMessages, setSelectedGmailMessages] = useState([]);
+  const [workspaceSummary, setWorkspaceSummary] = useState(null);
+  const [documentTotal, setDocumentTotal] = useState(0);
   const [preview, setPreview] = useState(null);
   const [contentUrl, setContentUrl] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [notice, setNotice] = useState(null);
+
+  const showNotice = useCallback((type, message) => {
+    setNotice(message ? { type, message } : null);
+  }, []);
 
   const loadDocuments = useCallback(async () => {
     setLoading(true);
-    setError('');
+    showNotice(null, '');
     try {
-      setDocuments(await fetchCaseDocuments(caseId, filters));
+      const hasFilters = Object.values(filters).some((value) => value !== undefined && value !== null && value !== '' && value !== 'uploaded_at' && value !== 'desc');
+      const nextDocuments = await fetchCaseDocuments(caseId, filters);
+      setDocuments(nextDocuments);
+      if (hasFilters) {
+        const allDocuments = await fetchCaseDocuments(caseId);
+        setDocumentTotal(allDocuments.length);
+      } else {
+        setDocumentTotal(nextDocuments.length);
+      }
     } catch (err) {
-      setError(err.message || 'Failed to load Evidence Locker');
+      showNotice('error', err.message || 'Failed to load Evidence Locker');
     } finally {
       setLoading(false);
     }
-  }, [caseId, filters]);
+  }, [caseId, filters, showNotice]);
 
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWorkspace()
+      .then((summary) => {
+        if (!cancelled) setWorkspaceSummary(summary);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,9 +210,24 @@ export default function EvidenceLocker() {
   }, [documents]);
   const gmailConnection = gmailStatus?.connections?.[0] || null;
   const gmailConnected = gmailConnection?.status === 'connected';
+  const documentLimit = workspaceSummary?.entitlements?.max_documents_per_case;
+  const hasDocumentLimit = Number.isFinite(documentLimit);
+  const remainingDocuments = hasDocumentLimit ? Math.max(documentLimit - documentTotal, 0) : null;
+  const availableQueueSlots = hasDocumentLimit ? Math.max(remainingDocuments - queue.length, 0) : null;
+  const limitReached = hasDocumentLimit && remainingDocuments <= 0;
 
   const addFiles = (files) => {
-    const next = Array.from(files || []).map((file) => ({
+    const incoming = Array.from(files || []);
+    if (!incoming.length) return;
+    if (limitReached || availableQueueSlots === 0) {
+      showNotice('warning', `Your current plan includes ${documentLimit} documents in this case. Remove a file or upgrade before adding more evidence.`);
+      return;
+    }
+    const accepted = hasDocumentLimit ? incoming.slice(0, availableQueueSlots) : incoming;
+    if (accepted.length < incoming.length) {
+      showNotice('warning', `You can add ${accepted.length} more file${accepted.length === 1 ? '' : 's'} before reaching your current document limit.`);
+    }
+    const next = accepted.map((file) => ({
       id: `${file.name}-${file.lastModified}-${Math.random().toString(16).slice(2)}`,
       file,
       status: 'uploaded',
@@ -197,9 +246,14 @@ export default function EvidenceLocker() {
 
   const handleUploadQueue = async () => {
     if (!queue.length) return;
+    if (limitReached) {
+      showNotice('warning', `Your current plan includes ${documentLimit} documents in this case. Remove a file or upgrade before adding more evidence.`);
+      return;
+    }
     setBusy(true);
-    setError('');
+    showNotice(null, '');
     const uploadedDocs = [];
+    let failedCount = 0;
     try {
       for (const item of queue) {
         if (item.status === 'indexed' || item.status === 'needs_review') continue;
@@ -214,11 +268,16 @@ export default function EvidenceLocker() {
             compressed: prepared.compressed,
           });
         } catch (uploadError) {
+          failedCount += 1;
           updateQueueItem(item.id, { status: 'failed', failureReason: uploadError.message });
         }
       }
       if (uploadedDocs.length) {
         setDocuments((current) => [...uploadedDocs, ...current]);
+        setDocumentTotal((current) => current + uploadedDocs.length);
+        showNotice('success', `${uploadedDocs.length} file${uploadedDocs.length === 1 ? '' : 's'} imported. USDWatch is indexing them in the background.`);
+      } else if (failedCount) {
+        showNotice('error', 'No files imported. Check the failed item details in the upload queue.');
       }
     } finally {
       setBusy(false);
@@ -227,7 +286,7 @@ export default function EvidenceLocker() {
 
   const handlePreview = async (doc) => {
     setBusy(true);
-    setError('');
+    showNotice(null, '');
     try {
       const nextPreview = await fetchDocumentPreview(doc.id);
       if (contentUrl) URL.revokeObjectURL(contentUrl);
@@ -238,7 +297,7 @@ export default function EvidenceLocker() {
       }
       setPreview(nextPreview);
     } catch (err) {
-      setError(err.message || 'Preview failed');
+      showNotice('error', err.message || 'Preview failed');
     } finally {
       setBusy(false);
     }
@@ -247,13 +306,15 @@ export default function EvidenceLocker() {
   const handleDeleteConfirmed = async () => {
     if (!deleteTarget) return;
     setBusy(true);
-    setError('');
+    showNotice(null, '');
     try {
       await deleteDocument(deleteTarget.id);
       setDocuments((current) => current.filter((doc) => doc.id !== deleteTarget.id));
+      setDocumentTotal((current) => Math.max(current - 1, 0));
       setDeleteTarget(null);
+      showNotice('success', `${deleteTarget.filename} was removed from the Evidence Locker.`);
     } catch (err) {
-      setError(err.message || 'Delete failed');
+      showNotice('error', err.message || 'Delete failed');
     } finally {
       setBusy(false);
     }
@@ -261,7 +322,7 @@ export default function EvidenceLocker() {
 
   const handleSaveGmailRule = async () => {
     setBusy(true);
-    setError('');
+    showNotice(null, '');
     try {
       const run = await saveGmailImportRule({
         case_id: caseId,
@@ -273,9 +334,13 @@ export default function EvidenceLocker() {
       });
       const status = await fetchGmailStatus(caseId);
       setGmailStatus(status);
-      setError(run.error || (status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved.' : 'Gmail rule saved. Connect Gmail before messages can import.'));
+      if (run.error) {
+        showNotice('warning', run.error);
+      } else {
+        showNotice('success', status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved.' : 'Gmail rule saved. Connect Gmail before messages can import.');
+      }
     } catch (err) {
-      setError(err.message || 'Gmail rule failed');
+      showNotice('error', err.message || 'Gmail rule failed');
     } finally {
       setBusy(false);
     }
@@ -283,19 +348,19 @@ export default function EvidenceLocker() {
 
   const handleConnectGmail = async () => {
     setBusy(true);
-    setError('');
+    showNotice(null, '');
     try {
       const result = await startGmailOAuth(caseId);
       window.location.href = result.authorization_url;
     } catch (err) {
-      setError(err.message || 'Gmail connection failed');
+      showNotice('error', err.message || 'Gmail connection failed');
       setBusy(false);
     }
   };
 
   const handleSearchGmail = async () => {
     setBusy(true);
-    setError('');
+    showNotice(null, '');
     try {
       const result = await searchGmailMessages({
         case_id: caseId,
@@ -305,9 +370,9 @@ export default function EvidenceLocker() {
       });
       setGmailMessages(result.messages || []);
       setSelectedGmailMessages((result.messages || []).map((item) => item.id));
-      setError(`Found ${result.messages?.length || 0} matching Gmail message${result.messages?.length === 1 ? '' : 's'}.`);
+      showNotice('info', `Found ${result.messages?.length || 0} matching Gmail message${result.messages?.length === 1 ? '' : 's'}.`);
     } catch (err) {
-      setError(err.message || 'Gmail search failed');
+      showNotice('error', err.message || 'Gmail search failed');
     } finally {
       setBusy(false);
     }
@@ -321,7 +386,7 @@ export default function EvidenceLocker() {
 
   const handleImportGmail = async () => {
     setBusy(true);
-    setError('');
+    showNotice(null, '');
     try {
       const run = await importGmailMessages({
         case_id: caseId,
@@ -330,10 +395,10 @@ export default function EvidenceLocker() {
         query: gmailQuery,
         max_results: 25,
       });
-      setError(`Imported ${run.imported_messages} message${run.imported_messages === 1 ? '' : 's'} and ${run.imported_attachments} attachment${run.imported_attachments === 1 ? '' : 's'}.`);
       await loadDocuments();
+      showNotice('success', `Imported ${run.imported_messages} message${run.imported_messages === 1 ? '' : 's'} and ${run.imported_attachments} attachment${run.imported_attachments === 1 ? '' : 's'}.`);
     } catch (err) {
-      setError(err.message || 'Gmail import failed');
+      showNotice('error', err.message || 'Gmail import failed');
     } finally {
       setBusy(false);
     }
@@ -341,17 +406,17 @@ export default function EvidenceLocker() {
 
   const handleSyncGmail = async () => {
     setBusy(true);
-    setError('');
+    showNotice(null, '');
     try {
       const run = await syncGmailMessages({
         case_id: caseId,
         connection_id: gmailConnection?.id || '',
         max_results: 25,
       });
-      setError(`Sync imported ${run.imported_messages} message${run.imported_messages === 1 ? '' : 's'} and ${run.imported_attachments} attachment${run.imported_attachments === 1 ? '' : 's'}.`);
       await loadDocuments();
+      showNotice('success', `Sync imported ${run.imported_messages} message${run.imported_messages === 1 ? '' : 's'} and ${run.imported_attachments} attachment${run.imported_attachments === 1 ? '' : 's'}.`);
     } catch (err) {
-      setError(err.message || 'Gmail sync failed');
+      showNotice('error', err.message || 'Gmail sync failed');
     } finally {
       setBusy(false);
     }
@@ -359,15 +424,15 @@ export default function EvidenceLocker() {
 
   const handleDisconnectGmail = async () => {
     setBusy(true);
-    setError('');
+    showNotice(null, '');
     try {
       await disconnectGmail(caseId);
       setGmailMessages([]);
       setSelectedGmailMessages([]);
       setGmailStatus(await fetchGmailStatus(caseId));
-      setError('Gmail disconnected. USDWatch will not import future messages from that account.');
+      showNotice('success', 'Gmail disconnected. USDWatch will not import future messages from that account.');
     } catch (err) {
-      setError(err.message || 'Gmail disconnect failed');
+      showNotice('error', err.message || 'Gmail disconnect failed');
     } finally {
       setBusy(false);
     }
@@ -392,17 +457,22 @@ export default function EvidenceLocker() {
         </div>
       </div>
 
-      {error && <p className="rounded-md border border-warning/30 bg-warning/8 px-3 py-2 text-sm text-warning">{error}</p>}
+      {notice && <p role="status" aria-live="polite" className={`rounded-md border px-3 py-2 text-sm ${NOTICE_STYLES[notice.type] || NOTICE_STYLES.info}`}>{notice.message}</p>}
 
       <div className="grid gap-5 xl:grid-cols-[390px_1fr]">
         <aside className="space-y-5">
           <Panel title="Import Files" eyebrow="Evidence Locker">
             <div className="space-y-4">
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-md border border-dashed border-border bg-background px-4 py-8 text-center transition-colors hover:border-accent/60">
+              <label className={`flex flex-col items-center justify-center rounded-md border border-dashed border-border bg-background px-4 py-8 text-center transition-colors ${limitReached ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:border-accent/60'}`}>
                 <FileUp className="h-7 w-7 text-accent" aria-hidden="true" />
                 <span className="mt-3 text-sm font-semibold text-text">Drop files here or browse</span>
                 <span className="mt-1 text-xs leading-relaxed text-text-dim">Multiple files. Up to 50 MB each. Large images may be compressed for indexing.</span>
-                <input className="hidden" type="file" multiple accept={ACCEPTED_EVIDENCE_FILE_TYPES} onChange={(event) => addFiles(event.target.files)} />
+                {hasDocumentLimit && (
+                  <span className="mt-2 text-xs leading-relaxed text-text-dim">
+                    {documentTotal} of {documentLimit} document{documentLimit === 1 ? '' : 's'} used on your current plan.
+                  </span>
+                )}
+                <input className="hidden" type="file" multiple disabled={busy || limitReached} accept={ACCEPTED_EVIDENCE_FILE_TYPES} onChange={(event) => addFiles(event.target.files)} />
               </label>
               {queue.length > 0 && (
                 <div className="space-y-3">

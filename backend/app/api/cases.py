@@ -282,6 +282,17 @@ def _case_advocate_session(case: CaseRecord, user: dict) -> CaseIntakeSession:
                     "and I will organize the facts, look for gaps, and suggest the next useful step."
                 ),
                 structured={
+                    "next_question": "What happened, and what are you most worried about right now?",
+                    "question_cards": [{
+                        "id": "start-story",
+                        "field": "family_narrative",
+                        "label": "Start with what happened",
+                        "question": "What happened, and what are you most worried about right now?",
+                        "why": "This gives USDWatch enough context to begin a Family Narrative and spot the next useful gap.",
+                        "input_type": "free_text",
+                        "options": [],
+                        "priority": 1,
+                    }],
                     "suggested_actions": [
                         "Share the family narrative in plain English.",
                         "Add any emails, records, screenshots, or notes to the Evidence Locker.",
@@ -393,6 +404,27 @@ def _records_request_drafts(case: CaseRecord, evaluation: CaseEvaluation | None)
             "request_language": "Please provide policies, procedures, handbooks, training materials, and staff guidance applicable to the issue described in this request.",
         },
     ]
+
+
+def _process_case_document_background(doc: CaseDocument, content: bytes) -> None:
+    """Background task for case evidence ingestion."""
+    try:
+        current_doc = case_documents.get(doc.id, doc)
+        current_doc.status = "processing"
+        current_doc.processing_status = "processing"
+        current_doc.error = None
+        current_doc.failure_reason = None
+        case_documents[current_doc.id] = current_doc
+        process_document_bytes(current_doc, content)
+    except Exception as exc:
+        logger.exception("Case document processing failed for %s", doc.id)
+        failed_doc = case_documents.get(doc.id, doc)
+        failed_doc.status = "failed"
+        failed_doc.processing_status = "failed"
+        failed_doc.error = str(exc)
+        failed_doc.failure_reason = str(exc)
+        failed_doc.processed_at = utc_now()
+        case_documents[failed_doc.id] = failed_doc
 
 
 def _self_advocacy_packet(case: CaseRecord) -> dict:
@@ -664,6 +696,7 @@ async def list_case_documents(
 @router.post("/cases/{case_id}/documents", response_model=CaseDocument)
 async def upload_case_document(
     case_id: str,
+    bg: BackgroundTasks,
     file: UploadFile = File(...),
     evidence_type: str = Form(default=""),
     user_description: str = Form(default=""),
@@ -692,6 +725,8 @@ async def upload_case_document(
         document_date=document_date,
         source_person=source_person,
         source="case_evaluation_upload",
+        status="processing",
+        processing_status="uploaded",
     )
     category, confidence, tags, inferred_type = infer_document_metadata(doc.filename)
     doc.inferred_category = category
@@ -700,7 +735,9 @@ async def upload_case_document(
     if not doc.evidence_type:
         doc.evidence_type = inferred_type
     doc.storage_path = save_case_document_file(doc.workspace_id, doc.case_id, doc.id, doc.filename, content)
-    return process_document_bytes(doc, content)
+    case_documents[doc.id] = doc
+    bg.add_task(_process_case_document_background, doc, content)
+    return doc
 
 
 def _run_evaluation_background(case: CaseRecord, evaluation: CaseEvaluation):

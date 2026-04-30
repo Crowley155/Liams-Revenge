@@ -25,7 +25,7 @@ function EntityCard({ entity, caseId }) {
   return (
     <Link
       to={`/cases/${caseId}/entities/${entity.id}`}
-      className="block bg-surface border border-border rounded-lg hover:border-accent/40 hover:shadow-[0_0_12px_var(--color-accent-glow)] transition-all duration-200"
+      className="block bg-surface border border-border rounded-lg transition-colors duration-200 hover:border-accent/40 hover:bg-surface-alt/40"
     >
       <div className="p-5">
         <div className="flex items-start gap-3 mb-3">

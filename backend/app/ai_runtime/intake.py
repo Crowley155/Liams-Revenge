@@ -8,7 +8,7 @@ from datetime import datetime
 
 from app.api._store import agent_runs
 from app.config import settings
-from app.models import AgentRun, CaseIntakeAnalysis, CaseIntakeFacts, CaseIntakeMessage, CaseIntakeSession
+from app.models import AgentRun, CaseIntakeAnalysis, CaseIntakeFacts, CaseIntakeMessage, CaseIntakeQuestion, CaseIntakeSession
 
 REASONING_MODEL = settings.deepinfra_reasoning_model
 FALLBACK_MODEL = settings.deepinfra_fallback_model
@@ -209,18 +209,70 @@ def _heuristic_analysis(session: CaseIntakeSession) -> CaseIntakeAnalysis:
         suggested_actions.append(f"Fill the next case-file gap: {missing[0]}.")
     if not facts.prior_actions:
         suggested_actions.append("Share what you have already tried so records and next steps fit the real history.")
+    question_cards = _question_cards(facts, missing, next_question)
     return CaseIntakeAnalysis(
         facts=facts,
         confidence=confidence,
         missing_fields=missing,
         issue_tags=facts.issue_categories,
         next_question=next_question,
+        question_cards=question_cards,
         assistant_message=_assistant_message(facts, missing, next_question),
         draft_title=facts.title or "New school case",
         family_narrative_patch=narrative,
         suggested_actions=suggested_actions[:3],
         route_suggestion="",
     )
+
+
+def _question_cards(facts: CaseIntakeFacts, missing: list[str], next_question: str) -> list[CaseIntakeQuestion]:
+    cards: list[CaseIntakeQuestion] = []
+    if not next_question:
+        return cards
+
+    label = "Next case-file question"
+    field = "case_context"
+    why = "This helps USDWatch organize the case file without forcing you into a long form."
+    input_type = "free_text"
+    options: list[str] = []
+
+    if "who was impacted" in missing:
+        label = "Who was impacted"
+        field = "impacted_party"
+        why = "Age, grade, and relationship help the Case Read adjust the questions and records checklist."
+    elif not facts.district and not facts.school:
+        label = "School or agency involved"
+        field = "institution"
+        why = "This tells USDWatch which records, policies, and jurisdiction rules may matter."
+    elif "whether there is a current safety concern" in missing:
+        label = "Current safety concern"
+        field = "safety_risk"
+        input_type = "yes_no"
+        options = ["Yes, there is a current safety concern.", "No, the immediate safety concern has passed.", "I am not sure yet."]
+        why = "Current safety risk changes the urgency of the plan and the next records to request."
+    elif not facts.prior_actions:
+        label = "What you already tried"
+        field = "prior_actions"
+        input_type = "multi_choice"
+        options = ["Emailed school staff", "Asked for a meeting", "Requested records", "Filed a complaint", "Nothing yet"]
+        why = "Prior actions keep the next step realistic and prevent USDWatch from suggesting things you already did."
+    else:
+        label = "Goal for the first plan"
+        field = "desired_outcome"
+        input_type = "single_choice"
+        options = ["Request records", "Prepare for a meeting", "Document a safety concern", "Evaluate complaint options", "Find outside support"]
+        why = "A clear first goal makes the packet and records plan more useful."
+
+    cards.append(CaseIntakeQuestion(
+        field=field,
+        label=label,
+        question=next_question,
+        why=why,
+        input_type=input_type,
+        options=options,
+        priority=1,
+    ))
+    return cards
 
 
 def _next_question(facts: CaseIntakeFacts, missing: list[str]) -> str:
@@ -248,7 +300,9 @@ def _assistant_message(facts: CaseIntakeFacts, missing: list[str], next_question
         prefix += " I am seeing " + "; ".join(understood) + "."
     if missing:
         prefix += " The biggest gap is " + missing[0] + "."
-    return f"{prefix} {next_question}"
+    if next_question:
+        prefix += " I put one focused question below so you can answer it directly."
+    return prefix
 
 
 def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MODEL) -> CaseIntakeAnalysis:
@@ -265,6 +319,10 @@ def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MOD
             "You are a careful parent-facing case advocate intake agent.",
             "Extract only facts supported by the parent messages; leave uncertain fields blank.",
             "Ask one practical follow-up question at a time.",
+            "Put the follow-up question in next_question and question_cards, not buried inside assistant_message.",
+            "Return question_cards for the next question. Keep them short, concrete, and answerable by a stressed parent.",
+            "Use input_type free_text unless a small set of choices would reduce friction.",
+            "Question card options must be complete short sentence answers, not labels.",
             "Write a concise family_narrative_patch in the parent's plain-language voice when enough story exists.",
             "Return suggested_actions that help the parent fill case-file gaps, upload evidence, or track records.",
             "Do not provide legal advice or promise outcomes.",
@@ -328,6 +386,8 @@ def analyze_intake_session(session: CaseIntakeSession) -> CaseIntakeSession:
                     "facts_patch": analysis.facts.model_dump(mode="json"),
                     "family_narrative_patch": analysis.family_narrative_patch,
                     "missing_facts": analysis.missing_fields,
+                    "next_question": analysis.next_question,
+                    "question_cards": [card.model_dump(mode="json") for card in analysis.question_cards],
                     "suggested_actions": analysis.suggested_actions,
                     "route_suggestion": analysis.route_suggestion,
                     "confidence": analysis.confidence,

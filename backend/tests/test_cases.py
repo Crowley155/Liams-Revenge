@@ -254,6 +254,8 @@ def test_case_bound_advocate_updates_draft_case_and_first_case_read_activates(mo
     body = message.json()
     assert body["case_id"] == case_id
     assert "retaliation" in body["issue_tags"]
+    assert body["messages"][-1]["structured"]["question_cards"]
+    assert body["messages"][-1]["structured"]["question_cards"][0]["question"]
     assert body["messages"][-1]["structured"]["agent_run_ids"]
 
     updated = client.get(f"/api/cases/{case_id}")
@@ -335,7 +337,15 @@ def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypat
         },
     )
     assert uploaded.status_code == 200
-    doc = uploaded.json()
+    queued_doc = uploaded.json()
+    assert queued_doc["status"] == "processing"
+    assert queued_doc["processing_status"] == "uploaded"
+    assert queued_doc["qdrant_point_ids"] == []
+    assert queued_doc["storage_path"]
+
+    fetched = client.get(f"/api/documents/{queued_doc['id']}")
+    assert fetched.status_code == 200
+    doc = fetched.json()
     assert doc["processing_status"] == "indexed"
     assert doc["qdrant_point_ids"] == [f"point-{doc['id']}-0"]
     assert stored_chunks["document_id"] == doc["id"]
@@ -410,7 +420,13 @@ def test_document_delete_cleans_qdrant_points(monkeypatch, tmp_path):
         files={"file": ("delete-me.txt", b"Delete this indexed evidence after cleanup.", "text/plain")},
     )
     assert uploaded.status_code == 200
-    doc = uploaded.json()
+    queued_doc = uploaded.json()
+    assert queued_doc["processing_status"] == "uploaded"
+    assert queued_doc["qdrant_point_ids"] == []
+
+    fetched = client.get(f"/api/documents/{queued_doc['id']}")
+    assert fetched.status_code == 200
+    doc = fetched.json()
     assert doc["qdrant_point_ids"] == [f"point-{doc['id']}-0", f"point-{doc['id']}-1"]
 
     deleted = client.delete(f"/api/documents/{doc['id']}")
