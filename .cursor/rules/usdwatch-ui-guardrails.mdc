@@ -1,0 +1,24 @@
+---
+description: USDWatch UI guardrails
+globs:
+  - "app/**/*"
+  - "backend/app/**/*"
+  - "*.md"
+alwaysApply: true
+---
+
+Before UI work, read `.impeccable.md` and, when available, `C:\Users\willi\.codex\design.md`.
+
+Apply these guardrails automatically:
+
+- Build the working product surface first.
+- Keep parent-facing workflows calm, direct, and task-focused.
+- Use existing components, tokens, routes, and patterns.
+- Avoid generic AI UI patterns: gradient text, decorative orbs/blobs, glassmorphism, cards inside cards, fake metrics, repeated feature-card grids, and generic neon tech styling.
+- Use icons for familiar actions.
+- Design empty, loading, error, disabled, hover, focus, active, selected, long-text, mobile, and narrow-container states.
+- Prevent text/control overlap and awkward overflow.
+- Keep UX copy direct and specific.
+- Respect reduced-motion preferences.
+
+Do not edit `deliverables/` or `superpowers/` unless explicitly asked.
