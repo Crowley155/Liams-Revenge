@@ -60,6 +60,15 @@ def process_document_bytes(doc: CaseDocument, content: bytes) -> CaseDocument:
             doc.processing_status = "failed"
             doc.error = "No text could be extracted"
             doc.failure_reason = doc.error
+
+        if doc.processing_status in {"indexed", "needs_review"}:
+            try:
+                from app.api._store import cases
+                from app.services.document_insights import generate_document_insight
+
+                generate_document_insight(doc, cases.get(doc.case_id))
+            except Exception as insight_exc:
+                logger.warning("Document insight failed for %s: %s", doc.id, insight_exc)
         doc.processed_at = utc_now()
     except Exception as exc:
         logger.exception("Document processing failed for %s", doc.id)

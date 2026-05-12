@@ -101,6 +101,43 @@ def test_model_diagnostics_requires_admin_and_redacts_provider_keys():
     assert "secret" not in str(data).lower()
 
 
+def test_document_insight_backfill_requires_admin_and_skips_ready_docs(monkeypatch):
+    from app.api._store import case_documents
+    from app.models import CaseDocument
+
+    pending = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id="insight-admin",
+        filename="pending.txt",
+        extracted_text="The school acknowledged an injury and follow-up communication.",
+        insight_status="pending",
+    )
+    ready = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id="insight-admin",
+        filename="ready.txt",
+        extracted_text="Already summarized.",
+        document_summary="Existing summary",
+        case_relevance="Existing relevance",
+        insight_status="ready",
+    )
+    case_documents[pending.id] = pending
+    case_documents[ready.id] = ready
+
+    _override_user(_user(role="member"))
+    denied = client.post("/api/admin/document-insights/backfill")
+    assert denied.status_code == 403
+
+    _override_user(_user(workspace_id="insight-admin", role="admin"))
+    allowed = client.post("/api/admin/document-insights/backfill", json={"limit": 10})
+    assert allowed.status_code == 200
+    data = allowed.json()
+    assert data["processed"] == 1
+    assert data["skipped_ready"] >= 1
+    assert case_documents[pending.id].insight_status in {"ready", "skipped"}
+    assert case_documents[ready.id].document_summary == "Existing summary"
+
+
 def test_job_not_found_for_authenticated_user():
     _override_user(_user())
     resp = client.get("/api/research/nonexistent")

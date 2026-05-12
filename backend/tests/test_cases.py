@@ -8,7 +8,7 @@ from app.api.deps import get_current_user
 from app.api._store import case_documents, cases, gmail_connections
 from app.config import Settings
 from app.main import app
-from app.models import GmailConnection, GmailImportRule
+from app.models import CaseDocument, GmailConnection, GmailImportRule
 from app.services.gmail_importer import import_matching_messages
 from app.services.gmail_security import encrypt_token
 
@@ -382,6 +382,70 @@ def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypat
     assert hidden_docs.status_code == 404
     hidden_preview = client.get(f"/api/documents/{doc['id']}/preview")
     assert hidden_preview.status_code == 404
+
+
+def test_case_document_insight_fields_serialize():
+    doc = CaseDocument(
+        filename="incident-report.pdf",
+        document_summary="Incident report documents the after-school injury.",
+        case_relevance="Relevant to notice, supervision, and parent communication.",
+        relevance_score=0.83,
+        insight_status="ready",
+        insight_error="",
+        insight_model="deepinfra/test-model",
+    )
+    payload = doc.model_dump(mode="json")
+    assert payload["document_summary"] == "Incident report documents the after-school injury."
+    assert payload["case_relevance"] == "Relevant to notice, supervision, and parent communication."
+    assert payload["relevance_score"] == 0.83
+    assert payload["insight_status"] == "ready"
+    assert payload["insight_model"] == "deepinfra/test-model"
+
+
+def test_document_insights_are_generated_after_indexing(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+
+    def fake_store_document_chunks(chunks, document_id, entity_ids=None, person_ids=None, source="", metadata=None):
+        return [f"point-{document_id}-0"]
+
+    monkeypatch.setattr("app.services.qdrant_client.store_document_chunks", fake_store_document_chunks)
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Insight case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    uploaded = client.post(
+        f"/api/cases/{case_id}/documents",
+        files={
+            "file": (
+                "incident-report.txt",
+                b"The principal confirmed an incident report and parent notice after the playground injury.",
+                "text/plain",
+            )
+        },
+    )
+    assert uploaded.status_code == 200
+
+    fetched = client.get(f"/api/documents/{uploaded.json()['id']}")
+    assert fetched.status_code == 200
+    doc = fetched.json()
+    assert doc["processing_status"] == "indexed"
+    assert doc["insight_status"] == "ready"
+    assert "incident" in doc["document_summary"].lower()
+    assert doc["case_relevance"]
+    assert 0 <= doc["relevance_score"] <= 1
+
+
+def test_document_insight_skips_no_text_documents():
+    from app.services.document_insights import generate_document_insight
+
+    doc = CaseDocument(filename="photo.jpg", extracted_text="", processing_status="needs_review")
+    result = generate_document_insight(doc, case=None)
+    assert result.insight_status == "skipped"
+    assert result.document_summary == ""
+    assert "text" in result.insight_error.lower()
 
 
 def test_legacy_document_upload_requires_explicit_case_id():

@@ -40,6 +40,105 @@ export function evidenceStatusHelp(status) {
   }[status] || 'Saved in your Evidence Locker.';
 }
 
+export const SMART_STACKS = [
+  { key: 'all', label: 'All evidence' },
+  { key: 'needs_attention', label: 'Needs attention' },
+  { key: 'highly_relevant', label: 'Highly relevant' },
+  { key: 'incident_safety', label: 'Incident and safety' },
+  { key: 'medical_provider', label: 'Medical/provider' },
+  { key: 'messages', label: 'Messages' },
+  { key: 'school_records', label: 'School records' },
+  { key: 'no_date', label: 'No date' },
+  { key: 'recently_added', label: 'Recently added' },
+];
+
+export function stackMatchesDocument(doc, stackKey) {
+  if (!stackKey || stackKey === 'all') return true;
+  const status = evidenceStatusOf(doc);
+  const category = doc.inferred_category || doc.evidence_type || '';
+  if (stackKey === 'needs_attention') {
+    return ['needs_review', 'failed'].includes(status) || doc.insight_status === 'failed' || doc.insight_status === 'skipped';
+  }
+  if (stackKey === 'highly_relevant') {
+    return Number(doc.relevance_score || 0) >= 0.75 || (doc.tags || []).includes('highly_relevant');
+  }
+  if (stackKey === 'no_date') return !doc.document_date;
+  if (stackKey === 'recently_added') return true;
+  return category === stackKey || (doc.tags || []).includes(stackKey);
+}
+
+export function buildSmartStacks(documents = []) {
+  const recentCutoff = [...documents]
+    .sort((a, b) => new Date(b.uploaded_at || 0) - new Date(a.uploaded_at || 0))
+    .slice(0, Math.min(10, documents.length))
+    .map((doc) => doc.id);
+  return SMART_STACKS.map((stack) => {
+    const count = stack.key === 'recently_added'
+      ? documents.filter((doc) => recentCutoff.includes(doc.id)).length
+      : documents.filter((doc) => stackMatchesDocument(doc, stack.key)).length;
+    return { ...stack, count };
+  });
+}
+
+export function filterDocumentsByStack(documents = [], stackKey = 'all') {
+  if (stackKey === 'recently_added') {
+    return [...documents]
+      .sort((a, b) => new Date(b.uploaded_at || 0) - new Date(a.uploaded_at || 0))
+      .slice(0, Math.min(10, documents.length));
+  }
+  return documents.filter((doc) => stackMatchesDocument(doc, stackKey));
+}
+
+export function filterEvidenceDocuments(documents = [], filters = {}) {
+  const q = (filters.q || '').trim().toLowerCase();
+  return documents.filter((doc) => {
+    const status = evidenceStatusOf(doc);
+    const category = doc.inferred_category || doc.evidence_type || '';
+    if (filters.status && status !== filters.status) return false;
+    if (filters.category && category !== filters.category && !(doc.tags || []).includes(filters.category)) return false;
+    if (!q) return true;
+    return [
+      doc.filename,
+      doc.user_description,
+      doc.source_person,
+      doc.evidence_type,
+      doc.inferred_category,
+      doc.document_summary,
+      doc.case_relevance,
+      ...(doc.tags || []),
+    ].join(' ').toLowerCase().includes(q);
+  });
+}
+
+export function documentInsightSummary(doc = {}) {
+  if (doc.document_summary || doc.case_relevance) {
+    return {
+      summary: doc.document_summary || 'Summary not available yet.',
+      relevance: doc.case_relevance || 'Case relevance not available yet.',
+      status: doc.insight_status || 'ready',
+    };
+  }
+  if (doc.insight_status === 'skipped') {
+    return {
+      summary: 'Text review needed before USDWatch can summarize this document.',
+      relevance: doc.insight_error || 'Upload a text-readable version or review the original file.',
+      status: 'skipped',
+    };
+  }
+  if (doc.insight_status === 'failed') {
+    return {
+      summary: 'Document summary failed.',
+      relevance: doc.insight_error || 'Try again later or download the original.',
+      status: 'failed',
+    };
+  }
+  return {
+    summary: 'USDWatch is preparing a document summary.',
+    relevance: 'Case relevance will appear after text extraction finishes.',
+    status: doc.insight_status || 'pending',
+  };
+}
+
 export async function maybeCompressImage(file) {
   if (!file.type.startsWith('image/') || file.size <= IMAGE_COMPRESS_THRESHOLD) return { file, compressed: false };
   const bitmap = await createImageBitmap(file);

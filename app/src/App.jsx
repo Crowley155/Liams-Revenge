@@ -24,6 +24,7 @@ const EvidenceGaps = lazy(() => import('./views/EvidenceGaps'));
 const Cases = lazy(() => import('./views/Cases'));
 const CaseDetail = lazy(() => import('./views/CaseDetail'));
 const EvidenceLocker = lazy(() => import('./views/EvidenceLocker'));
+const DocumentReview = lazy(() => import('./views/DocumentReview'));
 const RecordsRequests = lazy(() => import('./views/RecordsRequests'));
 const SelfAdvocacyPacket = lazy(() => import('./views/SelfAdvocacyPacket'));
 
@@ -132,6 +133,7 @@ export default function App() {
                   <Route path="cases/:caseId" element={<CaseFileLayout />}>
                     <Route index element={<CaseDetail />} />
                     <Route path="locker" element={<EvidenceLocker />} />
+                    <Route path="locker/:docId" element={<DocumentReview />} />
                     <Route path="records" element={<RecordsRequests />} />
                     <Route path="people" element={<People />} />
                     <Route path="people/:personId" element={<ProfileDetail />} />

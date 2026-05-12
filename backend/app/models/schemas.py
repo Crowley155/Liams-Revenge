@@ -833,6 +833,13 @@ class CaseDocument(BaseModel):
     chunk_count: int = 0
     qdrant_point_ids: list[str] = Field(default_factory=list)
     facts_extracted: int = 0
+    document_summary: str = ""
+    case_relevance: str = ""
+    relevance_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    insight_status: str = Field(default="pending", description="pending | ready | failed | skipped")
+    insight_error: str = ""
+    insight_generated_at: Optional[datetime] = None
+    insight_model: str = ""
     status: str = Field(default="processing", description="processing | indexed | failed")
     processing_status: str = Field(default="processing", description="uploaded | processing | indexed | needs_review | failed")
     failure_reason: Optional[str] = None

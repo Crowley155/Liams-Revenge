@@ -5,9 +5,11 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.db import init_db, migrate_json_to_sqlite
+from app.time import normalize_utc
 from app.api import agent_os, auth, cases, documents, enrichment, entities, gmail, intake, kora, maintenance, profiles, research
 from app.api.deps import get_current_user
 
@@ -210,4 +212,66 @@ async def model_diagnostics(user: dict = Depends(get_current_user)):
             {"model": "isaacus/kanon-2-embedder", "dimensions": 1792, "status": "evaluate_before_switch"},
             {"model": "voyage-law-2", "dimensions": None, "status": "evaluate_before_switch"},
         ],
+    }
+
+
+class DocumentInsightBackfillRequest(BaseModel):
+    limit: int = Field(default=50, ge=1, le=500)
+    force: bool = False
+    workspace_id: str = ""
+
+
+@app.post("/api/admin/document-insights/backfill")
+async def backfill_document_insights(
+    body: DocumentInsightBackfillRequest | None = None,
+    user: dict = Depends(get_current_user),
+):
+    """Generate missing document summaries/relevance notes for existing evidence."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    request = body or DocumentInsightBackfillRequest()
+
+    from app.api._store import case_documents as document_store, cases as case_store
+    from app.services.document_insights import generate_document_insight
+
+    processed = 0
+    skipped_ready = 0
+    failed = 0
+    target_workspace_id = request.workspace_id or user.get("workspace_id", "")
+    documents = [
+        doc for doc in document_store.values()
+        if not target_workspace_id or doc.workspace_id == target_workspace_id
+    ]
+    documents = sorted(documents, key=lambda doc: normalize_utc(doc.uploaded_at), reverse=True)
+    candidate_total = len([
+        doc for doc in documents
+        if request.force or doc.insight_status != "ready"
+    ])
+    for doc in documents:
+        if doc.insight_status == "ready" and not request.force:
+            skipped_ready += 1
+            continue
+        if processed >= request.limit:
+            break
+        try:
+            updated = generate_document_insight(doc, case_store.get(doc.case_id), force=request.force)
+            document_store[updated.id] = updated
+            processed += 1
+            if updated.insight_status == "failed":
+                failed += 1
+        except Exception as exc:
+            logger.warning("Document insight backfill failed for %s: %s", doc.id, exc)
+            doc.insight_status = "failed"
+            doc.insight_error = str(exc)
+            document_store[doc.id] = doc
+            processed += 1
+            failed += 1
+
+    return {
+        "processed": processed,
+        "failed": failed,
+        "skipped_ready": skipped_ready,
+        "workspace_id": target_workspace_id,
+        "remaining": max(candidate_total - processed, 0),
     }
