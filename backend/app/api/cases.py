@@ -41,6 +41,7 @@ from app.services.document_classifier import infer_document_metadata
 from app.services.document_ingestion import process_document_bytes
 from app.services.document_storage import save_case_document_file
 from app.services.evidence_uploads import validate_evidence_upload
+from app.services.file_types import normalize_file_type
 from app.services.workspaces import entitlements_for_workspace
 
 logger = logging.getLogger(__name__)
@@ -712,13 +713,15 @@ async def upload_case_document(
         raise HTTPException(status_code=400, detail="Empty file")
     validate_evidence_upload(file.filename or "", content)
 
+    mime_type = file.content_type or mimetypes.guess_type(file.filename or "")[0] or ""
     doc = CaseDocument(
         id=str(uuid.uuid4())[:8],
         workspace_id=case.workspace_id,
         case_id=case.id,
         filename=file.filename or "unknown",
+        file_type=normalize_file_type(file.filename or "", mime_type),
         file_size=len(content),
-        mime_type=file.content_type or mimetypes.guess_type(file.filename or "")[0] or "",
+        mime_type=mime_type,
         content_sha256=hashlib.sha256(content).hexdigest(),
         evidence_type=evidence_type,
         user_description=user_description,

@@ -165,3 +165,49 @@ async def seed_actors(user: dict = Depends(get_current_user)):
     _ingest_evidence_to_qdrant()
     from app.api._store import profiles as p, entities as e
     return {"profiles": len(p), "entities": len(e)}
+
+
+@app.get("/api/admin/model-diagnostics")
+async def model_diagnostics(user: dict = Depends(get_current_user)):
+    """Redacted model/provider routing summary for admin deployment checks."""
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from app.services.qdrant_client import COLLECTION_NAME, VECTOR_SIZE
+    from app.services.redis_client import is_available as redis_ok
+
+    return {
+        "agent_runtime": "agno",
+        "routing": {
+            "llm_runtime": "Agno DeepInfra",
+            "embedding_runtime": "LiteLLM embedding",
+            "embedding_rollout": "evaluate legal candidates before changing production collections",
+        },
+        "models": {
+            "pipeline": settings.pipeline_model,
+            "collect": settings.collect_model,
+            "disambiguate": settings.disambiguate_model,
+            "synthesize": settings.synthesize_model,
+            "deepinfra_extraction": settings.deepinfra_extraction_model,
+            "deepinfra_reasoning": settings.deepinfra_reasoning_model,
+            "deepinfra_premium": settings.deepinfra_premium_model,
+            "deepinfra_fallback": settings.deepinfra_fallback_model,
+            "embedding": settings.embedding_model,
+        },
+        "providers": {
+            "deepinfra": {"configured": settings.has_deepinfra},
+            "qdrant": {"configured": settings.has_qdrant},
+            "redis": {"configured": settings.has_redis, "available": redis_ok()},
+            "langfuse": {"configured": settings.has_langfuse},
+        },
+        "vector_store": {
+            "provider": "qdrant",
+            "collection": COLLECTION_NAME,
+            "qdrant_vector_size": VECTOR_SIZE,
+        },
+        "legal_embedding_candidates": [
+            {"model": "deepinfra/nvidia/llama-3.2-nv-embedqa-1b-v2", "dimensions": 2048, "status": "current_default"},
+            {"model": "isaacus/kanon-2-embedder", "dimensions": 1792, "status": "evaluate_before_switch"},
+            {"model": "voyage-law-2", "dimensions": None, "status": "evaluate_before_switch"},
+        ],
+    }

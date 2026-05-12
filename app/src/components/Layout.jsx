@@ -12,7 +12,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const { isAuthenticated, user, workspace, logout } = useAuth();
 
-  const navItems = navItemsForAuth();
+  const navItems = navItemsForAuth(isAuthenticated);
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -31,12 +31,13 @@ export default function Layout() {
             </h1>
 
             <nav className="hidden sm:flex items-center gap-1">
-              {navItems.map(({ to, href, label }) => (
-                to ? (
+              {navItems.map(({ to, href, label }) => {
+                const internalTo = to || (href === '/whats-next' ? '/whats-next' : '');
+                return internalTo ? (
                   <NavLink
-                    key={to}
-                    to={to}
-                    end={to === '/'}
+                    key={href || internalTo}
+                    to={internalTo}
+                    end={internalTo === '/'}
                     className={({ isActive }) =>
                       `inline-flex min-h-11 items-center rounded-md px-3 text-xs font-medium transition-colors whitespace-nowrap ${
                         isActive
@@ -56,11 +57,12 @@ export default function Layout() {
                         ? 'bg-accent/15 text-accent'
                         : 'text-text-dim hover:text-text hover:bg-surface-alt'
                     }`}
+                    aria-current={isNavItemActive(location.pathname, { href }) ? 'page' : undefined}
                   >
                     {label}
                   </a>
-                )
-              ))}
+                );
+              })}
 
               <span className="w-px h-5 bg-border mx-1" />
 
@@ -112,13 +114,14 @@ export default function Layout() {
           <div className="sm:hidden border-t border-border bg-surface-alt">
             <div className="px-4 py-2 space-y-1">
               {navItems.map(({ to, href, label }) => {
-                if (to) {
-                  const isActive = isNavItemActive(location.pathname, { to });
+                const internalTo = to || (href === '/whats-next' ? '/whats-next' : '');
+                if (internalTo) {
+                  const isActive = isNavItemActive(location.pathname, { to: internalTo });
                   return (
                     <NavLink
-                      key={to}
-                      to={to}
-                      end={to === '/'}
+                      key={href || internalTo}
+                      to={internalTo}
+                      end={internalTo === '/'}
                       onClick={closeMenu}
                       className={`flex min-h-11 items-center rounded-md px-3 text-sm font-semibold transition-colors ${
                         isActive
@@ -140,6 +143,7 @@ export default function Layout() {
                         ? 'bg-accent/15 text-accent'
                         : 'text-text-dim hover:text-text hover:bg-surface'
                     }`}
+                    aria-current={isNavItemActive(location.pathname, { href }) ? 'page' : undefined}
                   >
                     {label}
                   </a>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { Download, Eye, FileSearch, FileUp, Loader2, Mail, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
+import { Download, Eye, FileSearch, FileText, FileUp, Loader2, Mail, PanelRightClose, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
 import {
   deleteDocument,
   disconnectGmail,
@@ -31,6 +31,7 @@ import {
   evidenceStatusOf,
   maybeCompressImage,
 } from '../utils/evidence';
+import { canPreviewOriginal, documentDisplayKind } from '../utils/documentPreview';
 
 function categoryLabel(value) {
   return evidenceCategoryLabel(value, formatLabel);
@@ -62,51 +63,111 @@ function UploadQueueItem({ item, onRemove }) {
   );
 }
 
-function DocumentPreview({ preview, contentUrl, onClose }) {
-  const doc = preview?.document;
-  if (!preview || !doc) return null;
-  const isImage = (doc.mime_type || '').startsWith('image/') || doc.file_type === 'image';
-  const isPdf = (doc.mime_type || '').includes('pdf') || doc.file_type === 'pdf';
+function DocumentInspector({ state, contentUrl, onClose, onDownload, onRetry, downloading }) {
+  const doc = state.preview?.document || state.doc;
+  if (!doc) return null;
+
+  const kind = documentDisplayKind(doc);
+  const isImage = kind === 'image';
+  const isPdf = kind === 'pdf';
+  const status = state.status || 'idle';
+  const hasOriginal = Boolean(state.preview?.has_original);
 
   return (
-    <div className="fixed inset-0 z-50 grid bg-background/80 p-4 backdrop-blur-sm lg:place-items-center">
-      <section className="mx-auto flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-2xl">
-        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-accent/80">Evidence preview</p>
-            <h3 className="mt-1 truncate text-lg font-bold">{doc.filename}</h3>
-            <p className="mt-1 text-xs text-text-dim">{categoryLabel(doc.inferred_category)} - {formatBytes(doc.file_size)} - {formatLabel(evidenceStatusOf(doc))}</p>
-          </div>
-          <button type="button" onClick={onClose} className="grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text" title="Close preview" aria-label="Close preview">
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
+    <aside className="min-w-0 rounded-md border border-border bg-surface/80 xl:sticky xl:top-20 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto" aria-label="Evidence inspector">
+      <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-accent/80">Evidence inspector</p>
+          <h3 className="wrap-anywhere mt-1 text-lg font-bold leading-tight">{doc.filename}</h3>
+          <p className="mt-1 text-xs text-text-dim">
+            {categoryLabel(doc.inferred_category || doc.evidence_type || kind)} - {formatBytes(doc.file_size) || 'Unknown size'} - {formatLabel(evidenceStatusOf(doc))}
+          </p>
         </div>
-        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="min-h-[360px] overflow-hidden rounded-md border border-border bg-background">
-            {contentUrl && isImage && <img src={contentUrl} alt={doc.filename} className="h-full max-h-[640px] w-full object-contain" />}
-            {contentUrl && isPdf && <iframe title={doc.filename} src={contentUrl} className="h-[640px] w-full" />}
-            {!contentUrl && (
-              <div className="grid h-full min-h-[360px] place-items-center p-6 text-center text-sm text-text-dim">
-                Original preview is not available for this file type yet. The extracted text is shown beside it.
+        <button type="button" onClick={onClose} className="grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text" title="Close inspector" aria-label="Close evidence inspector">
+          <PanelRightClose className="h-5 w-5" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="space-y-4 p-4">
+        {status === 'loading' && (
+          <div className="flex min-h-40 items-center justify-center gap-2 rounded-md border border-border bg-background text-sm text-text-dim">
+            <Loader2 className="h-4 w-4 animate-spin text-accent" aria-hidden="true" />
+            Loading evidence preview...
+          </div>
+        )}
+
+        {status === 'error' && (
+          <div className="rounded-md border border-danger/30 bg-danger/10 p-4 text-sm text-danger">
+            <p className="font-semibold">Preview did not load.</p>
+            <p className="mt-1 leading-relaxed">{state.error || 'Try again or download the original file.'}</p>
+            <button type="button" onClick={() => onRetry(doc)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-md border border-danger/40 px-3 py-2 text-sm font-semibold transition-colors hover:bg-danger/10">
+              <Eye className="h-4 w-4" aria-hidden="true" />
+              Try again
+            </button>
+          </div>
+        )}
+
+        {status !== 'error' && (
+          <div className="overflow-hidden rounded-md border border-border bg-background">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+              <div className="inline-flex items-center gap-2 text-sm font-semibold text-text">
+                <FileText className="h-4 w-4 text-accent" aria-hidden="true" />
+                Original
+              </div>
+              <StatusPill status={kind} />
+            </div>
+            {contentUrl && isImage && <img src={contentUrl} alt={doc.filename} className="max-h-[520px] w-full object-contain" />}
+            {contentUrl && isPdf && <iframe title={doc.filename} src={contentUrl} className="h-[520px] w-full" />}
+            {!contentUrl && status !== 'loading' && (
+              <div className="grid min-h-44 place-items-center p-5 text-center text-sm text-text-dim">
+                <div>
+                  <FileSearch className="mx-auto h-7 w-7 text-text-dim" aria-hidden="true" />
+                  <p className="mt-3 leading-relaxed">
+                    {hasOriginal
+                      ? 'This original cannot be displayed inline. Download it or review the extracted text below.'
+                      : 'The original file is not available, but extracted text and metadata are shown below.'}
+                  </p>
+                  {state.contentError && <p className="mt-2 text-xs text-warning">{state.contentError}</p>}
+                </div>
               </div>
             )}
           </div>
-          <div className="space-y-4">
-            <div className="rounded-md border border-border bg-background p-3">
-              <h4 className="text-sm font-semibold">Extracted text</h4>
-              <pre className="mt-3 max-h-[520px] whitespace-pre-wrap text-xs leading-relaxed text-text-dim">{preview.text_preview || 'No text extracted yet.'}</pre>
-            </div>
-            {doc.failure_reason && <p className="rounded-md border border-warning/30 bg-warning/8 p-3 text-xs leading-relaxed text-warning">{doc.failure_reason}</p>}
-            {contentUrl && (
-              <a href={contentUrl} download={doc.filename} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">
-                <Download className="h-4 w-4" aria-hidden="true" />
-                Download original
-              </a>
-            )}
+        )}
+
+        <div className="grid gap-2 text-xs text-text-dim sm:grid-cols-2">
+          <div className="rounded-md border border-border bg-background p-3">
+            <dt className="font-semibold text-text">Uploaded</dt>
+            <dd className="mt-1">{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleString() : 'Unknown'}</dd>
+          </div>
+          <div className="rounded-md border border-border bg-background p-3">
+            <dt className="font-semibold text-text">Pages / chunks</dt>
+            <dd className="mt-1">{doc.page_count || 'Unknown'} / {doc.chunk_count || 0}</dd>
+          </div>
+          <div className="rounded-md border border-border bg-background p-3">
+            <dt className="font-semibold text-text">Source</dt>
+            <dd className="wrap-anywhere mt-1">{doc.source_person || doc.source || 'Manual upload'}</dd>
+          </div>
+          <div className="rounded-md border border-border bg-background p-3">
+            <dt className="font-semibold text-text">Date</dt>
+            <dd className="mt-1">{doc.document_date || 'Not set'}</dd>
           </div>
         </div>
-      </section>
-    </div>
+
+        <div className="rounded-md border border-border bg-background p-3">
+          <h4 className="text-sm font-semibold">Extracted text</h4>
+          <pre className="mt-3 max-h-[360px] whitespace-pre-wrap text-xs leading-relaxed text-text-dim">{state.preview?.text_preview || doc.extracted_text || 'No text extracted yet.'}</pre>
+        </div>
+
+        {doc.failure_reason && <p className="rounded-md border border-warning/30 bg-warning/8 p-3 text-xs leading-relaxed text-warning">{doc.failure_reason}</p>}
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button type="button" onClick={() => onDownload(doc)} disabled={downloading} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">
+            {downloading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+            Download original
+          </button>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -122,11 +183,13 @@ export default function EvidenceLocker() {
   const [selectedGmailMessages, setSelectedGmailMessages] = useState([]);
   const [workspaceSummary, setWorkspaceSummary] = useState(null);
   const [documentTotal, setDocumentTotal] = useState(0);
-  const [preview, setPreview] = useState(null);
+  const [inspector, setInspector] = useState({ status: 'idle', doc: null, preview: null, error: '', contentError: '' });
   const [contentUrl, setContentUrl] = useState('');
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [previewingDocId, setPreviewingDocId] = useState('');
+  const [downloadingDocId, setDownloadingDocId] = useState('');
   const [notice, setNotice] = useState(null);
 
   const showNotice = useCallback((type, message) => {
@@ -196,6 +259,15 @@ export default function EvidenceLocker() {
   useEffect(() => () => {
     if (contentUrl) URL.revokeObjectURL(contentUrl);
   }, [contentUrl]);
+
+  useEffect(() => {
+    if (!deleteTarget) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setDeleteTarget(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [deleteTarget]);
 
   const counts = useMemo(() => {
     const next = { total: documents.length, indexed: 0, processing: 0, needs_review: 0, failed: 0 };
@@ -284,22 +356,62 @@ export default function EvidenceLocker() {
     }
   };
 
+  const revokeContentUrl = useCallback(() => {
+    setContentUrl((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return '';
+    });
+  }, []);
+
   const handlePreview = async (doc) => {
-    setBusy(true);
+    setPreviewingDocId(doc.id);
     showNotice(null, '');
+    revokeContentUrl();
+    setInspector({ status: 'loading', doc, preview: null, error: '', contentError: '' });
     try {
       const nextPreview = await fetchDocumentPreview(doc.id);
-      if (contentUrl) URL.revokeObjectURL(contentUrl);
-      setContentUrl('');
-      if (nextPreview.has_original && ['pdf', 'image'].includes(nextPreview.document.file_type)) {
-        const blob = await fetchDocumentContentBlob(doc.id);
-        setContentUrl(URL.createObjectURL(blob));
+      let nextContentUrl = '';
+      let contentError = '';
+      const previewDoc = nextPreview.document || doc;
+      if (nextPreview.has_original && canPreviewOriginal(previewDoc)) {
+        try {
+          const blob = await fetchDocumentContentBlob(doc.id);
+          nextContentUrl = URL.createObjectURL(blob);
+        } catch (contentErr) {
+          contentError = contentErr.message || 'Original file could not be loaded inline.';
+        }
       }
-      setPreview(nextPreview);
+      setContentUrl(nextContentUrl);
+      setInspector({ status: 'ready', doc: previewDoc, preview: nextPreview, error: '', contentError });
     } catch (err) {
-      showNotice('error', err.message || 'Preview failed');
+      setInspector({ status: 'error', doc, preview: null, error: err.message || 'Preview failed', contentError: '' });
     } finally {
-      setBusy(false);
+      setPreviewingDocId('');
+    }
+  };
+
+  const closeInspector = () => {
+    revokeContentUrl();
+    setInspector({ status: 'idle', doc: null, preview: null, error: '', contentError: '' });
+  };
+
+  const handleDownload = async (doc) => {
+    setDownloadingDocId(doc.id);
+    showNotice(null, '');
+    try {
+      const blob = await fetchDocumentContentBlob(doc.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.filename || 'evidence';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showNotice('error', err.message || 'Download failed');
+    } finally {
+      setDownloadingDocId('');
     }
   };
 
@@ -567,7 +679,9 @@ export default function EvidenceLocker() {
           </details>
         </aside>
 
-        <main className="min-w-0 space-y-4">
+        <main className="min-w-0">
+          <div className={`grid min-w-0 gap-4 ${inspector.doc ? '2xl:grid-cols-[minmax(0,1fr)_minmax(320px,440px)]' : ''}`}>
+            <div className="min-w-0 space-y-4">
           <Panel title="Find Evidence" eyebrow="Search and filter">
             <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_200px_160px_160px]">
               <label className="relative">
@@ -605,7 +719,7 @@ export default function EvidenceLocker() {
             {!loading && documents.length > 0 && (
               <div className="min-w-0 space-y-3">
                 {documents.map((doc) => (
-                  <article key={doc.id} className="min-w-0 rounded-md border border-border bg-background/45 p-3">
+                  <article key={doc.id} className={`min-w-0 rounded-md border p-3 transition-colors ${inspector.doc?.id === doc.id ? 'border-accent/60 bg-surface-alt/60' : 'border-border bg-background/45'}`}>
                     <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -625,12 +739,18 @@ export default function EvidenceLocker() {
                           </div>
                         )}
                       </div>
-                      <div className="flex shrink-0 gap-2">
-                        <button type="button" disabled={busy} onClick={() => handlePreview(doc)} className="grid min-h-11 min-w-11 place-items-center rounded-md border border-border text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60" title="View evidence" aria-label={`View ${doc.filename}`}>
-                          <Eye className="h-4 w-4" aria-hidden="true" />
+                      <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                        <button type="button" disabled={previewingDocId === doc.id} onClick={() => handlePreview(doc)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60" title="View evidence" aria-label={`View ${doc.filename}`}>
+                          {previewingDocId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                          View
                         </button>
-                        <button type="button" disabled={busy} onClick={() => setDeleteTarget(doc)} className="grid min-h-11 min-w-11 place-items-center rounded-md border border-border text-text-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60" title="Delete evidence" aria-label={`Delete ${doc.filename}`}>
+                        <button type="button" disabled={downloadingDocId === doc.id} onClick={() => handleDownload(doc)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60" title="Download evidence" aria-label={`Download ${doc.filename}`}>
+                          {downloadingDocId === doc.id ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+                          Download
+                        </button>
+                        <button type="button" disabled={busy} onClick={() => setDeleteTarget(doc)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60" title="Delete evidence" aria-label={`Delete ${doc.filename}`}>
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          Delete
                         </button>
                       </div>
                     </div>
@@ -646,24 +766,30 @@ export default function EvidenceLocker() {
               </div>
             )}
           </Panel>
+            </div>
+            {inspector.doc && (
+              <DocumentInspector
+                state={inspector}
+                contentUrl={contentUrl}
+                onClose={closeInspector}
+                onDownload={handleDownload}
+                onRetry={handlePreview}
+                downloading={downloadingDocId === inspector.doc.id}
+              />
+            )}
+          </div>
         </main>
       </div>
 
-      <DocumentPreview preview={preview} contentUrl={contentUrl} onClose={() => {
-        setPreview(null);
-        if (contentUrl) URL.revokeObjectURL(contentUrl);
-        setContentUrl('');
-      }} />
-
       {deleteTarget && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[80] grid place-items-center bg-background/85 p-4">
           <section className="w-full max-w-md rounded-md border border-border bg-surface p-5 shadow-2xl">
             <h3 className="text-lg font-bold">Delete this evidence?</h3>
             <p className="mt-2 text-sm leading-relaxed text-text-dim">
               This removes <strong className="text-text">{deleteTarget.filename}</strong> from the Evidence Locker and future Case Reads for this case.
             </p>
             <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="min-h-11 rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">Cancel</button>
+              <button type="button" onClick={() => setDeleteTarget(null)} autoFocus className="min-h-11 rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">Cancel</button>
               <button type="button" disabled={busy} onClick={handleDeleteConfirmed} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-danger px-4 py-2 text-sm font-semibold text-background transition-colors hover:opacity-90 disabled:opacity-60">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
                 Delete evidence

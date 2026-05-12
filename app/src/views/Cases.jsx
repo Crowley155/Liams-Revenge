@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Loader2, Plus } from 'lucide-react';
 import { fetchCases, openOrCreateDraftCase } from '../api/client';
 
 export default function Cases() {
@@ -46,9 +47,10 @@ export default function Cases() {
           type="button"
           onClick={handleStartCase}
           disabled={starting}
-          className="px-4 py-2 rounded-md bg-accent text-background text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-60"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
         >
-          {starting ? 'Opening...' : 'Start My Case'}
+          {starting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
+          {starting ? 'Opening...' : 'New Case'}
         </button>
       </div>
 

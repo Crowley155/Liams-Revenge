@@ -21,6 +21,7 @@ from app.models import CaseDocument, CaseRecord, GmailConnection, GmailImportRul
 from app.services.document_classifier import infer_document_metadata
 from app.services.document_ingestion import process_document_bytes
 from app.services.document_storage import save_case_document_file
+from app.services.file_types import normalize_file_type
 from app.services.gmail_security import (
     decrypt_token,
     encrypt_token,
@@ -440,13 +441,15 @@ def _import_message(
             if not content or len(content) > MAX_GMAIL_IMPORT_BYTES:
                 continue
             category, confidence, tags, evidence_type = infer_document_metadata(filename)
+            mime_type = part.get("mimeType") or mimetypes.guess_type(filename)[0] or ""
             doc = CaseDocument(
                 id=str(uuid.uuid4())[:8],
                 workspace_id=case.workspace_id,
                 case_id=case.id,
                 filename=filename,
+                file_type=normalize_file_type(filename, mime_type),
                 file_size=len(content),
-                mime_type=part.get("mimeType") or mimetypes.guess_type(filename)[0] or "",
+                mime_type=mime_type,
                 evidence_type=evidence_type,
                 inferred_category=category,
                 category_confidence=confidence,

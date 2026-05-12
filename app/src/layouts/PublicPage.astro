@@ -42,7 +42,7 @@ const schemaItems = Array.isArray(schema) ? schema : [schema].filter(Boolean);
   </head>
   <body>
     <div class="min-h-screen flex flex-col bg-background text-text">
-      <PublicHeader client:load />
+      <PublicHeader initialPath={Astro.url.pathname} client:load />
 
       <main class="flex-1">
         <slot />

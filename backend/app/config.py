@@ -132,6 +132,12 @@ class Settings:
     data_dir: str = field(
         default_factory=lambda: _env("DATA_DIR", "/app/data")
     )
+    app_env: str = field(
+        default_factory=lambda: _env("APP_ENV", _env("ENVIRONMENT", "development"))
+    )
+    strict_embedding_provider_validation: bool = field(
+        default_factory=lambda: _env("STRICT_EMBEDDING_PROVIDER_VALIDATION", "false").lower() == "true"
+    )
 
     host: str = field(default_factory=lambda: _env("HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: int(_env("PORT", "8000")))
@@ -185,6 +191,8 @@ class Settings:
             "DEEPINFRA_PREMIUM_MODEL": self.deepinfra_premium_model,
             "DEEPINFRA_FALLBACK_MODEL": self.deepinfra_fallback_model,
         }
+        if self.strict_embedding_provider_validation or self.app_env.lower() == "production":
+            model_fields["EMBEDDING_MODEL"] = self.embedding_model
         offenders = [
             f"{name}={value}"
             for name, value in model_fields.items()

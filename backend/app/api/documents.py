@@ -25,6 +25,7 @@ from app.services.document_classifier import infer_document_metadata
 from app.services.document_ingestion import process_document_bytes
 from app.services.document_storage import delete_document_file, resolve_document_path, save_case_document_file
 from app.services.evidence_uploads import validate_evidence_upload
+from app.services.file_types import normalize_file_type
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["documents"])
@@ -149,13 +150,15 @@ async def upload_document(
     ent_ids = [e.strip() for e in (entity_ids or "").split(",") if e.strip()]
     per_ids = [p.strip() for p in (person_ids or "").split(",") if p.strip()]
 
+    mime_type = file.content_type or mimetypes.guess_type(file.filename or "")[0] or ""
     doc = CaseDocument(
         id=str(uuid.uuid4())[:8],
         workspace_id=target_case.workspace_id,
         case_id=target_case.id,
         filename=file.filename or "unknown",
+        file_type=normalize_file_type(file.filename or "", mime_type),
         file_size=len(content),
-        mime_type=file.content_type or mimetypes.guess_type(file.filename or "")[0] or "",
+        mime_type=mime_type,
         storage_path="",
         content_sha256=hashlib.sha256(content).hexdigest(),
         evidence_type=evidence_type or "",

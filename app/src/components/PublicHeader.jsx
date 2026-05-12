@@ -9,8 +9,8 @@ const CLERK_KEY =
   import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
   '';
 
-function pathFromWindow() {
-  if (typeof window === 'undefined') return '/';
+function pathFromWindow(initialPath = '/') {
+  if (typeof window === 'undefined') return initialPath;
   return window.location.pathname || '/';
 }
 
@@ -32,6 +32,7 @@ function NavMenu({ items, pathname, onNavigate, mobile = false }) {
                 ? 'bg-accent/15 text-accent'
                 : 'text-text-dim hover:bg-surface-alt hover:text-text',
             ].join(' ')}
+            aria-current={active ? 'page' : undefined}
           >
             {item.label}
           </a>
@@ -41,14 +42,14 @@ function NavMenu({ items, pathname, onNavigate, mobile = false }) {
   );
 }
 
-function PublicHeaderFrame({ isAuthenticated, onSignOut, accountControl, mobileAccountControl }) {
+function PublicHeaderFrame({ isAuthenticated, initialPath = '/', onSignOut, accountControl, mobileAccountControl }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [pathname, setPathname] = useState(pathFromWindow);
-  const items = navItemsForAuth();
+  const [pathname, setPathname] = useState(() => pathFromWindow(initialPath));
+  const items = navItemsForAuth(isAuthenticated);
 
   useEffect(() => {
-    setPathname(pathFromWindow());
-  }, []);
+    setPathname(pathFromWindow(initialPath));
+  }, [initialPath]);
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -82,6 +83,7 @@ function PublicHeaderFrame({ isAuthenticated, onSignOut, accountControl, mobileA
                     ? 'bg-accent/15 text-accent'
                     : 'text-text-dim hover:bg-surface-alt hover:text-text',
                 ].join(' ')}
+                aria-current={isNavItemActive(pathname, { href: '/login' }) ? 'page' : undefined}
               >
                 Sign In
               </a>
@@ -135,10 +137,11 @@ function PublicHeaderFrame({ isAuthenticated, onSignOut, accountControl, mobileA
   );
 }
 
-function ClerkPublicHeader() {
+function ClerkPublicHeader({ initialPath }) {
   const { isLoaded, isSignedIn } = useClerkAuth();
   return (
     <PublicHeaderFrame
+      initialPath={initialPath}
       isAuthenticated={isLoaded && Boolean(isSignedIn)}
       accountControl={isLoaded && isSignedIn ? <UserButton afterSignOutUrl="/" /> : null}
       mobileAccountControl={isLoaded && isSignedIn ? <UserButton afterSignOutUrl="/" /> : null}
@@ -146,7 +149,7 @@ function ClerkPublicHeader() {
   );
 }
 
-function DevPublicHeader() {
+function DevPublicHeader({ initialPath }) {
   const [token, setToken] = useState('');
 
   useEffect(() => {
@@ -158,17 +161,17 @@ function DevPublicHeader() {
     setToken('');
   };
 
-  return <PublicHeaderFrame isAuthenticated={Boolean(token)} onSignOut={signOut} />;
+  return <PublicHeaderFrame initialPath={initialPath} isAuthenticated={Boolean(token)} onSignOut={signOut} />;
 }
 
-export default function PublicHeader() {
+export default function PublicHeader({ initialPath = '/' }) {
   if (CLERK_KEY) {
     return (
       <ClerkProvider publishableKey={CLERK_KEY} afterSignOutUrl="/">
-        <ClerkPublicHeader />
+        <ClerkPublicHeader initialPath={initialPath} />
       </ClerkProvider>
     );
   }
 
-  return <DevPublicHeader />;
+  return <DevPublicHeader initialPath={initialPath} />;
 }

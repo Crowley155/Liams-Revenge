@@ -10,6 +10,7 @@ from jwt import ExpiredSignatureError, InvalidTokenError
 import app.main as main_module
 from app.api import deps
 from app.api.deps import get_current_user
+from app.config import Settings
 from app.main import app
 
 client = TestClient(app)
@@ -84,6 +85,22 @@ def test_seed_requires_admin_role(monkeypatch):
     assert calls == {"seed": 1, "ingest": 1}
 
 
+def test_model_diagnostics_requires_admin_and_redacts_provider_keys():
+    _override_user(_user(role="member"))
+    denied = client.get("/api/admin/model-diagnostics")
+    assert denied.status_code == 403
+
+    _override_user(_user(role="admin"))
+    allowed = client.get("/api/admin/model-diagnostics")
+    assert allowed.status_code == 200
+    data = allowed.json()
+    assert data["agent_runtime"] == "agno"
+    assert data["models"]["embedding"]
+    assert data["vector_store"]["qdrant_vector_size"] == 2048
+    assert "api_key" not in str(data).lower()
+    assert "secret" not in str(data).lower()
+
+
 def test_job_not_found_for_authenticated_user():
     _override_user(_user())
     resp = client.get("/api/research/nonexistent")
@@ -119,3 +136,11 @@ def test_expired_and_invalid_clerk_tokens(monkeypatch):
         deps.verify_clerk_jwt("invalid")
     assert invalid.value.status_code == 401
     assert "invalid" in invalid.value.detail
+
+
+def test_model_provider_guard_rejects_disallowed_embedding_model(monkeypatch):
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("EMBEDDING_MODEL", "anthropic/legal-embed")
+    with pytest.raises(RuntimeError) as exc:
+        Settings().validate_ai_model_providers()
+    assert "EMBEDDING_MODEL" in str(exc.value)

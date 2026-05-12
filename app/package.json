@@ -7,7 +7,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "lint": "eslint .",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "test:unit": "node --test src/**/*.test.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^4.4.2",

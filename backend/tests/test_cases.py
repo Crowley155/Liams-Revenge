@@ -340,6 +340,7 @@ def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypat
     queued_doc = uploaded.json()
     assert queued_doc["status"] == "processing"
     assert queued_doc["processing_status"] == "uploaded"
+    assert queued_doc["file_type"] == "txt"
     assert queued_doc["qdrant_point_ids"] == []
     assert queued_doc["storage_path"]
 
