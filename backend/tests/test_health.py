@@ -97,6 +97,11 @@ def test_model_diagnostics_requires_admin_and_redacts_provider_keys():
     assert data["agent_runtime"] == "agno"
     assert data["models"]["embedding"]
     assert data["vector_store"]["qdrant_vector_size"] == 2048
+    assert data["retrieval_evaluation"]["recommended_first_candidate"] == "isaacus/kanon-2-embedder"
+    assert data["retrieval_evaluation"]["requires_reindex_before_switch"] is True
+    kanon = next(item for item in data["legal_embedding_candidates"] if item["model"] == "isaacus/kanon-2-embedder")
+    assert kanon["dimensions_match_current_collection"] is False
+    assert "legal retrieval benchmark" in " ".join(kanon["rationale"]).lower()
     assert "api_key" not in str(data).lower()
     assert "secret" not in str(data).lower()
 

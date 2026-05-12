@@ -176,7 +176,13 @@ async def model_diagnostics(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     from app.services.qdrant_client import COLLECTION_NAME, VECTOR_SIZE
+    from app.services.legal_retrieval import legal_embedding_candidates, legal_retrieval_diagnostics
     from app.services.redis_client import is_available as redis_ok
+
+    legal_candidates = [
+        candidate.as_diagnostic(current_vector_size=VECTOR_SIZE)
+        for candidate in legal_embedding_candidates(settings.embedding_model)
+    ]
 
     return {
         "agent_runtime": "agno",
@@ -207,11 +213,11 @@ async def model_diagnostics(user: dict = Depends(get_current_user)):
             "collection": COLLECTION_NAME,
             "qdrant_vector_size": VECTOR_SIZE,
         },
-        "legal_embedding_candidates": [
-            {"model": "deepinfra/nvidia/llama-3.2-nv-embedqa-1b-v2", "dimensions": 2048, "status": "current_default"},
-            {"model": "isaacus/kanon-2-embedder", "dimensions": 1792, "status": "evaluate_before_switch"},
-            {"model": "voyage-law-2", "dimensions": None, "status": "evaluate_before_switch"},
-        ],
+        "retrieval_evaluation": legal_retrieval_diagnostics(
+            current_embedding_model=settings.embedding_model,
+            current_vector_size=VECTOR_SIZE,
+        ),
+        "legal_embedding_candidates": legal_candidates,
     }
 
 

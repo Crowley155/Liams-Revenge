@@ -20,7 +20,10 @@ import { canPreviewOriginal, documentDisplayKind } from '../utils/documentPrevie
 import {
   documentInsightSummary,
   evidenceCategoryLabel,
+  evidenceRoleLabel,
   evidenceStatusOf,
+  legalFlagLabel,
+  relevancePercent,
 } from '../utils/evidence';
 
 function categoryLabel(value) {
@@ -84,6 +87,8 @@ export default function DocumentReview() {
   const isPdf = kind === 'pdf';
   const isImage = kind === 'image';
   const insight = useMemo(() => documentInsightSummary(doc || {}), [doc]);
+  const relevance = relevancePercent(doc?.relevance_score);
+  const extractionConfidence = relevancePercent(doc?.extraction_confidence);
 
   const revokeContentUrl = useCallback(() => {
     setContentUrl((current) => {
@@ -251,20 +256,52 @@ export default function DocumentReview() {
 
           <aside className="min-w-0 space-y-4">
             <section className="rounded-md border border-border bg-surface p-4">
-              <p className="text-xs font-medium text-accent/80">AI document notes</p>
-              <h3 className="mt-1 text-lg font-bold">What USDWatch sees</h3>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium text-accent/80">Document intelligence</p>
+                  <h3 className="mt-1 text-lg font-bold">What USDWatch sees</h3>
+                </div>
+                {doc.evidence_role && <span className="rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-text-dim">{evidenceRoleLabel(doc.evidence_role, formatLabel)}</span>}
+              </div>
               <p className="mt-3 text-sm leading-relaxed text-text">{insight.summary}</p>
               <p className="mt-3 text-sm leading-relaxed text-text-dim">{insight.relevance}</p>
               <div className="mt-4">
                 <div className="flex items-center justify-between gap-3 text-xs text-text-dim">
-                  <span>Relevance</span>
-                  <span>{doc.relevance_score ? `${Math.round(doc.relevance_score * 100)}%` : formatLabel(insight.status)}</span>
+                  <span>Case relevance</span>
+                  <span>{relevance ? `${relevance}%` : formatLabel(insight.status)}</span>
                 </div>
                 <div className="mt-2 h-2 overflow-hidden rounded-full bg-background">
-                  <div className="h-full rounded-full bg-accent" style={{ width: `${Math.round((doc.relevance_score || 0) * 100)}%` }} />
+                  <div className="h-full rounded-full bg-accent" style={{ width: `${relevance}%` }} />
                 </div>
               </div>
-              {doc.insight_model && <p className="mt-3 text-xs text-text-dim">Generated with {doc.insight_model}</p>}
+              <div className="mt-4">
+                <div className="flex items-center justify-between gap-3 text-xs text-text-dim">
+                  <span>Extraction confidence</span>
+                  <span>{extractionConfidence ? `${extractionConfidence}%` : 'Needs text review'}</span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-background">
+                  <div className="h-full rounded-full bg-info" style={{ width: `${extractionConfidence}%` }} />
+                </div>
+              </div>
+              {doc.relevance_basis && (
+                <div className="mt-4 rounded-md border border-border bg-background p-3">
+                  <p className="text-xs font-semibold text-text">Why this score</p>
+                  <p className="mt-1 text-xs leading-relaxed text-text-dim">{doc.relevance_basis}</p>
+                </div>
+              )}
+              {!!doc.legal_flags?.length && (
+                <div className="mt-4 flex flex-wrap gap-1">
+                  {doc.legal_flags.slice(0, 8).map((flag) => (
+                    <span key={flag} className="rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-text-dim">
+                      {legalFlagLabel(flag, formatLabel)}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="mt-3 space-y-1 text-xs text-text-dim">
+                {doc.insight_model && <p>Summary generated with {doc.insight_model}</p>}
+                {doc.relevance_model && <p>Relevance scored with {doc.relevance_model}</p>}
+              </div>
             </section>
 
             <section className="rounded-md border border-border bg-surface p-4">

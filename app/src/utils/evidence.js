@@ -22,12 +22,48 @@ export const EVIDENCE_STATUS_OPTIONS = [
   { value: 'failed', label: 'Failed' },
 ];
 
+const EVIDENCE_ROLE_LABELS = {
+  direct_incident_evidence: 'Direct incident evidence',
+  medical_harm_evidence: 'Medical harm evidence',
+  notice_communication: 'Notice communication',
+  policy_standard: 'Policy standard',
+  prior_or_related_incident: 'Prior or related incident',
+  supporting_context: 'Supporting context',
+};
+
+const LEGAL_FLAG_LABELS = {
+  supervision: 'Supervision',
+  staffing: 'Staffing',
+  injury_response: 'Injury response',
+  notice: 'Notice',
+  policy_standard: 'Policy standard',
+  age_grouping: 'Age grouping',
+  prior_incidents: 'Prior incidents',
+  investigation_records: 'Investigation records',
+  disability_supports: 'IEP/504',
+  civil_rights: 'Civil rights',
+};
+
 export function evidenceStatusOf(doc) {
   return doc.processing_status || doc.status || 'uploaded';
 }
 
 export function evidenceCategoryLabel(value, fallbackFormatter) {
   return EVIDENCE_CATEGORY_OPTIONS.find((item) => item.value === value)?.label || fallbackFormatter(value || 'evidence');
+}
+
+export function evidenceRoleLabel(value, fallbackFormatter = (item) => item) {
+  return EVIDENCE_ROLE_LABELS[value] || fallbackFormatter(value || 'supporting_context');
+}
+
+export function legalFlagLabel(value, fallbackFormatter = (item) => item) {
+  return LEGAL_FLAG_LABELS[value] || fallbackFormatter(value || 'issue');
+}
+
+export function relevancePercent(value) {
+  const score = Number(value);
+  if (!Number.isFinite(score) || score <= 0) return 0;
+  return Math.round(Math.max(0, Math.min(1, score)) * 100);
 }
 
 export function evidenceStatusHelp(status) {

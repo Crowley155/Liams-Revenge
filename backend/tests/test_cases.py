@@ -8,7 +8,7 @@ from app.api.deps import get_current_user
 from app.api._store import case_documents, cases, gmail_connections
 from app.config import Settings
 from app.main import app
-from app.models import CaseDocument, GmailConnection, GmailImportRule
+from app.models import CaseDocument, CaseIntake, CaseRecord, GmailConnection, GmailImportRule
 from app.services.gmail_importer import import_matching_messages
 from app.services.gmail_security import encrypt_token
 
@@ -390,6 +390,12 @@ def test_case_document_insight_fields_serialize():
         document_summary="Incident report documents the after-school injury.",
         case_relevance="Relevant to notice, supervision, and parent communication.",
         relevance_score=0.83,
+        evidence_role="direct_incident_evidence",
+        relevance_basis="Official incident report connected to the current incident.",
+        relevance_factors=["directly describes the reported incident"],
+        relevance_model="deterministic:evidence-relevance-v1",
+        legal_flags=["supervision", "notice"],
+        extraction_confidence=0.9,
         insight_status="ready",
         insight_error="",
         insight_model="deepinfra/test-model",
@@ -398,6 +404,11 @@ def test_case_document_insight_fields_serialize():
     assert payload["document_summary"] == "Incident report documents the after-school injury."
     assert payload["case_relevance"] == "Relevant to notice, supervision, and parent communication."
     assert payload["relevance_score"] == 0.83
+    assert payload["evidence_role"] == "direct_incident_evidence"
+    assert payload["relevance_basis"].startswith("Official incident report")
+    assert payload["legal_flags"] == ["supervision", "notice"]
+    assert payload["extraction_confidence"] == 0.9
+    assert payload["relevance_model"] == "deterministic:evidence-relevance-v1"
     assert payload["insight_status"] == "ready"
     assert payload["insight_model"] == "deepinfra/test-model"
 
@@ -445,7 +456,98 @@ def test_document_insight_skips_no_text_documents():
     result = generate_document_insight(doc, case=None)
     assert result.insight_status == "skipped"
     assert result.document_summary == ""
+    assert result.extraction_confidence == 0.0
     assert "text" in result.insight_error.lower()
+
+
+def _liam_incident_case() -> CaseRecord:
+    return CaseRecord(
+        workspace_id="liam-workspace",
+        title="Liam JCPRD playground injury",
+        intake=CaseIntake(
+            district="USD 232",
+            school="Mize Elementary",
+            issue_type="student_safety",
+            issue_categories=["student_safety", "supervision", "records"],
+            incident_date="2026-04-02",
+            narrative=(
+                "Liam Crowley was injured during the JCPRD program at Mize Elementary after "
+                "a physical altercation. The parent is concerned about supervision, prior notice, "
+                "and the program's incident response."
+            ),
+            student_age=8,
+            safety_risk=True,
+        ),
+    )
+
+
+def test_literal_incident_report_uses_deterministic_direct_evidence_score(monkeypatch):
+    from app.services.document_insights import generate_document_insight
+
+    monkeypatch.setattr(
+        "app.services.document_insights._run_document_insight_model",
+        lambda _doc, _case: {
+            "summary": "The document describes an incident involving Liam and another child.",
+            "relevance": "The document is relevant to supervision concerns.",
+            "relevance_score": 0.8,
+            "tags": ["supervision"],
+        },
+    )
+    doc = CaseDocument(
+        workspace_id="liam-workspace",
+        filename="JA Critical Incident 4.15.25_Redacted.pdf",
+        evidence_type="incident_report",
+        inferred_category="incident_safety",
+        document_date="2026-04-02",
+        extracted_text=(
+            "Critical Incident Report. Student Liam Crowley was injured at Mize Elementary "
+            "during the JCPRD after-school program on April 2, 2026. The report describes a "
+            "physical altercation, staff supervision, parent notice, and medical follow-up."
+        ),
+        insight_status="pending",
+    )
+
+    result = generate_document_insight(doc, _liam_incident_case(), force=True)
+
+    assert result.relevance_score == 1.0
+    assert result.evidence_role == "direct_incident_evidence"
+    assert result.relevance_model == "deterministic:evidence-relevance-v1"
+    assert "official incident report" in result.relevance_basis.lower()
+    assert "supervision" in result.legal_flags
+    assert "injury_response" in result.legal_flags
+    assert result.extraction_confidence >= 0.8
+
+
+def test_policy_and_prior_incident_are_relevant_but_not_direct_current_incident(monkeypatch):
+    from app.services.document_insights import generate_document_insight
+
+    monkeypatch.setattr(
+        "app.services.document_insights._run_document_insight_model",
+        lambda _doc, _case: {
+            "summary": "The document contains policy text and safety requirements.",
+            "relevance": "It may help evaluate the program's standard of care.",
+            "relevance_score": 0.93,
+            "tags": ["policy"],
+        },
+    )
+    doc = CaseDocument(
+        workspace_id="liam-workspace",
+        filename="KSA 65-501 School-Age-Programs-Regulation-Book-PDF.pdf",
+        evidence_type="policy",
+        inferred_category="school_records",
+        extracted_text=(
+            "Kansas child care licensing law and KDHE school-age program regulations. "
+            "The document describes supervision, staff ratio, and program requirements."
+        ),
+        insight_status="pending",
+    )
+
+    result = generate_document_insight(doc, _liam_incident_case(), force=True)
+
+    assert result.relevance_score < 1.0
+    assert result.evidence_role == "policy_standard"
+    assert "standard" in result.relevance_basis.lower()
+    assert "supervision" in result.legal_flags
 
 
 def test_legacy_document_upload_requires_explicit_case_id():

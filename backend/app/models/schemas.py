@@ -836,6 +836,12 @@ class CaseDocument(BaseModel):
     document_summary: str = ""
     case_relevance: str = ""
     relevance_score: float = Field(default=0.0, ge=0.0, le=1.0)
+    evidence_role: str = ""
+    relevance_basis: str = ""
+    relevance_factors: list[str] = Field(default_factory=list)
+    relevance_model: str = ""
+    legal_flags: list[str] = Field(default_factory=list)
+    extraction_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
     insight_status: str = Field(default="pending", description="pending | ready | failed | skipped")
     insight_error: str = ""
     insight_generated_at: Optional[datetime] = None

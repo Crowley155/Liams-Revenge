@@ -4,8 +4,11 @@ import assert from 'node:assert/strict';
 import {
   buildSmartStacks,
   documentInsightSummary,
+  evidenceRoleLabel,
   filterEvidenceDocuments,
   filterDocumentsByStack,
+  legalFlagLabel,
+  relevancePercent,
 } from './evidence.js';
 
 const docs = [
@@ -82,4 +85,12 @@ test('documentInsightSummary shows parent-readable insight fallback text', () =>
   assert.equal(documentInsightSummary(docs[0]).relevance, 'Supports notice and supervision questions.');
   assert.equal(documentInsightSummary(docs[1]).summary, 'Text review needed before USDWatch can summarize this document.');
   assert.equal(documentInsightSummary(docs[2]).summary, 'USDWatch is preparing a document summary.');
+});
+
+test('document intelligence labels and percentages are stable for evidence UI', () => {
+  assert.equal(evidenceRoleLabel('direct_incident_evidence'), 'Direct incident evidence');
+  assert.equal(legalFlagLabel('injury_response'), 'Injury response');
+  assert.equal(relevancePercent(1), 100);
+  assert.equal(relevancePercent(0.804), 80);
+  assert.equal(relevancePercent(null), 0);
 });

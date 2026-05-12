@@ -41,10 +41,13 @@ import {
   buildSmartStacks,
   documentInsightSummary,
   evidenceCategoryLabel,
+  evidenceRoleLabel,
   evidenceStatusOf,
   filterDocumentsByStack,
   filterEvidenceDocuments,
+  legalFlagLabel,
   maybeCompressImage,
+  relevancePercent,
 } from '../utils/evidence';
 
 const NOTICE_STYLES = {
@@ -226,6 +229,8 @@ function DeleteEvidenceDialog({ doc, busy, onCancel, onConfirm }) {
 
 function EvidenceRow({ doc, onView, onDownload, onDelete, downloading }) {
   const insight = documentInsightSummary(doc);
+  const relevance = relevancePercent(doc.relevance_score);
+  const legalFlags = (doc.legal_flags || []).slice(0, 3);
   return (
     <article className="min-w-0 rounded-md border border-border bg-background/45 px-4 py-3 transition-colors hover:border-accent/40 hover:bg-surface/70">
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(260px,1.25fr)_minmax(260px,1fr)_130px_260px] xl:items-start">
@@ -234,6 +239,7 @@ function EvidenceRow({ doc, onView, onDownload, onDelete, downloading }) {
             <FileText className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
             <h3 className="wrap-anywhere text-sm font-bold leading-snug text-text">{doc.filename}</h3>
             <StatusPill status={evidenceStatusOf(doc)} />
+            {doc.evidence_role && <span className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium leading-none text-text-dim">{evidenceRoleLabel(doc.evidence_role, formatLabel)}</span>}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-text-dim">
             {categoryLabel(doc.inferred_category)}
@@ -249,13 +255,23 @@ function EvidenceRow({ doc, onView, onDownload, onDelete, downloading }) {
         <div className="min-w-0 space-y-2">
           <p className="text-sm leading-relaxed text-text">{insight.summary}</p>
           <p className="text-xs leading-relaxed text-text-dim">{insight.relevance}</p>
+          {!!legalFlags.length && (
+            <div className="flex flex-wrap gap-1">
+              {legalFlags.map((flag) => (
+                <span key={flag} className="rounded-md border border-border bg-surface px-2 py-1 text-[11px] font-medium text-text-dim">
+                  {legalFlagLabel(flag, formatLabel)}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
         <div className="min-w-0">
           <p className="text-[11px] font-semibold text-text-dim">Relevance</p>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-alt">
-            <div className="h-full rounded-full bg-accent" style={{ width: `${Math.round((doc.relevance_score || 0) * 100)}%` }} />
+            <div className="h-full rounded-full bg-accent" style={{ width: `${relevance}%` }} />
           </div>
-          <p className="mt-1 text-xs text-text-dim">{doc.relevance_score ? `${Math.round(doc.relevance_score * 100)}%` : formatLabel(insight.status)}</p>
+          <p className="mt-1 text-xs text-text-dim">{relevance ? `${relevance}%` : formatLabel(insight.status)}</p>
+          {doc.relevance_basis && <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-text-dim">{doc.relevance_basis}</p>}
         </div>
         <div className="flex min-w-0 flex-wrap gap-2 xl:justify-end">
           <button type="button" onClick={() => onView(doc)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text" aria-label={`View ${doc.filename}`}>

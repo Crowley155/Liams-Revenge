@@ -9,6 +9,7 @@ from typing import Any
 
 from app.config import settings
 from app.models import CaseDocument, CaseRecord
+from app.services.evidence_relevance import EvidenceRelevance, score_document_relevance
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,16 @@ def _local_document_insight(doc: CaseDocument, case: CaseRecord | None) -> dict[
     }
 
 
+def _apply_relevance(doc: CaseDocument, relevance: EvidenceRelevance) -> None:
+    doc.relevance_score = relevance.score
+    doc.evidence_role = relevance.role
+    doc.relevance_basis = relevance.basis
+    doc.relevance_factors = relevance.factors
+    doc.legal_flags = relevance.legal_flags
+    doc.extraction_confidence = relevance.extraction_confidence
+    doc.relevance_model = relevance.model_id
+
+
 def _content_from_response(response: Any) -> str:
     content = getattr(response, "content", response)
     if isinstance(content, dict):
@@ -164,9 +175,9 @@ def generate_document_insight(doc: CaseDocument, case: CaseRecord | None = None,
 
     text = _usable_text(doc)
     if not text:
+        _apply_relevance(doc, score_document_relevance(doc, case, model_score=0.0))
         doc.document_summary = ""
         doc.case_relevance = ""
-        doc.relevance_score = 0.0
         doc.insight_status = "skipped"
         doc.insight_error = "No usable extracted text is available for AI document insight."
         doc.insight_generated_at = utc_now()
@@ -187,9 +198,10 @@ def generate_document_insight(doc: CaseDocument, case: CaseRecord | None = None,
         doc.document_summary = _clean_sentence(str(payload.get("summary") or ""), limit=260)
         doc.case_relevance = _clean_sentence(str(payload.get("relevance") or ""), limit=320)
         try:
-            doc.relevance_score = round(max(0.0, min(1.0, float(payload.get("relevance_score", 0.0)))), 2)
+            model_score = round(max(0.0, min(1.0, float(payload.get("relevance_score", 0.0)))), 2)
         except (TypeError, ValueError):
-            doc.relevance_score = _keyword_score(text, doc, case)
+            model_score = _keyword_score(text, doc, case)
+        _apply_relevance(doc, score_document_relevance(doc, case, model_score=model_score))
         tags = [str(tag).strip().lower().replace(" ", "_") for tag in payload.get("tags", []) if str(tag).strip()]
         if tags:
             doc.tags = sorted(set([*doc.tags, *tags[:5]]))
