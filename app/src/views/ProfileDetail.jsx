@@ -544,12 +544,12 @@ export default function ProfileDetail() {
 
       {/* Profile Intelligence */}
       {profile.profile_intel?.length > 0 && (
-        <div className="bg-surface border border-purple-400/30 rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-purple-400 mb-3">Profile Intelligence <InfoTip tip="LLM-extracted intelligence from confirmed social profiles. Affiliations, connections, career moves, and other due diligence findings." /></h2>
+        <div className="bg-surface border border-info/30 rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-info mb-3">Profile Intelligence <InfoTip tip="LLM-extracted intelligence from confirmed social profiles. Affiliations, connections, career moves, and other due diligence findings." /></h2>
           <div className="space-y-2">
             {profile.profile_intel.map((item, i) => (
               <div key={i} className="flex items-start gap-2 text-sm text-text">
-                <span className="text-purple-400 mt-0.5 shrink-0">&#x2022;</span>
+                <span className="text-info mt-0.5 shrink-0">&#x2022;</span>
                 <p className="leading-relaxed">{typeof item === 'string' ? item : item.text}</p>
               </div>
             ))}

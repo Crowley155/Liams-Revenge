@@ -45,17 +45,17 @@ const NOTICE_STYLES = {
 
 function UploadQueueItem({ item, onRemove }) {
   return (
-    <article className="flex items-start justify-between gap-3 rounded-md border border-border bg-background p-3">
+    <article className="flex min-w-0 items-start justify-between gap-3 rounded-md border border-border bg-background/70 p-3">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <h4 className="truncate text-sm font-semibold text-text">{item.file.name}</h4>
+          <h4 className="wrap-anywhere text-sm font-semibold text-text">{item.file.name}</h4>
           <StatusPill status={item.status} />
           {item.compressed && <StatusPill status="compressed" />}
         </div>
         <p className="mt-1 text-xs text-text-dim">{formatBytes(item.file.size)}</p>
         {item.failureReason && <p className="mt-2 text-xs text-danger">{item.failureReason}</p>}
       </div>
-      <button type="button" onClick={() => onRemove(item.id)} className="rounded-md p-2 text-text-dim transition-colors hover:bg-danger/10 hover:text-danger" title="Remove from queue" aria-label={`Remove ${item.file.name}`}>
+      <button type="button" onClick={() => onRemove(item.id)} className="grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-danger/10 hover:text-danger" title="Remove from queue" aria-label={`Remove ${item.file.name}`}>
         <Trash2 className="h-4 w-4" aria-hidden="true" />
       </button>
     </article>
@@ -77,7 +77,7 @@ function DocumentPreview({ preview, contentUrl, onClose }) {
             <h3 className="mt-1 truncate text-lg font-bold">{doc.filename}</h3>
             <p className="mt-1 text-xs text-text-dim">{categoryLabel(doc.inferred_category)} - {formatBytes(doc.file_size)} - {formatLabel(evidenceStatusOf(doc))}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md p-2 text-text-dim transition-colors hover:bg-surface-alt hover:text-text" title="Close preview" aria-label="Close preview">
+          <button type="button" onClick={onClose} className="grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text" title="Close preview" aria-label="Close preview">
             <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
@@ -98,7 +98,7 @@ function DocumentPreview({ preview, contentUrl, onClose }) {
             </div>
             {doc.failure_reason && <p className="rounded-md border border-warning/30 bg-warning/8 p-3 text-xs leading-relaxed text-warning">{doc.failure_reason}</p>}
             {contentUrl && (
-              <a href={contentUrl} download={doc.filename} className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">
+              <a href={contentUrl} download={doc.filename} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">
                 <Download className="h-4 w-4" aria-hidden="true" />
                 Download original
               </a>
@@ -439,16 +439,16 @@ export default function EvidenceLocker() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 py-8 animate-fade-up">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+    <div className="product-ui mx-auto max-w-7xl min-w-0 space-y-6 py-6 sm:py-8 animate-fade-up">
+      <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
           <p className="text-xs font-medium text-accent/80">Private evidence</p>
-          <h2 className="mt-1 text-3xl font-bold">Evidence Locker</h2>
+          <h2 className="mt-1 text-3xl font-bold tracking-tight">Evidence Locker</h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-dim">
             Import emails, PDFs, screenshots, records, photos, and agency letters. USDWatch stores originals privately, extracts what it can, and flags anything that needs review.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2 text-xs">
+        <div className="flex max-w-full flex-wrap gap-2 text-xs">
           <StatusPill status={`${counts.total} files`} />
           <StatusPill status={`${counts.indexed} indexed`} />
           {counts.processing > 0 && <StatusPill status={`${counts.processing} processing`} />}
@@ -459,11 +459,11 @@ export default function EvidenceLocker() {
 
       {notice && <p role="status" aria-live="polite" className={`rounded-md border px-3 py-2 text-sm ${NOTICE_STYLES[notice.type] || NOTICE_STYLES.info}`}>{notice.message}</p>}
 
-      <div className="grid gap-5 xl:grid-cols-[390px_1fr]">
-        <aside className="space-y-5">
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+        <aside className="min-w-0 space-y-4">
           <Panel title="Import Files" eyebrow="Evidence Locker">
             <div className="space-y-4">
-              <label className={`flex flex-col items-center justify-center rounded-md border border-dashed border-border bg-background px-4 py-8 text-center transition-colors ${limitReached ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:border-accent/60'}`}>
+              <label className={`flex min-h-44 flex-col items-center justify-center rounded-md border border-dashed border-border bg-background/70 px-4 py-8 text-center transition-colors ${limitReached ? 'cursor-not-allowed opacity-70' : 'cursor-pointer hover:border-accent/60 hover:bg-background'}`}>
                 <FileUp className="h-7 w-7 text-accent" aria-hidden="true" />
                 <span className="mt-3 text-sm font-semibold text-text">Drop files here or browse</span>
                 <span className="mt-1 text-xs leading-relaxed text-text-dim">Multiple files. Up to 50 MB each. Large images may be compressed for indexing.</span>
@@ -477,7 +477,7 @@ export default function EvidenceLocker() {
               {queue.length > 0 && (
                 <div className="space-y-3">
                   {queue.map((item) => <UploadQueueItem key={item.id} item={item} onRemove={removeQueueItem} />)}
-                  <button disabled={busy} onClick={handleUploadQueue} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60">
+                  <button disabled={busy} onClick={handleUploadQueue} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60">
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileUp className="h-4 w-4" aria-hidden="true" />}
                     Import queued files
                   </button>
@@ -486,8 +486,8 @@ export default function EvidenceLocker() {
             </div>
           </Panel>
 
-          <details className="rounded-lg border border-border bg-surface/70">
-            <summary className="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-text">
+          <details className="min-w-0 rounded-md border border-border bg-surface/70">
+            <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-text">
               <span>Import from Gmail</span>
               <span className="rounded-md border border-border px-2 py-1 text-xs font-medium text-text-dim">Beta</span>
             </summary>
@@ -503,32 +503,32 @@ export default function EvidenceLocker() {
                   Connected to {gmailConnection.google_email}
                 </p>
               )}
-              <input className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={gmailRule.domains} onChange={(event) => setGmailRule((current) => ({ ...current, domains: event.target.value }))} placeholder="Domains, e.g. usd232.org" />
-              <input className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={gmailRule.email_addresses} onChange={(event) => setGmailRule((current) => ({ ...current, email_addresses: event.target.value }))} placeholder="Specific email addresses" />
-              <input className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={gmailRule.keywords} onChange={(event) => setGmailRule((current) => ({ ...current, keywords: event.target.value }))} placeholder="Optional keywords, comma separated" />
-              <label className="flex items-start gap-2 text-sm text-text-dim">
-                <input type="checkbox" className="mt-1" checked={gmailRule.include_attachments} onChange={(event) => setGmailRule((current) => ({ ...current, include_attachments: event.target.checked }))} />
+              <input className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent" value={gmailRule.domains} onChange={(event) => setGmailRule((current) => ({ ...current, domains: event.target.value }))} placeholder="Domains, e.g. usd232.org" />
+              <input className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent" value={gmailRule.email_addresses} onChange={(event) => setGmailRule((current) => ({ ...current, email_addresses: event.target.value }))} placeholder="Specific email addresses" />
+              <input className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent" value={gmailRule.keywords} onChange={(event) => setGmailRule((current) => ({ ...current, keywords: event.target.value }))} placeholder="Optional keywords, comma separated" />
+              <label className="flex min-h-11 items-start gap-3 text-sm text-text-dim">
+                <input type="checkbox" className="mt-1 h-4 w-4" checked={gmailRule.include_attachments} onChange={(event) => setGmailRule((current) => ({ ...current, include_attachments: event.target.checked }))} />
                 Import attachments
               </label>
-              <label className="flex items-start gap-2 text-sm text-text-dim">
-                <input type="checkbox" className="mt-1" checked={gmailRule.auto_sync} onChange={(event) => setGmailRule((current) => ({ ...current, auto_sync: event.target.checked }))} />
+              <label className="flex min-h-11 items-start gap-3 text-sm text-text-dim">
+                <input type="checkbox" className="mt-1 h-4 w-4" checked={gmailRule.auto_sync} onChange={(event) => setGmailRule((current) => ({ ...current, auto_sync: event.target.checked }))} />
                 Enable auto-sync after OAuth is connected
               </label>
-              <button disabled={busy} onClick={handleSaveGmailRule} className="w-full rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">
+              <button disabled={busy} onClick={handleSaveGmailRule} className="min-h-11 w-full rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">
                 Save Gmail import rule
               </button>
-              <button disabled={busy || !gmailStatus?.configured} onClick={handleConnectGmail} className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60">
+              <button disabled={busy || !gmailStatus?.configured} onClick={handleConnectGmail} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Mail className="h-4 w-4" aria-hidden="true" />}
                 {gmailConnected ? 'Reconnect Gmail' : 'Connect Gmail'}
               </button>
               {gmailConnected && (
                 <div className="space-y-3 rounded-md border border-border bg-background p-3">
-                  <input className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent" value={gmailQuery} onChange={(event) => setGmailQuery(event.target.value)} placeholder="Optional Gmail search override" />
+                  <input className="min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent" value={gmailQuery} onChange={(event) => setGmailQuery(event.target.value)} placeholder="Optional Gmail search override" />
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <button disabled={busy} onClick={handleSearchGmail} className="rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">
+                    <button disabled={busy} onClick={handleSearchGmail} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">
                       Search messages
                     </button>
-                    <button disabled={busy} onClick={handleSyncGmail} className="rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">
+                    <button disabled={busy} onClick={handleSyncGmail} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">
                       Sync latest
                     </button>
                   </div>
@@ -550,12 +550,12 @@ export default function EvidenceLocker() {
                           </label>
                         ))}
                       </div>
-                      <button disabled={busy || selectedGmailMessages.length === 0} onClick={handleImportGmail} className="w-full rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60">
+                      <button disabled={busy || selectedGmailMessages.length === 0} onClick={handleImportGmail} className="min-h-11 w-full rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60">
                         Import selected messages
                       </button>
                     </div>
                   )}
-                  <button disabled={busy} onClick={handleDisconnectGmail} className="w-full rounded-md border border-danger/40 px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60">
+                  <button disabled={busy} onClick={handleDisconnectGmail} className="min-h-11 w-full rounded-md border border-danger/40 px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60">
                     Disconnect Gmail
                   </button>
                 </div>
@@ -567,20 +567,20 @@ export default function EvidenceLocker() {
           </details>
         </aside>
 
-        <main className="space-y-5">
+        <main className="min-w-0 space-y-4">
           <Panel title="Find Evidence" eyebrow="Search and filter">
-            <div className="grid gap-3 lg:grid-cols-[1fr_200px_160px_160px]">
+            <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_200px_160px_160px]">
               <label className="relative">
-                <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-text-dim" aria-hidden="true" />
-                <input className="w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none focus:border-accent" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Search filenames, tags, sources, or extracted text" />
+                <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-text-dim" aria-hidden="true" />
+                <input className="min-h-11 w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-accent" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Search filenames, tags, sources, or extracted text" />
               </label>
-              <select className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}>
+              <select className="min-h-11 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent" value={filters.category} onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}>
                 {EVIDENCE_CATEGORY_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
-              <select className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
+              <select className="min-h-11 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}>
                 {EVIDENCE_STATUS_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
-              <select className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={`${filters.sort}:${filters.direction}`} onChange={(event) => {
+              <select className="min-h-11 rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-accent" value={`${filters.sort}:${filters.direction}`} onChange={(event) => {
                 const [sort, direction] = event.target.value.split(':');
                 setFilters((current) => ({ ...current, sort, direction }));
               }}>
@@ -603,13 +603,13 @@ export default function EvidenceLocker() {
               </div>
             )}
             {!loading && documents.length > 0 && (
-              <div className="divide-y divide-border">
+              <div className="min-w-0 space-y-3">
                 {documents.map((doc) => (
-                  <article key={doc.id} className="py-4 first:pt-0 last:pb-0">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <article key={doc.id} className="min-w-0 rounded-md border border-border bg-background/45 p-3">
+                    <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-sm font-semibold text-text">{doc.filename}</h3>
+                          <h3 className="wrap-anywhere text-sm font-semibold leading-snug text-text">{doc.filename}</h3>
                           <StatusPill status={evidenceStatusOf(doc)} />
                           {doc.ocr_status && doc.ocr_status !== 'not_required' && <StatusPill status={`ocr ${doc.ocr_status}`} />}
                         </div>
@@ -626,20 +626,20 @@ export default function EvidenceLocker() {
                         )}
                       </div>
                       <div className="flex shrink-0 gap-2">
-                        <button type="button" disabled={busy} onClick={() => handlePreview(doc)} className="grid min-h-10 min-w-10 place-items-center rounded-md border border-border p-2 text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60" title="View evidence" aria-label={`View ${doc.filename}`}>
+                        <button type="button" disabled={busy} onClick={() => handlePreview(doc)} className="grid min-h-11 min-w-11 place-items-center rounded-md border border-border text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60" title="View evidence" aria-label={`View ${doc.filename}`}>
                           <Eye className="h-4 w-4" aria-hidden="true" />
                         </button>
-                        <button type="button" disabled={busy} onClick={() => setDeleteTarget(doc)} className="grid min-h-10 min-w-10 place-items-center rounded-md border border-border p-2 text-text-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60" title="Delete evidence" aria-label={`Delete ${doc.filename}`}>
+                        <button type="button" disabled={busy} onClick={() => setDeleteTarget(doc)} className="grid min-h-11 min-w-11 place-items-center rounded-md border border-border text-text-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger disabled:opacity-60" title="Delete evidence" aria-label={`Delete ${doc.filename}`}>
                           <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </button>
                       </div>
                     </div>
                     {doc.failure_reason && <p className="mt-3 rounded-md border border-warning/30 bg-warning/8 px-3 py-2 text-xs leading-relaxed text-warning">{doc.failure_reason}</p>}
-                    <dl className="mt-3 grid gap-2 text-xs text-text-dim sm:grid-cols-4">
-                      <div><dt className="font-semibold text-text">Size</dt><dd>{formatBytes(doc.file_size) || 'Unknown'}</dd></div>
-                      <div><dt className="font-semibold text-text">Indexed chunks</dt><dd>{doc.chunk_count || 0}</dd></div>
-                      <div><dt className="font-semibold text-text">Pages</dt><dd>{doc.page_count || 'Unknown'}</dd></div>
-                      <div><dt className="font-semibold text-text">Uploaded</dt><dd>{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : 'Unknown'}</dd></div>
+                    <dl className="mt-3 grid min-w-0 gap-2 text-xs text-text-dim sm:grid-cols-4">
+                      <div className="min-w-0"><dt className="font-semibold text-text">Size</dt><dd>{formatBytes(doc.file_size) || 'Unknown'}</dd></div>
+                      <div className="min-w-0"><dt className="font-semibold text-text">Indexed chunks</dt><dd>{doc.chunk_count || 0}</dd></div>
+                      <div className="min-w-0"><dt className="font-semibold text-text">Pages</dt><dd>{doc.page_count || 'Unknown'}</dd></div>
+                      <div className="min-w-0"><dt className="font-semibold text-text">Uploaded</dt><dd>{doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : 'Unknown'}</dd></div>
                     </dl>
                   </article>
                 ))}
@@ -657,14 +657,14 @@ export default function EvidenceLocker() {
 
       {deleteTarget && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm">
-          <section className="w-full max-w-md rounded-lg border border-border bg-surface p-5 shadow-2xl">
+          <section className="w-full max-w-md rounded-md border border-border bg-surface p-5 shadow-2xl">
             <h3 className="text-lg font-bold">Delete this evidence?</h3>
             <p className="mt-2 text-sm leading-relaxed text-text-dim">
               This removes <strong className="text-text">{deleteTarget.filename}</strong> from the Evidence Locker and future Case Reads for this case.
             </p>
             <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">Cancel</button>
-              <button type="button" disabled={busy} onClick={handleDeleteConfirmed} className="inline-flex items-center justify-center gap-2 rounded-md bg-danger px-4 py-2 text-sm font-semibold text-background transition-colors hover:opacity-90 disabled:opacity-60">
+              <button type="button" onClick={() => setDeleteTarget(null)} className="min-h-11 rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">Cancel</button>
+              <button type="button" disabled={busy} onClick={handleDeleteConfirmed} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-danger px-4 py-2 text-sm font-semibold text-background transition-colors hover:opacity-90 disabled:opacity-60">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
                 Delete evidence
               </button>

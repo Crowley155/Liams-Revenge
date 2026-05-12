@@ -37,15 +37,15 @@ export default function NonCompliance() {
       </div>
 
       {/* Section Tabs */}
-      <div className="flex gap-2 border-b border-border pb-px overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto">
         {SECTIONS.map((s) => (
           <button
             key={s.id}
             onClick={() => setActiveSection(s.id)}
-            className={`px-4 py-2 text-xs font-medium rounded-t-md transition-colors whitespace-nowrap border-b-2 ${
+            className={`min-h-11 rounded-md border px-4 py-2 text-xs font-semibold transition-colors whitespace-nowrap ${
               activeSection === s.id
-                ? 'border-current text-accent bg-accent/5'
-                : 'border-transparent text-text-dim hover:text-text'
+                ? 'border-current bg-accent/10 text-accent'
+                : 'border-border text-text-dim hover:bg-surface-alt hover:text-text'
             }`}
             style={activeSection === s.id ? { borderColor: s.color, color: s.color } : {}}
           >

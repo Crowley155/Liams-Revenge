@@ -42,19 +42,19 @@ export default function CaseFileLayout() {
 
   return (
     <CaseProvider caseId={caseId}>
-      <div className="space-y-6">
-        <div className="rounded-lg border border-border bg-surface/80 px-4 py-4 sm:px-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-1">
+      <div className="product-ui min-w-0 space-y-6">
+        <div className="min-w-0 rounded-md border border-border bg-surface/80 px-4 py-4 sm:px-5">
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0 space-y-1">
               <p className="text-xs font-medium text-accent/80">Case file</p>
-              <h2 className="text-xl font-bold sm:text-2xl">
+              <h2 className="wrap-anywhere text-xl font-bold sm:text-2xl">
                 {caseRecord?.title || 'Loading case...'}
               </h2>
               <p className="text-xs text-text-dim">
                 {caseRecord?.intake?.district || 'Private workspace'} - {caseRecord?.status || 'scoped'}
               </p>
             </div>
-            <div className="flex max-w-full gap-1 overflow-x-auto pb-1">
+            <div className="flex min-w-0 max-w-full gap-1 overflow-x-auto pb-1">
               {tabs.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -63,7 +63,7 @@ export default function CaseFileLayout() {
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>
-                    `inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                    `inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
                       isActive
                         ? 'bg-accent text-background'
                         : 'text-text-dim hover:bg-surface-alt hover:text-text'

@@ -1,5 +1,6 @@
 ---
 import '../index.css';
+import PublicHeader from '../components/PublicHeader.jsx';
 
 const {
   title = 'USDWatch',
@@ -12,26 +13,6 @@ const {
 const canonicalUrl = canonical || `https://usdwatch.com${Astro.url.pathname}`;
 const schemaItems = Array.isArray(schema) ? schema : [schema].filter(Boolean);
 
-const publicNav = [
-  { href: '/', label: 'Home' },
-  { href: '/whats-next', label: 'How It Works' },
-  { href: '/trust', label: 'Trust' },
-  { href: '/ai-disclosure', label: 'AI Disclosure' },
-  { href: '/privacy', label: 'Privacy' },
-];
-
-const currentPath = Astro.url.pathname.replace(/\/$/, '') || '/';
-
-const navClass = (href: string) => {
-  const normalized = href.replace(/\/$/, '') || '/';
-  const active = currentPath === normalized;
-  return [
-    'rounded-md px-3 py-2 text-xs font-medium transition-all duration-200 whitespace-nowrap',
-    active
-      ? 'bg-accent/15 text-accent'
-      : 'text-text-dim hover:text-text hover:bg-surface-alt',
-  ].join(' ');
-};
 ---
 
 <!doctype html>
@@ -61,20 +42,7 @@ const navClass = (href: string) => {
   </head>
   <body>
     <div class="min-h-screen flex flex-col bg-background text-text">
-      <header class="bg-surface border-b border-border sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6">
-          <div class="flex min-h-14 flex-col gap-2 py-2 sm:h-14 sm:flex-row sm:items-center sm:justify-between sm:py-0">
-            <a href="/" class="text-sm font-bold tracking-wide text-accent uppercase">USDWatch</a>
-            <nav class="flex max-w-full items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-              {publicNav.map((item) => (
-                <a class={navClass(item.href)} href={item.href}>{item.label}</a>
-              ))}
-              <span class="mx-1 hidden h-5 w-px bg-border sm:inline-block"></span>
-              <a class={navClass('/login')} href="/login">Sign In</a>
-            </nav>
-          </div>
-        </div>
-      </header>
+      <PublicHeader client:only="react" />
 
       <main class="flex-1">
         <slot />

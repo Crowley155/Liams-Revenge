@@ -640,13 +640,13 @@ function VideoModal({ url, onClose }) {
 
   return createPortal(
     <>
-      <div className="fixed inset-0 bg-black/90 z-50" onClick={onClose} />
+      <div className="fixed inset-0 z-50 bg-background/95" onClick={onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6">
         <div className="w-full" style={{ maxWidth: '420px' }}>
           <div className="flex justify-end mb-2">
             <button
               onClick={onClose}
-              className="text-white/70 hover:text-white text-sm font-medium px-3 py-2"
+              className="min-h-11 rounded-md px-3 py-2 text-sm font-medium text-text-dim transition-colors hover:bg-surface-alt hover:text-text"
             >
               Close &times;
             </button>

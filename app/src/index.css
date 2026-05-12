@@ -43,6 +43,17 @@ h1, h2, h3 {
   letter-spacing: 0;
 }
 
+.product-ui h1,
+.product-ui h2,
+.product-ui h3 {
+  font-family: var(--font-sans);
+}
+
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
 :where(a, button, input, textarea, select, summary):focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;

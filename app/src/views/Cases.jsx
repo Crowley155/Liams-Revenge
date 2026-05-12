@@ -36,7 +36,7 @@ export default function Cases() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-8 space-y-6 animate-fade-up">
+    <div className="product-ui mx-auto max-w-5xl space-y-6 py-8 animate-fade-up">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.18em] text-accent font-semibold">Workspace</p>

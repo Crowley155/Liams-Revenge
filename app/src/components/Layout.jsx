@@ -2,20 +2,9 @@ import { lazy, Suspense, useState } from 'react';
 import { UserButton } from '@clerk/clerk-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clerkEnabled, useAuth } from '../auth/AuthContext';
+import { isNavItemActive, navItemsForAuth } from '../navigation';
 
 const FloatingCaseAdvocate = lazy(() => import('./FloatingCaseAdvocate'));
-
-const PUBLIC_NAV = [
-  { to: '/', label: 'Home' },
-  { href: '/whats-next', label: 'How It Works' },
-  { href: '/trust', label: 'Trust' },
-  { href: '/ai-disclosure', label: 'AI Disclosure' },
-  { href: '/privacy', label: 'Privacy' },
-];
-
-const PROTECTED_NAV = [
-  { to: '/cases', label: 'Cases' },
-];
 
 export default function Layout() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -23,7 +12,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const { isAuthenticated, user, workspace, logout } = useAuth();
 
-  const navItems = isAuthenticated ? [...PROTECTED_NAV, ...PUBLIC_NAV] : PUBLIC_NAV;
+  const navItems = navItemsForAuth(isAuthenticated);
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -36,28 +25,20 @@ export default function Layout() {
     <div className="min-h-screen flex flex-col">
       <header className="bg-surface border-b border-border sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between h-14">
-            <h1 className="text-sm font-bold tracking-wide text-accent uppercase">
+          <div className="flex min-h-14 items-center justify-between gap-3">
+            <h1 className="text-sm font-bold uppercase tracking-wide text-accent">
               USDWatch
             </h1>
 
             <nav className="hidden sm:flex items-center gap-1">
               {navItems.map(({ to, href, label }) => (
-                href ? (
-                  <a
-                    key={href}
-                    href={href}
-                    className="px-3 py-2 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap text-text-dim hover:text-text hover:bg-surface-alt"
-                  >
-                    {label}
-                  </a>
-                ) : (
+                to ? (
                   <NavLink
                     key={to}
                     to={to}
                     end={to === '/'}
                     className={({ isActive }) =>
-                      `px-3 py-2 text-xs font-medium rounded-md transition-all duration-200 whitespace-nowrap ${
+                      `inline-flex min-h-11 items-center rounded-md px-3 text-xs font-medium transition-colors whitespace-nowrap ${
                         isActive
                           ? 'bg-accent/15 text-accent'
                           : 'text-text-dim hover:text-text hover:bg-surface-alt'
@@ -66,6 +47,18 @@ export default function Layout() {
                   >
                     {label}
                   </NavLink>
+                ) : (
+                  <a
+                    key={href}
+                    href={href}
+                    className={`inline-flex min-h-11 items-center rounded-md px-3 text-xs font-medium transition-colors whitespace-nowrap ${
+                      isNavItemActive(location.pathname, { href })
+                        ? 'bg-accent/15 text-accent'
+                        : 'text-text-dim hover:text-text hover:bg-surface-alt'
+                    }`}
+                  >
+                    {label}
+                  </a>
                 )
               ))}
 
@@ -76,7 +69,7 @@ export default function Layout() {
               ) : isAuthenticated ? (
                 <button
                   onClick={handleLogout}
-                  className="px-3 py-2 text-xs font-medium text-text-dim hover:text-text hover:bg-surface-alt rounded-md transition-colors"
+                  className="inline-flex min-h-11 items-center rounded-md px-3 text-xs font-medium text-text-dim transition-colors hover:text-text hover:bg-surface-alt"
                   title={user?.email}
                 >
                   Sign Out
@@ -85,7 +78,7 @@ export default function Layout() {
                 <NavLink
                   to="/login"
                   className={({ isActive }) =>
-                    `px-3 py-2 text-xs font-medium rounded-md transition-colors ${
+                    `inline-flex min-h-11 items-center rounded-md px-3 text-xs font-medium transition-colors ${
                       isActive
                         ? 'bg-accent/15 text-accent'
                         : 'text-text-dim hover:text-text hover:bg-surface-alt'
@@ -99,7 +92,7 @@ export default function Layout() {
 
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="sm:hidden p-2 text-text-dim hover:text-text"
+              className="grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text sm:hidden"
               aria-label="Toggle menu"
             >
               {menuOpen ? (
@@ -119,33 +112,37 @@ export default function Layout() {
           <div className="sm:hidden border-t border-border bg-surface-alt">
             <div className="px-4 py-2 space-y-1">
               {navItems.map(({ to, href, label }) => {
-                if (href) {
+                if (to) {
+                  const isActive = isNavItemActive(location.pathname, { to });
                   return (
-                    <a
-                      key={href}
-                      href={href}
+                    <NavLink
+                      key={to}
+                      to={to}
+                      end={to === '/'}
                       onClick={closeMenu}
-                      className="block px-3 py-3 text-sm font-medium rounded-md transition-colors text-text-dim hover:text-text hover:bg-surface"
+                      className={`flex min-h-11 items-center rounded-md px-3 text-sm font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-accent/15 text-accent'
+                          : 'text-text-dim hover:text-text hover:bg-surface'
+                      }`}
                     >
                       {label}
-                    </a>
+                    </NavLink>
                   );
                 }
-                const isActive = to === '/' ? location.pathname === '/' : location.pathname.startsWith(to);
                 return (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    end={to === '/'}
+                  <a
+                    key={href}
+                    href={href}
                     onClick={closeMenu}
-                    className={`block px-3 py-3 text-sm font-medium rounded-md transition-colors ${
-                      isActive
+                    className={`flex min-h-11 items-center rounded-md px-3 text-sm font-semibold transition-colors ${
+                      isNavItemActive(location.pathname, { href })
                         ? 'bg-accent/15 text-accent'
                         : 'text-text-dim hover:text-text hover:bg-surface'
                     }`}
                   >
                     {label}
-                  </NavLink>
+                  </a>
                 );
               })}
 
@@ -153,7 +150,7 @@ export default function Layout() {
                 {isAuthenticated ? (
                   <button
                     onClick={() => { handleLogout(); closeMenu(); }}
-                    className="block w-full text-left px-3 py-3 text-sm font-medium text-text-dim hover:text-text hover:bg-surface rounded-md transition-colors"
+                    className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm font-semibold text-text-dim transition-colors hover:text-text hover:bg-surface"
                   >
                     Sign Out
                   </button>
@@ -161,7 +158,7 @@ export default function Layout() {
                   <NavLink
                     to="/login"
                     onClick={closeMenu}
-                    className="block px-3 py-3 text-sm font-medium text-text-dim hover:text-text hover:bg-surface rounded-md transition-colors"
+                    className="flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-text-dim transition-colors hover:text-text hover:bg-surface"
                   >
                     Sign In
                   </NavLink>
