@@ -16,10 +16,10 @@ export const EVIDENCE_CATEGORY_OPTIONS = [
 
 export const EVIDENCE_STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
-  { value: 'indexed', label: 'Indexed' },
-  { value: 'processing', label: 'Processing' },
+  { value: 'indexed', label: 'Ready' },
+  { value: 'processing', label: 'Being read' },
   { value: 'needs_review', label: 'Needs review' },
-  { value: 'failed', label: 'Failed' },
+  { value: 'failed', label: 'Needs attention' },
 ];
 
 const EVIDENCE_ROLE_LABELS = {
@@ -68,11 +68,11 @@ export function relevancePercent(value) {
 
 export function evidenceStatusHelp(status) {
   return {
-    indexed: 'Ready for search and Case Reads.',
+    indexed: 'Ready for review and Case Reads.',
     processing: 'Uploaded and being read by USDWatch.',
-    uploaded: 'Queued for processing.',
-    needs_review: 'Saved, but OCR or human review is needed before USDWatch can fully read it.',
-    failed: 'Saved with a processing error. You can preview details or try uploading again.',
+    uploaded: 'Queued for review.',
+    needs_review: 'Saved, but the text needs a closer look before USDWatch can fully read it.',
+    failed: 'Saved, but USDWatch had trouble reading it. Review the original or try uploading again.',
   }[status] || 'Saved in your Evidence Locker.';
 }
 
@@ -150,7 +150,7 @@ export function documentInsightSummary(doc = {}) {
   if (doc.document_summary || doc.case_relevance) {
     return {
       summary: doc.document_summary || 'Summary not available yet.',
-      relevance: doc.case_relevance || 'Case relevance not available yet.',
+      relevance: doc.case_relevance || 'Case connection not available yet.',
       status: doc.insight_status || 'ready',
     };
   }
@@ -170,7 +170,7 @@ export function documentInsightSummary(doc = {}) {
   }
   return {
     summary: 'USDWatch is preparing a document summary.',
-    relevance: 'Case relevance will appear after text extraction finishes.',
+    relevance: 'Case connection will appear after USDWatch finishes reading the file.',
     status: doc.insight_status || 'pending',
   };
 }

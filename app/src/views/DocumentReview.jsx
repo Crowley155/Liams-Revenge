@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  CircleHelp,
   Download,
   FileSearch,
   FileText,
@@ -15,7 +16,7 @@ import {
   fetchDocumentContentBlob,
   fetchDocumentPreview,
 } from '../api/client';
-import { StatusPill, formatBytes, formatLabel } from './caseShared';
+import { ActionButton, StatusPill, actionButtonClasses, formatBytes, formatLabel } from './caseShared';
 import { canPreviewOriginal, documentDisplayKind } from '../utils/documentPreview';
 import {
   documentInsightSummary,
@@ -66,6 +67,36 @@ function MetadataItem({ label, value }) {
     <div className="min-w-0 rounded-md border border-border bg-background p-3">
       <dt className="text-xs font-semibold text-text">{label}</dt>
       <dd className="wrap-anywhere mt-1 text-sm leading-relaxed text-text-dim">{value || 'Not set'}</dd>
+    </div>
+  );
+}
+
+function ScoreMeter({ label, value, fallback, help, tone = 'accent' }) {
+  const percent = Math.max(0, Math.min(value || 0, 100));
+  const barClass = tone === 'info' ? 'bg-info' : 'bg-accent';
+  const meterLabel = percent ? `${label}: ${percent}%` : `${label}: ${fallback}`;
+  return (
+    <div className="mt-4 rounded-md border border-border bg-background/65 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="inline-flex items-center gap-1.5 text-xs font-semibold text-text">
+            {label}
+            <CircleHelp className="h-3.5 w-3.5 text-text-dim" aria-hidden="true" />
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-text-dim">{help}</p>
+        </div>
+        <span className="shrink-0 text-xs font-semibold text-text-dim">{percent ? `${percent}%` : fallback}</span>
+      </div>
+      <div
+        className="mt-3 h-2 overflow-hidden rounded-full bg-surface-alt"
+        role="meter"
+        aria-label={meterLabel}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+      >
+        <div className={`h-full rounded-full ${barClass}`} style={{ width: `${percent}%` }} />
+      </div>
     </div>
   );
 }
@@ -163,7 +194,7 @@ export default function DocumentReview() {
     <div className="product-ui mx-auto max-w-[96rem] min-w-0 space-y-5 py-6 sm:py-8 animate-fade-up">
       <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
-          <Link to={`/cases/${caseId}/locker`} className="inline-flex min-h-11 items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">
+          <Link to={`/cases/${caseId}/locker`} className={actionButtonClasses('secondary')}>
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Evidence Locker
           </Link>
@@ -177,14 +208,14 @@ export default function DocumentReview() {
         </div>
         {doc && (
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={handleDownload} disabled={busy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">
+            <ActionButton onClick={handleDownload} disabled={busy} variant="download">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
               Download
-            </button>
-            <button type="button" onClick={() => setDeleteTarget(doc)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger">
+            </ActionButton>
+            <ActionButton onClick={() => setDeleteTarget(doc)} variant="danger">
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Delete
-            </button>
+            </ActionButton>
           </div>
         )}
       </div>
@@ -216,11 +247,11 @@ export default function DocumentReview() {
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => setActiveTab('original')} className={`inline-flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors ${activeTab === 'original' ? 'bg-accent text-background' : 'text-text-dim hover:bg-surface-alt hover:text-text'}`}>
                   {isImage ? <ImageIcon className="h-4 w-4" aria-hidden="true" /> : <FileText className="h-4 w-4" aria-hidden="true" />}
-                  Original
+                  Original file
                 </button>
                 <button type="button" onClick={() => setActiveTab('text')} className={`inline-flex min-h-11 items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors ${activeTab === 'text' ? 'bg-accent text-background' : 'text-text-dim hover:bg-surface-alt hover:text-text'}`}>
                   <FileSearch className="h-4 w-4" aria-hidden="true" />
-                  Extracted text
+                  Readable text
                 </button>
               </div>
               <StatusPill status={kind} />
@@ -235,12 +266,12 @@ export default function DocumentReview() {
                     <div>
                       <FileSearch className="mx-auto h-8 w-8" aria-hidden="true" />
                       <p className="mt-3 leading-relaxed">
-                        {contentError || 'This original cannot be displayed inline. Use extracted text or download the original.'}
+                        {contentError || 'This file cannot be displayed here. Use the readable text view or download the original.'}
                       </p>
-                      <button type="button" onClick={handleDownload} className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text">
+                      <ActionButton onClick={handleDownload} variant="download" className="mt-4">
                         <Download className="h-4 w-4" aria-hidden="true" />
                         Download original
-                      </button>
+                      </ActionButton>
                     </div>
                   </div>
                 )}
@@ -249,7 +280,7 @@ export default function DocumentReview() {
 
             {activeTab === 'text' && (
               <div className="max-h-[76vh] min-h-[68vh] overflow-y-auto bg-background p-5">
-                <pre className="whitespace-pre-wrap text-sm leading-relaxed text-text-dim">{preview.text_preview || doc.extracted_text || 'No text extracted yet.'}</pre>
+                <pre className="whitespace-pre-wrap text-sm leading-relaxed text-text-dim">{preview.text_preview || doc.extracted_text || 'USDWatch has not found readable text in this file yet.'}</pre>
               </div>
             )}
           </main>
@@ -258,34 +289,29 @@ export default function DocumentReview() {
             <section className="rounded-md border border-border bg-surface p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <p className="text-xs font-medium text-accent/80">Document intelligence</p>
-                  <h3 className="mt-1 text-lg font-bold">What USDWatch sees</h3>
+                  <p className="text-xs font-medium text-accent/80">Document notes</p>
+                  <h3 className="mt-1 text-lg font-bold">What USDWatch found</h3>
                 </div>
                 {doc.evidence_role && <span className="rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-text-dim">{evidenceRoleLabel(doc.evidence_role, formatLabel)}</span>}
               </div>
               <p className="mt-3 text-sm leading-relaxed text-text">{insight.summary}</p>
               <p className="mt-3 text-sm leading-relaxed text-text-dim">{insight.relevance}</p>
-              <div className="mt-4">
-                <div className="flex items-center justify-between gap-3 text-xs text-text-dim">
-                  <span>Case relevance</span>
-                  <span>{relevance ? `${relevance}%` : formatLabel(insight.status)}</span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-background">
-                  <div className="h-full rounded-full bg-accent" style={{ width: `${relevance}%` }} />
-                </div>
-              </div>
-              <div className="mt-4">
-                <div className="flex items-center justify-between gap-3 text-xs text-text-dim">
-                  <span>Extraction confidence</span>
-                  <span>{extractionConfidence ? `${extractionConfidence}%` : 'Needs text review'}</span>
-                </div>
-                <div className="mt-2 h-2 overflow-hidden rounded-full bg-background">
-                  <div className="h-full rounded-full bg-info" style={{ width: `${extractionConfidence}%` }} />
-                </div>
-              </div>
+              <ScoreMeter
+                label="Case connection"
+                value={relevance}
+                fallback={formatLabel(insight.status)}
+                help="How strongly this file appears to connect to this case. Treat it as a sorting clue, not a legal conclusion."
+              />
+              <ScoreMeter
+                label="Text readability"
+                value={extractionConfidence}
+                fallback="Needs review"
+                help="How confidently USDWatch could read the file text. If this is low, compare against the original file."
+                tone="info"
+              />
               {doc.relevance_basis && (
                 <div className="mt-4 rounded-md border border-border bg-background p-3">
-                  <p className="text-xs font-semibold text-text">Why this score</p>
+                  <p className="text-xs font-semibold text-text">Why it matters</p>
                   <p className="mt-1 text-xs leading-relaxed text-text-dim">{doc.relevance_basis}</p>
                 </div>
               )}
@@ -298,10 +324,9 @@ export default function DocumentReview() {
                   ))}
                 </div>
               )}
-              <div className="mt-3 space-y-1 text-xs text-text-dim">
-                {doc.insight_model && <p>Summary generated with {doc.insight_model}</p>}
-                {doc.relevance_model && <p>Relevance scored with {doc.relevance_model}</p>}
-              </div>
+              <p className="mt-4 rounded-md border border-border bg-background/65 px-3 py-2 text-xs leading-relaxed text-text-dim">
+                AI notes are a review aid. The original file remains the source of truth.
+              </p>
             </section>
 
             <section className="rounded-md border border-border bg-surface p-4">

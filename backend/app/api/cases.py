@@ -616,6 +616,10 @@ async def update_case(case_id: str, body: CaseUpdate, user: dict = Depends(get_c
         case.intake.narrative = body.family_narrative
         case.summary = body.family_narrative[:280]
         case.advocate_state = {**case.advocate_state, "family_narrative_manual": True}
+    if body.desired_outcome is not None:
+        case.intake.desired_outcome = body.desired_outcome.strip()
+    if body.desired_outcomes is not None:
+        case.intake.desired_outcomes = [item.strip() for item in body.desired_outcomes if item.strip()]
     if body.intake is not None:
         case.intake = body.intake
     if body.advocate_state is not None:

@@ -387,21 +387,21 @@ function KoraSection({ caseId }) {
         <div>
           <h3 className="text-lg font-bold">Records Requests</h3>
           <p className="text-xs text-text-dim">
-            KORA requests generated from case evidence gaps and LLM analysis. Copy the letter, send it yourself.
+            Records letters drafted from the gaps USDWatch found in this case. Review, edit, and send them yourself.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 transition-colors"
+            className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-xs font-semibold text-background transition-colors hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {generating ? 'Generating...' : koraRequests.length > 0 ? 'Regenerate KORA Requests' : 'Generate KORA Requests'}
           </button>
           {generating && (
             <span className="text-xs text-text-dim flex items-center gap-1.5">
               <span className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-              Running LLM analysis...
+              Reviewing case gaps...
             </span>
           )}
         </div>
@@ -586,10 +586,10 @@ function KoraSection({ caseId }) {
           <div>
             <h4 className="text-sm font-bold">Uploaded Documents</h4>
             <p className="text-xs text-text-dim">
-              Upload KORA responses, evidence files, or any document to index in the case intelligence system.
+              Upload KORA responses, evidence files, or any document you want available in the Evidence Locker.
             </p>
           </div>
-          <label className="text-xs font-medium px-4 py-1.5 rounded-lg bg-surface border border-border hover:border-accent/30 text-text-dim hover:text-accent transition-colors cursor-pointer">
+          <label className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border bg-surface px-4 text-xs font-semibold text-text-dim transition-colors hover:border-accent/40 hover:text-accent focus-within:ring-2 focus-within:ring-accent/45">
             {uploading ? 'Uploading...' : 'Upload File'}
             <input
               ref={fileRef}

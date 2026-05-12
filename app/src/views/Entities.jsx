@@ -273,13 +273,15 @@ export default function Entities() {
         </div>
         <div className="flex items-center gap-3">
           <input
-            className="px-3 py-1.5 bg-bg border border-border rounded text-xs text-text placeholder:text-text-dim/50 focus:outline-none focus:border-accent w-48"
+            className="min-h-11 w-full rounded-md border border-border bg-bg px-3 text-sm text-text placeholder:text-text-dim/60 transition-colors focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 sm:w-52"
+            aria-label="Filter entities"
             placeholder="Filter entities..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
           <select
-            className="px-2 py-1.5 bg-bg border border-border rounded text-xs text-text focus:outline-none focus:border-accent"
+            className="min-h-11 rounded-md border border-border bg-bg px-3 text-sm text-text transition-colors focus:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/45"
+            aria-label="Sort entities"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
           >

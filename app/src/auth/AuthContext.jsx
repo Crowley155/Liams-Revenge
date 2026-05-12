@@ -6,6 +6,7 @@ import {
   useUser,
 } from '@clerk/clerk-react';
 import { setAuthTokenGetter } from '../api/client';
+import { clerkAppearance } from './clerkAppearance';
 
 const API_BASE =
   import.meta.env.PUBLIC_API_URL ||
@@ -30,11 +31,15 @@ const AuthContext = createContext(null);
 
 async function fetchWorkspace(token) {
   if (!token) return null;
-  const res = await fetch(`${API_BASE}/api/workspace`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) return null;
-  return res.json();
+  try {
+    const res = await fetch(`${API_BASE}/api/workspace`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
 }
 
 function ClerkBackedAuth({ children }) {
@@ -46,7 +51,7 @@ function ClerkBackedAuth({ children }) {
   useEffect(() => {
     setAuthTokenGetter(async () => {
       if (!isSignedIn) return null;
-      return getToken({ template: CLERK_TEMPLATE });
+      return getToken({ template: CLERK_TEMPLATE }).catch(() => null);
     });
     return () => setAuthTokenGetter(null);
   }, [getToken, isSignedIn]);
@@ -58,7 +63,7 @@ function ClerkBackedAuth({ children }) {
         setWorkspaceState(null);
         return;
       }
-      const token = await getToken({ template: CLERK_TEMPLATE });
+      const token = await getToken({ template: CLERK_TEMPLATE }).catch(() => null);
       const data = await fetchWorkspace(token);
       if (!cancelled) setWorkspaceState(data);
     }
@@ -146,7 +151,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <ClerkProvider publishableKey={CLERK_KEY} afterSignOutUrl="/">
+    <ClerkProvider publishableKey={CLERK_KEY} afterSignOutUrl="/" appearance={clerkAppearance}>
       <ClerkBackedAuth>{children}</ClerkBackedAuth>
     </ClerkProvider>
   );

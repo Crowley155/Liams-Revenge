@@ -12,10 +12,10 @@ export default function WhatsNext() {
           USDWatch is built for parents trying to make sense of records, emails, meetings, discipline issues, bullying concerns, disability supports, retaliation worries, and unanswered records requests.
         </p>
         <div className="flex flex-wrap gap-3">
-          <Link to="/login" className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background hover:bg-accent-hover">
-            Start My Case
+          <Link to="/login" className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background hover:bg-accent-hover">
+            Start a Case
           </Link>
-          <a href="/trust" className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text hover:bg-surface-alt">
+          <a href="/trust" className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-text hover:bg-surface-alt">
             Trust Center
           </a>
         </div>
@@ -27,14 +27,14 @@ export default function WhatsNext() {
           ['2. Add evidence', 'Use the Evidence Locker for emails, PDFs, screenshots, IEP or 504 documents, incident reports, meeting notes, photos, and agency letters.'],
           ['3. Run a Case Read', 'When you are ready, USDWatch summarizes what it sees, what is missing, what records may help, and what next steps are practical.'],
         ].map(([title, body]) => (
-          <article key={title} className="rounded-lg border border-border bg-surface p-5">
+          <article key={title} className="rounded-md border border-border bg-surface p-5">
             <h3 className="font-bold">{title}</h3>
             <p className="mt-3 text-sm leading-relaxed text-text-dim">{body}</p>
           </article>
         ))}
       </section>
 
-      <section className="rounded-lg border border-border bg-surface p-5 sm:p-6">
+      <section className="rounded-md border border-border bg-surface p-5 sm:p-6">
         <h3 className="text-xl font-bold">Why the base workspace is free</h3>
         <p className="mt-3 text-sm leading-relaxed text-text-dim">
           Parents often need clarity before they know whether to call an attorney, file a records request, ask for a meeting, contact an advocate, or simply organize what they already have. The free workspace is meant to make that first step useful without a credit card.

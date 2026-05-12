@@ -54,10 +54,10 @@ function Panel() {
   return (
     <>
       <div className="fixed inset-0 z-50 bg-background/75" onClick={close} />
-      <div className="fixed inset-y-0 right-0 w-full max-w-2xl bg-surface border-l border-border z-50 overflow-y-auto animate-slide-in" style={{ boxShadow: 'var(--shadow-elevated)' }}>
+      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl overflow-y-auto border-l border-border bg-surface animate-slide-in" style={{ boxShadow: 'var(--shadow-elevated)' }}>
         <div className="sticky top-0 bg-surface border-b border-border px-4 sm:px-6 py-4 flex items-center justify-between gap-3 z-10">
           <h2 className="text-sm font-bold text-accent min-w-0 truncate">{headerLabel}</h2>
-          <button onClick={close} className="text-text-dim hover:text-text text-lg leading-none shrink-0 p-1">&times;</button>
+          <button onClick={close} className="grid min-h-11 min-w-11 shrink-0 place-items-center rounded-md text-lg leading-none text-text-dim transition-colors hover:bg-surface-alt hover:text-text" aria-label="Close evidence panel">&times;</button>
         </div>
         <div className="p-4 sm:p-6">
           {activeDocId && <DocDetail docId={activeDocId} />}
@@ -81,17 +81,17 @@ function DocDetail({ docId }) {
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-            doc.type === 'email' ? 'bg-blue-500/20 text-blue-300' :
-            doc.type === 'form' ? 'bg-amber-500/20 text-amber-300' :
-            doc.type === 'document' ? 'bg-emerald-500/20 text-emerald-300' :
-            doc.type === 'pdf' ? 'bg-violet-500/20 text-violet-300' :
-            'bg-gray-500/20 text-gray-300'
+          <span className={`inline-block rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+            doc.type === 'email' ? 'border-info/30 bg-info/12 text-info' :
+            doc.type === 'form' ? 'border-warning/30 bg-warning/12 text-warning' :
+            doc.type === 'document' ? 'border-success/30 bg-success/12 text-success' :
+            doc.type === 'pdf' ? 'border-accent/30 bg-accent/15 text-accent' :
+            'border-border bg-surface-alt text-text-dim'
           }`}>
             {doc.type}
           </span>
           {doc.important && (
-            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300">
+            <span className="inline-block rounded-md border border-warning/30 bg-warning/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-warning">
               Important
             </span>
           )}
@@ -109,7 +109,7 @@ function DocDetail({ docId }) {
           href={`./docs/${doc.pdfFile}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 w-full bg-accent/10 hover:bg-accent/20 border border-accent/30 rounded-lg px-4 py-3 transition-colors"
+          className="flex min-h-11 w-full items-center gap-3 rounded-md border border-accent/30 bg-accent/10 px-4 py-3 transition-colors hover:bg-accent/20"
         >
           <span className="text-accent text-lg">&#128196;</span>
           <div className="flex-1 min-w-0">
@@ -144,7 +144,7 @@ function DocDetail({ docId }) {
       {doc.bodyText && doc.bodyText !== doc.summary && (
         <div>
           <h4 className="text-xs font-bold uppercase text-text-dim mb-2">Full Content</h4>
-          <div className="bg-bg rounded-lg p-4 text-sm leading-relaxed whitespace-pre-wrap font-mono text-text/90 max-h-96 overflow-y-auto">
+          <div className="max-h-96 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-background p-4 text-sm leading-relaxed text-text/90">
             {doc.bodyText}
           </div>
         </div>
@@ -155,7 +155,7 @@ function DocDetail({ docId }) {
           <h4 className="text-xs font-bold uppercase text-text-dim mb-2">Key Claims</h4>
           <ul className="space-y-1">
             {doc.keyClaims.map((claim, i) => (
-              <li key={i} className="text-sm pl-3 border-l-2 border-accent/40">{claim}</li>
+              <li key={i} className="rounded-md border border-border bg-background px-3 py-2 text-sm">{claim}</li>
             ))}
           </ul>
         </div>
@@ -186,7 +186,7 @@ function ThreadDetail({ threadId }) {
           <button
             key={doc.id}
             onClick={() => openDoc(doc.id)}
-            className="w-full text-left bg-surface-alt rounded-lg p-4 hover:bg-border/30 transition-colors border border-border"
+            className="min-h-11 w-full rounded-md border border-border bg-surface-alt p-4 text-left transition-colors hover:bg-border/30"
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-mono text-accent">{doc.id}</span>
@@ -269,7 +269,7 @@ function SourceDetail({ source }) {
       )}
 
       {source.keyQuote && (
-        <div className="border-l-2 border-accent pl-3">
+        <div className="rounded-md border border-border bg-background p-3">
           <h4 className="text-[10px] font-bold uppercase text-accent mb-1">Key Quote</h4>
           <p className="text-sm italic text-text leading-relaxed">{source.keyQuote}</p>
         </div>

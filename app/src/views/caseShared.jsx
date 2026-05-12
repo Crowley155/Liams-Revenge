@@ -24,6 +24,25 @@ export function formatLabel(value) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+const STATUS_LABELS = {
+  indexed: 'Ready',
+  processing: 'Reading file',
+  uploaded: 'Queued',
+  needs_review: 'Needs review',
+  failed: 'Needs attention',
+  complete: 'Complete',
+  fulfilled: 'Fulfilled',
+  denied: 'Denied',
+  partial: 'Partial',
+  sent: 'Sent',
+  draft: 'Draft',
+  compressed: 'Compressed',
+  pdf: 'PDF',
+  image: 'Image',
+  text: 'Text',
+  unknown: 'Unknown',
+};
+
 export function StatusPill({ status }) {
   const style = {
     indexed: 'bg-success/15 text-success border-success/30',
@@ -48,8 +67,32 @@ export function StatusPill({ status }) {
 
   return (
     <span className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-medium leading-none ${style}`}>
-      {formatLabel(status || 'pending')}
+      {STATUS_LABELS[status] || formatLabel(status || 'pending')}
     </span>
+  );
+}
+
+export function actionButtonClasses(variant = 'secondary', className = '') {
+  const variants = {
+    primary: 'border border-accent bg-accent text-background shadow-[0_0_18px_rgba(108,138,255,0.22)] hover:bg-accent-hover',
+    secondary: 'border border-border bg-background/70 text-text-dim hover:border-accent/50 hover:bg-surface-alt hover:text-text',
+    download: 'border border-info/45 bg-info/10 text-info hover:border-info/70 hover:bg-info/15',
+    danger: 'border border-danger/45 bg-danger/10 text-danger hover:border-danger/70 hover:bg-danger/15',
+    'danger-solid': 'border border-danger bg-danger text-background hover:opacity-90',
+    plain: 'border border-transparent text-text-dim hover:bg-surface-alt hover:text-text',
+  };
+  return [
+    'inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60',
+    variants[variant] || variants.secondary,
+    className,
+  ].filter(Boolean).join(' ');
+}
+
+export function ActionButton({ variant = 'secondary', className = '', type = 'button', children, ...props }) {
+  return (
+    <button type={type} className={actionButtonClasses(variant, className)} {...props}>
+      {children}
+    </button>
   );
 }
 
@@ -104,6 +147,11 @@ export function buildPacketText(packet, caseRecord) {
     '',
     'Parent Story',
     packet.parent_story || 'No story entered.',
+    '',
+    'Desired Outcomes',
+    ...((packet.desired_outcomes || []).length
+      ? (packet.desired_outcomes || []).map((outcome) => `- ${outcome}`)
+      : ['No desired outcome entered.']),
     '',
     'What USDWatch Sees',
     packet.what_usdwatch_sees || 'Run a Case Read to generate this section.',

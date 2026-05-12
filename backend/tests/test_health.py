@@ -6,6 +6,7 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from jwt import ExpiredSignatureError, InvalidTokenError
+from jwt.exceptions import PyJWKClientConnectionError
 
 import app.main as main_module
 from app.api import deps
@@ -226,6 +227,20 @@ def test_expired_and_invalid_clerk_tokens(monkeypatch):
         deps.verify_clerk_jwt("invalid")
     assert invalid.value.status_code == 401
     assert "invalid" in invalid.value.detail
+
+
+def test_clerk_jwks_connection_error_returns_service_unavailable(monkeypatch):
+    class UnavailableClient:
+        def get_signing_key_from_jwt(self, _token):
+            raise PyJWKClientConnectionError("DNS lookup failed")
+
+    monkeypatch.setenv("CLERK_JWKS_URL", "https://clerk.example.test/jwks")
+    monkeypatch.setattr(deps, "_jwk_client", lambda _url: UnavailableClient())
+
+    with pytest.raises(HTTPException) as unavailable:
+        deps.verify_clerk_jwt("token")
+    assert unavailable.value.status_code == 503
+    assert "temporarily unavailable" in unavailable.value.detail
 
 
 def test_model_provider_guard_rejects_disallowed_embedding_model(monkeypatch):

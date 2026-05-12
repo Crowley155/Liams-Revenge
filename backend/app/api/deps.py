@@ -13,6 +13,7 @@ import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
+from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError
 
 from app.services.workspaces import resolve_user_workspace
 
@@ -72,6 +73,18 @@ def verify_clerk_jwt(token: str) -> dict:
         if issuer:
             decode_kwargs["issuer"] = issuer.rstrip("/")
         return jwt.decode(token, signing_key.key, **decode_kwargs)
+    except PyJWKClientConnectionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Clerk signing keys are temporarily unavailable",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+    except PyJWKClientError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Clerk token invalid",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

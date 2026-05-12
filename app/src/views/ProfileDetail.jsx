@@ -30,7 +30,7 @@ const CAT_COLORS = {
   vote: 'bg-warning/15 text-warning',
   position: 'bg-success/15 text-success',
   action: 'bg-danger/15 text-danger',
-  relationship: 'bg-purple-400/15 text-purple-400',
+  relationship: 'bg-info/15 text-info',
   bio: 'bg-text-dim/15 text-text-dim',
   contact: 'bg-text-dim/15 text-text-dim',
 };
@@ -305,7 +305,7 @@ export default function ProfileDetail() {
               <button
                 onClick={handleResearch}
                 disabled={launching || isRunning}
-                className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-xs font-semibold text-background transition-colors hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 disabled:cursor-not-allowed disabled:opacity-50"
                 title="Searches the web for public statements, votes, positions, and other facts about this person"
               >
                 {launching ? 'Starting...' : isRunning ? 'Researching...' : hasResearch ? 'Re-scan Web' : 'Find Facts'}
@@ -313,7 +313,7 @@ export default function ProfileDetail() {
               <button
                 onClick={handleEnrich}
                 disabled={enriching || enrichRunning}
-                className="text-xs font-medium px-4 py-1.5 rounded-lg bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex min-h-11 items-center rounded-md border border-info/35 bg-info/15 px-4 text-xs font-semibold text-info transition-colors hover:bg-info/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-info/35 disabled:cursor-not-allowed disabled:opacity-50"
                 title="Searches for social media profiles, employment history, and public records for this person"
               >
                 {enriching ? 'Starting...' : enrichRunning ? 'Enriching...' : profile.enriched_at ? 'Re-discover Profiles' : 'Find Profiles'}
@@ -321,7 +321,7 @@ export default function ProfileDetail() {
               {isRunning && (
                 <button
                   onClick={cancelJob}
-                  className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-danger/15 text-danger hover:bg-danger/25 transition-colors"
+                  className="inline-flex min-h-11 items-center rounded-md border border-danger/35 bg-danger/15 px-4 text-xs font-semibold text-danger transition-colors hover:bg-danger/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/35"
                 >
                   Cancel
                 </button>
@@ -418,7 +418,7 @@ export default function ProfileDetail() {
         <Section title="Key Quotes from Evidence" count={curated_quotes.length} tip="Direct quotes pulled from uploaded case documents and evidence files.">
           <div className="space-y-3">
             {curated_quotes.map((q, i) => (
-              <div key={i} className="pl-4 border-l-2 border-info/40">
+              <div key={i} className="rounded-md border border-border bg-background/45 px-3 py-2">
                 <p className="text-sm italic text-text leading-relaxed">"{q.text}"</p>
                 <div className="flex items-center gap-2 mt-1 text-xs text-text-dim">
                   {q.date && <span>{q.date}</span>}
@@ -545,7 +545,7 @@ export default function ProfileDetail() {
       {/* Profile Intelligence */}
       {profile.profile_intel?.length > 0 && (
         <div className="bg-surface border border-info/30 rounded-xl p-5 animate-fade-up" style={{ boxShadow: 'var(--shadow-card)' }}>
-          <h2 className="text-xs font-bold uppercase tracking-wider text-info mb-3">Profile Intelligence <InfoTip tip="LLM-extracted intelligence from confirmed social profiles. Affiliations, connections, career moves, and other due diligence findings." /></h2>
+          <h2 className="text-xs font-bold uppercase tracking-wider text-info mb-3">Profile Notes <InfoTip tip="Findings from confirmed public profile sources, including affiliations, connections, career moves, and other due diligence details." /></h2>
           <div className="space-y-2">
             {profile.profile_intel.map((item, i) => (
               <div key={i} className="flex items-start gap-2 text-sm text-text">
@@ -672,10 +672,10 @@ export default function ProfileDetail() {
       )}
 
       {/* Key Positions */}
-      <Section title="Key Positions" count={bc?.key_positions?.length} tip="Notable stances, policy positions, or public commitments this person has taken — extracted from research sources by the LLM.">
+      <Section title="Key Positions" count={bc?.key_positions?.length} tip="Notable stances, policy positions, or public commitments found in research sources. Review the underlying sources before relying on them.">
         <div className="space-y-2">
           {bc?.key_positions?.map((pos, i) => (
-            <div key={i} className="pl-4 border-l-2 border-accent/40">
+            <div key={i} className="rounded-md border border-border bg-background/45 px-3 py-2">
               <p className="text-sm text-text leading-relaxed">{pos}</p>
             </div>
           ))}
@@ -686,7 +686,7 @@ export default function ProfileDetail() {
       <Section title="Contradictions" count={bc?.contradictions?.length} tip="Places where this person's actions contradict their public statements or stated positions.">
         <div className="space-y-2">
           {bc?.contradictions?.map((c, i) => (
-            <div key={i} className="pl-4 border-l-2 border-danger/40">
+            <div key={i} className="rounded-md border border-border bg-background/45 px-3 py-2">
               <p className="text-sm text-text leading-relaxed">{c}</p>
             </div>
           ))}

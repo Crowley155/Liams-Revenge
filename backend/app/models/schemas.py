@@ -269,6 +269,8 @@ class CaseUpdate(BaseModel):
     title: Optional[str] = None
     summary: Optional[str] = None
     family_narrative: Optional[str] = None
+    desired_outcome: Optional[str] = None
+    desired_outcomes: Optional[list[str]] = None
     intake: Optional[CaseIntake] = None
     advocate_state: Optional[dict] = None
 

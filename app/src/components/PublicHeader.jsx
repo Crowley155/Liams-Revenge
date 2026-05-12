@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ClerkProvider, UserButton, useAuth as useClerkAuth } from '@clerk/clerk-react';
+import { ClerkProvider, OrganizationSwitcher, UserButton, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { Menu, X } from 'lucide-react';
+import { clerkAppearance } from '../auth/clerkAppearance';
 import { isNavItemActive, navItemsForAuth } from '../navigation';
 
 const DEV_TOKEN_KEY = 'usdwatch_dev_token';
@@ -61,7 +62,7 @@ function PublicHeaderFrame({ isAuthenticated, initialPath = '/', onSignOut, acco
             USDWatch
           </a>
 
-          <nav className="hidden items-center gap-1 sm:flex" aria-label="Primary">
+          <nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">
             <NavMenu items={items} pathname={pathname} />
             <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
             {isAuthenticated ? (
@@ -93,7 +94,7 @@ function PublicHeaderFrame({ isAuthenticated, initialPath = '/', onSignOut, acco
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
-            className="inline-grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text sm:hidden"
+            className="inline-grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text lg:hidden"
             aria-label="Toggle menu"
             aria-expanded={menuOpen}
           >
@@ -103,7 +104,7 @@ function PublicHeaderFrame({ isAuthenticated, initialPath = '/', onSignOut, acco
       </div>
 
       {menuOpen && (
-        <div className="border-t border-border bg-surface-alt sm:hidden">
+        <div className="border-t border-border bg-surface-alt lg:hidden">
           <nav className="mx-auto grid max-w-7xl gap-1 px-4 py-2" aria-label="Mobile primary">
             <NavMenu items={items} pathname={pathname} onNavigate={closeMenu} mobile />
             <div className="mt-2 border-t border-border pt-2">
@@ -139,12 +140,25 @@ function PublicHeaderFrame({ isAuthenticated, initialPath = '/', onSignOut, acco
 
 function ClerkPublicHeader({ initialPath }) {
   const { isLoaded, isSignedIn } = useClerkAuth();
+  const accountControl = isLoaded && isSignedIn ? (
+    <div className="flex min-h-11 items-center gap-2">
+      <OrganizationSwitcher
+        afterCreateOrganizationUrl="/cases"
+        afterLeaveOrganizationUrl="/cases"
+        afterSelectOrganizationUrl="/cases"
+        appearance={clerkAppearance}
+        hideSlug
+      />
+      <UserButton afterSignOutUrl="/" appearance={clerkAppearance} />
+    </div>
+  ) : null;
+
   return (
     <PublicHeaderFrame
       initialPath={initialPath}
       isAuthenticated={isLoaded && Boolean(isSignedIn)}
-      accountControl={isLoaded && isSignedIn ? <UserButton afterSignOutUrl="/" /> : null}
-      mobileAccountControl={isLoaded && isSignedIn ? <UserButton afterSignOutUrl="/" /> : null}
+      accountControl={accountControl}
+      mobileAccountControl={accountControl}
     />
   );
 }
@@ -167,7 +181,7 @@ function DevPublicHeader({ initialPath }) {
 export default function PublicHeader({ initialPath = '/' }) {
   if (CLERK_KEY) {
     return (
-      <ClerkProvider publishableKey={CLERK_KEY} afterSignOutUrl="/">
+      <ClerkProvider publishableKey={CLERK_KEY} afterSignOutUrl="/" appearance={clerkAppearance}>
         <ClerkPublicHeader initialPath={initialPath} />
       </ClerkProvider>
     );

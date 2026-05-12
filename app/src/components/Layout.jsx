@@ -1,7 +1,8 @@
 import { lazy, Suspense, useState } from 'react';
-import { UserButton } from '@clerk/clerk-react';
+import { OrganizationSwitcher, UserButton } from '@clerk/clerk-react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clerkEnabled, useAuth } from '../auth/AuthContext';
+import { clerkAppearance } from '../auth/clerkAppearance';
 import { isNavItemActive, navItemsForAuth } from '../navigation';
 
 const FloatingCaseAdvocate = lazy(() => import('./FloatingCaseAdvocate'));
@@ -30,7 +31,7 @@ export default function Layout() {
               USDWatch
             </h1>
 
-            <nav className="hidden sm:flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-1">
               {navItems.map(({ to, href, label }) => {
                 const internalTo = to || (href === '/whats-next' ? '/whats-next' : '');
                 return internalTo ? (
@@ -67,7 +68,16 @@ export default function Layout() {
               <span className="w-px h-5 bg-border mx-1" />
 
               {isAuthenticated && clerkEnabled ? (
-                <UserButton afterSignOutUrl="/" />
+                <div className="flex min-h-11 items-center gap-2">
+                  <OrganizationSwitcher
+                    afterCreateOrganizationUrl="/cases"
+                    afterLeaveOrganizationUrl="/cases"
+                    afterSelectOrganizationUrl="/cases"
+                    appearance={clerkAppearance}
+                    hideSlug
+                  />
+                  <UserButton afterSignOutUrl="/" appearance={clerkAppearance} />
+                </div>
               ) : isAuthenticated ? (
                 <button
                   onClick={handleLogout}
@@ -94,7 +104,7 @@ export default function Layout() {
 
             <button
               onClick={() => setMenuOpen(!menuOpen)}
-              className="grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text sm:hidden"
+              className="grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text lg:hidden"
               aria-label="Toggle menu"
             >
               {menuOpen ? (
@@ -111,7 +121,7 @@ export default function Layout() {
         </div>
 
         {menuOpen && (
-          <div className="sm:hidden border-t border-border bg-surface-alt">
+          <div className="border-t border-border bg-surface-alt lg:hidden">
             <div className="px-4 py-2 space-y-1">
               {navItems.map(({ to, href, label }) => {
                 const internalTo = to || (href === '/whats-next' ? '/whats-next' : '');
@@ -151,7 +161,25 @@ export default function Layout() {
               })}
 
               <div className="border-t border-border pt-2 mt-2">
-                {isAuthenticated ? (
+                {isAuthenticated && clerkEnabled ? (
+                  <div className="space-y-2">
+                    <div className="flex min-h-11 items-center rounded-md border border-border bg-surface px-2">
+                      <OrganizationSwitcher
+                        afterCreateOrganizationUrl="/cases"
+                        afterLeaveOrganizationUrl="/cases"
+                        afterSelectOrganizationUrl="/cases"
+                        appearance={clerkAppearance}
+                        hideSlug
+                      />
+                    </div>
+                    <button
+                      onClick={() => { handleLogout(); closeMenu(); }}
+                      className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm font-semibold text-text-dim transition-colors hover:text-text hover:bg-surface"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                ) : isAuthenticated ? (
                   <button
                     onClick={() => { handleLogout(); closeMenu(); }}
                     className="flex min-h-11 w-full items-center rounded-md px-3 text-left text-sm font-semibold text-text-dim transition-colors hover:text-text hover:bg-surface"
@@ -189,23 +217,23 @@ export default function Layout() {
           target="_blank"
           rel="noopener noreferrer"
           title="Powered by Elevate"
-          className="mx-auto mb-3 inline-flex min-h-7 items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-text-dim transition-colors hover:border-accent/50 hover:bg-surface-alt hover:text-text"
+          className="mx-auto mb-3 inline-flex min-h-11 items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-text-dim transition-colors hover:border-accent/50 hover:bg-surface-alt hover:text-text"
         >
           <span>Powered by</span>
           <img src="/images/elevate-logo-blue.svg" alt="Elevate" className="h-3 w-auto" />
         </a>
         <p className="text-xs font-medium text-text-dim tracking-wide">
-          <a href="https://usdwatch.com" className="text-accent hover:text-accent-hover transition-colors">
+          <a href="https://usdwatch.com" className="inline-flex min-h-11 items-center px-3 text-accent transition-colors hover:text-accent-hover">
             usdwatch.com
           </a>
         </p>
         <p className="text-[11px] text-text-dim/60">
           {workspace?.name || 'Free draft case workspace'} - Public Advocacy Resource
         </p>
-        <p className="text-[11px] text-text-dim/60 flex items-center justify-center gap-3">
-          <a href="/trust" className="hover:text-text transition-colors">Trust</a>
-          <a href="/ai-disclosure" className="hover:text-text transition-colors">AI Disclosure</a>
-          <a href="/privacy" className="hover:text-text transition-colors">Privacy & Disclosures</a>
+        <p className="text-[11px] text-text-dim/60 flex flex-wrap items-center justify-center gap-2 px-4">
+          <a href="/trust" className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 transition-colors hover:text-text">Trust</a>
+          <a href="/ai-disclosure" className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 transition-colors hover:text-text">AI Disclosure</a>
+          <a href="/privacy" className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 transition-colors hover:text-text">Privacy & Disclosures</a>
         </p>
       </footer>
     </div>

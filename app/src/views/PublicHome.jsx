@@ -28,13 +28,13 @@ export default function PublicHome() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <Link
                 to={isAuthenticated ? '/cases' : '/login'}
-                className="inline-flex items-center justify-center rounded-md bg-accent px-5 py-3 text-sm font-bold text-background transition-colors hover:bg-accent-hover"
+                className="inline-flex min-h-11 items-center justify-center rounded-md bg-accent px-5 py-3 text-sm font-bold text-background transition-colors hover:bg-accent-hover"
               >
-                Start My Case
+                Start a Case
               </Link>
               <a
                 href="/trust"
-                className="inline-flex items-center justify-center rounded-md border border-border bg-background/70 px-5 py-3 text-sm font-semibold text-text backdrop-blur transition-colors hover:bg-surface-alt"
+                className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-background/70 px-5 py-3 text-sm font-semibold text-text transition-colors hover:bg-surface-alt"
               >
                 Trust Center
               </a>

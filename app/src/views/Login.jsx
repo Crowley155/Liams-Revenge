@@ -2,6 +2,7 @@ import { SignInButton } from '@clerk/clerk-react';
 import { useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { clerkEnabled, useAuth } from '../auth/AuthContext';
+import { ActionButton } from './caseShared';
 
 export default function Login() {
   const { isAuthenticated, login } = useAuth();
@@ -35,28 +36,28 @@ export default function Login() {
       </div>
 
       {clerkEnabled ? (
-        <div className="bg-surface border border-border rounded-lg p-5 space-y-3">
+        <div className="bg-surface border border-border rounded-md p-5 space-y-3">
           <SignInButton mode="modal" forceRedirectUrl="/cases">
-            <button className="w-full px-4 py-3 rounded-md bg-accent text-background font-semibold hover:bg-accent-hover transition-colors">
+            <button className="min-h-11 w-full rounded-md bg-accent px-4 py-3 font-semibold text-background transition-colors hover:bg-accent-hover">
               Sign In
             </button>
           </SignInButton>
         </div>
       ) : (
-        <form onSubmit={handleDevLogin} className="bg-surface border border-border rounded-lg p-5 space-y-4">
+        <form onSubmit={handleDevLogin} className="bg-surface border border-border rounded-md p-5 space-y-4">
           <label className="block space-y-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-text-dim">Development email</span>
             <input
-              className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text outline-none focus:border-accent"
+              className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text outline-none focus:border-accent"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               type="email"
             />
           </label>
-          {error && <p className="text-sm text-red-300">{error}</p>}
-          <button className="w-full px-4 py-3 rounded-md bg-accent text-background font-semibold hover:bg-accent-hover transition-colors">
+          {error && <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+          <ActionButton type="submit" variant="primary" className="w-full px-4">
             Continue
-          </button>
+          </ActionButton>
         </form>
       )}
     </div>

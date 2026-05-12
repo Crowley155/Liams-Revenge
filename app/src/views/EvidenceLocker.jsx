@@ -29,6 +29,7 @@ import {
   uploadCaseDocument,
 } from '../api/client';
 import {
+  ActionButton,
   Panel,
   StatusPill,
   formatBytes,
@@ -101,14 +102,26 @@ function FilterMenu({ label, value, options, onChange }) {
 
   useEffect(() => {
     if (!open) return undefined;
-    const close = (event) => {
+    const closeOnKey = (event) => {
       if (event.key === 'Escape') {
         setOpen(false);
         buttonRef.current?.focus();
       }
     };
-    window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
+    const closeOnPointer = (event) => {
+      if (
+        !buttonRef.current?.contains(event.target)
+        && !menuRef.current?.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener('keydown', closeOnKey);
+    window.addEventListener('pointerdown', closeOnPointer);
+    return () => {
+      window.removeEventListener('keydown', closeOnKey);
+      window.removeEventListener('pointerdown', closeOnPointer);
+    };
   }, [open]);
 
   const handleButtonKeyDown = (event) => {
@@ -146,6 +159,7 @@ function FilterMenu({ label, value, options, onChange }) {
         className="inline-flex min-h-11 w-full min-w-44 items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-left text-sm font-semibold text-text transition-colors hover:border-accent/60 hover:bg-surface"
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={label}
       >
         <span className="min-w-0">
           <span className="block text-[11px] font-medium text-text-dim">{label}</span>
@@ -266,7 +280,7 @@ function EvidenceRow({ doc, onView, onDownload, onDelete, downloading }) {
           )}
         </div>
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-text-dim">Relevance</p>
+          <p className="text-[11px] font-semibold text-text-dim">Case connection</p>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface-alt">
             <div className="h-full rounded-full bg-accent" style={{ width: `${relevance}%` }} />
           </div>
@@ -274,18 +288,18 @@ function EvidenceRow({ doc, onView, onDownload, onDelete, downloading }) {
           {doc.relevance_basis && <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-text-dim">{doc.relevance_basis}</p>}
         </div>
         <div className="flex min-w-0 flex-wrap gap-2 xl:justify-end">
-          <button type="button" onClick={() => onView(doc)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text" aria-label={`View ${doc.filename}`}>
+          <ActionButton onClick={() => onView(doc)} variant="primary" aria-label={`View ${doc.filename}`}>
             <Eye className="h-4 w-4" aria-hidden="true" />
             View
-          </button>
-          <button type="button" disabled={downloading} onClick={() => onDownload(doc)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60" aria-label={`Download ${doc.filename}`}>
+          </ActionButton>
+          <ActionButton disabled={downloading} onClick={() => onDownload(doc)} variant="download" aria-label={`Download ${doc.filename}`}>
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
             Download
-          </button>
-          <button type="button" onClick={() => onDelete(doc)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:border-danger/40 hover:bg-danger/10 hover:text-danger" aria-label={`Delete ${doc.filename}`}>
+          </ActionButton>
+          <ActionButton onClick={() => onDelete(doc)} variant="danger" aria-label={`Delete ${doc.filename}`}>
             <Trash2 className="h-4 w-4" aria-hidden="true" />
             Delete
-          </button>
+          </ActionButton>
         </div>
       </div>
       {doc.failure_reason && <p className="mt-3 rounded-md border border-warning/30 bg-warning/8 px-3 py-2 text-xs leading-relaxed text-warning">{doc.failure_reason}</p>}
@@ -457,7 +471,7 @@ export default function EvidenceLocker() {
       if (uploadedDocs.length) {
         setDocuments((current) => [...uploadedDocs, ...current]);
         setDocumentTotal((current) => current + uploadedDocs.length);
-        showNotice('success', `${uploadedDocs.length} file${uploadedDocs.length === 1 ? '' : 's'} imported. USDWatch is indexing them in the background.`);
+        showNotice('success', `${uploadedDocs.length} file${uploadedDocs.length === 1 ? '' : 's'} imported. USDWatch is reading them in the background.`);
       } else if (failedCount) {
         showNotice('error', 'No files imported. Check the failed item details in the upload queue.');
       }
@@ -629,7 +643,7 @@ export default function EvidenceLocker() {
         </div>
         <div className="flex max-w-full flex-wrap gap-2 text-xs">
           <StatusPill status={`${counts.total} files`} />
-          <StatusPill status={`${counts.indexed} indexed`} />
+          <StatusPill status={`${counts.indexed} ready`} />
           {counts.processing > 0 && <StatusPill status={`${counts.processing} processing`} />}
           {counts.needs_review > 0 && <StatusPill status={`${counts.needs_review} needs review`} />}
           {counts.failed > 0 && <StatusPill status={`${counts.failed} failed`} />}
@@ -655,10 +669,10 @@ export default function EvidenceLocker() {
             {queue.length > 0 && (
               <div className="mt-3 space-y-3">
                 {queue.map((item) => <UploadQueueItem key={item.id} item={item} onRemove={removeQueueItem} />)}
-                <button disabled={busy} onClick={handleUploadQueue} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60">
+                <ActionButton disabled={busy} onClick={handleUploadQueue} variant="primary" className="w-full">
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileUp className="h-4 w-4" aria-hidden="true" />}
                   Import queued files
-                </button>
+                </ActionButton>
               </div>
             )}
           </div>
@@ -671,9 +685,9 @@ export default function EvidenceLocker() {
             <div className="space-y-3 border-t border-border p-4">
               {gmailConnection?.google_email && <p className="rounded-md border border-success/30 bg-success/8 px-3 py-2 text-xs text-success">Connected to {gmailConnection.google_email}</p>}
               <div className="grid gap-2 sm:grid-cols-3">
-                <input className="min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent" value={gmailRule.domains} onChange={(event) => setGmailRule((current) => ({ ...current, domains: event.target.value }))} placeholder="Domains" />
-                <input className="min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent" value={gmailRule.email_addresses} onChange={(event) => setGmailRule((current) => ({ ...current, email_addresses: event.target.value }))} placeholder="Addresses" />
-                <input className="min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent" value={gmailRule.keywords} onChange={(event) => setGmailRule((current) => ({ ...current, keywords: event.target.value }))} placeholder="Keywords" />
+                <input aria-label="Gmail domains" className="min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailRule.domains} onChange={(event) => setGmailRule((current) => ({ ...current, domains: event.target.value }))} placeholder="Domains" />
+                <input aria-label="Gmail addresses" className="min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailRule.email_addresses} onChange={(event) => setGmailRule((current) => ({ ...current, email_addresses: event.target.value }))} placeholder="Addresses" />
+                <input aria-label="Gmail keywords" className="min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailRule.keywords} onChange={(event) => setGmailRule((current) => ({ ...current, keywords: event.target.value }))} placeholder="Keywords" />
               </div>
               <div className="flex flex-wrap gap-4 text-sm text-text-dim">
                 <label className="flex min-h-11 items-center gap-2">
@@ -695,7 +709,7 @@ export default function EvidenceLocker() {
               </div>
               {gmailConnected && (
                 <div className="space-y-3 rounded-md border border-border bg-surface p-3">
-                  <input className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent" value={gmailQuery} onChange={(event) => setGmailQuery(event.target.value)} placeholder="Optional Gmail search override" />
+                  <input aria-label="Gmail search" className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailQuery} onChange={(event) => setGmailQuery(event.target.value)} placeholder="Optional Gmail search override" />
                   <div className="grid gap-2 sm:grid-cols-2">
                     <button disabled={busy} onClick={handleSearchGmail} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Search messages</button>
                     <button disabled={busy} onClick={handleSyncGmail} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Sync latest</button>
@@ -748,7 +762,7 @@ export default function EvidenceLocker() {
           <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
             <label className="relative min-w-0">
               <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-text-dim" aria-hidden="true" />
-              <input className="min-h-11 w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-accent" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Search filenames, sources, summaries, relevance, or tags" />
+              <input className="min-h-11 w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-accent" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Search filenames, people, summaries, or tags" aria-label="Search evidence" />
               {filters.q && (
                 <button type="button" onClick={() => setFilters((current) => ({ ...current, q: '' }))} className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-md text-text-dim hover:bg-surface-alt hover:text-text" aria-label="Clear search">
                   <X className="h-4 w-4" aria-hidden="true" />

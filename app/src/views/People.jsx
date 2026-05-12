@@ -98,7 +98,7 @@ function PersonCard({ person, caseId, onResearchDone, onError }) {
         <div>
           <button
             onClick={() => setQuotesOpen(!quotesOpen)}
-            className="text-xs font-medium text-accent hover:text-accent-hover flex items-center gap-1"
+            className="flex min-h-11 items-center gap-1 rounded-md text-xs font-medium text-accent hover:text-accent-hover"
           >
             <span className="inline-block transition-transform" style={{ transform: quotesOpen ? 'rotate(90deg)' : '' }}>▸</span>
             {quotes.length} key quote{quotes.length > 1 ? 's' : ''}
@@ -107,7 +107,7 @@ function PersonCard({ person, caseId, onResearchDone, onError }) {
           {quotesOpen && (
             <div className="mt-2 space-y-2">
               {quotes.map((q, i) => (
-                <div key={i} className="pl-3 border-l-2 border-border">
+                <div key={i} className="rounded-md border border-border bg-background/45 px-3 py-2">
                   <p className="text-xs italic text-text leading-relaxed">"{q.text}"</p>
                   <div className="flex items-center gap-2 mt-1 text-xs text-text-dim">
                     {q.date && <span>{q.date}</span>}

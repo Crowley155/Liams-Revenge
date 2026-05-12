@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { ChevronRight, Copy, Loader2, Printer } from 'lucide-react';
 import {
   fetchEntities,
   fetchKoraRequests,
@@ -9,7 +10,7 @@ import {
   updateKoraRequest,
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
-import { Panel, StatusPill, formatLabel } from './caseShared';
+import { ActionButton, Panel, StatusPill, formatLabel } from './caseShared';
 
 const STATUS_FLOW = ['draft', 'sent', 'partial', 'fulfilled', 'denied'];
 
@@ -131,13 +132,15 @@ export default function RecordsRequests() {
             Generate request drafts, send them yourself, and track whether responses are pending, partial, fulfilled, or denied.
           </p>
         </div>
-        <button
+        <ActionButton
           onClick={handleGenerate}
           disabled={generating}
-          className="min-h-10 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
+          variant="primary"
+          className="px-4"
         >
+          {generating && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
           {generating ? 'Generating...' : requests.length ? 'Regenerate Requests' : 'Generate Requests'}
-        </button>
+        </ActionButton>
       </div>
 
       {error && <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
@@ -175,11 +178,10 @@ export default function RecordsRequests() {
                   <button
                     type="button"
                     onClick={() => setExpandedId(isExpanded ? null : request.id)}
-                    className="flex w-full items-start gap-3 text-left"
+                    className="flex min-h-11 w-full items-start gap-3 rounded-md px-2 py-2 text-left transition-colors hover:bg-background/60"
+                    aria-expanded={isExpanded}
                   >
-                    <span className="mt-0.5 text-xs text-text-dim" style={{ transform: isExpanded ? 'rotate(90deg)' : '', transition: 'transform 0.15s' }}>
-                      &rsaquo;
-                    </span>
+                    <ChevronRight className={`mt-0.5 h-4 w-4 shrink-0 text-text-dim transition-transform ${isExpanded ? 'rotate-90' : ''}`} aria-hidden="true" />
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold text-text">{request.subject || 'Untitled request'}</span>
                       <span className="mt-1 block text-xs text-text-dim">
@@ -197,13 +199,14 @@ export default function RecordsRequests() {
                         {request.letter_text || request.records_description}
                       </pre>
                       <div className="flex flex-wrap gap-2">
-                        <button
+                        <ActionButton
                           onClick={() => handleCopy(request)}
-                          className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text"
+                          variant="secondary"
                         >
+                          <Copy className="h-4 w-4" aria-hidden="true" />
                           {copied === request.id ? 'Copied' : 'Copy Letter'}
-                        </button>
-                        <button
+                        </ActionButton>
+                        <ActionButton
                           onClick={() => printDocument({
                             title: request.subject || 'Records Request',
                             body: request.letter_text || request.records_description || '',
@@ -214,20 +217,21 @@ export default function RecordsRequests() {
                               Sent: request.sent_at ? new Date(request.sent_at).toLocaleDateString() : '',
                             },
                           })}
-                          className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text"
+                          variant="download"
                         >
+                          <Printer className="h-4 w-4" aria-hidden="true" />
                           Print / Save PDF
-                        </button>
+                        </ActionButton>
                         {STATUS_FLOW.map((status) => {
                           if (status === request.status) return null;
                           return (
-                            <button
+                            <ActionButton
                               key={status}
                               onClick={() => updateRequestStatus(request, status)}
-                              className="rounded-md border border-border px-3 py-1.5 text-xs font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text"
+                              variant="secondary"
                             >
                               Mark {formatLabel(status)}
-                            </button>
+                            </ActionButton>
                           );
                         })}
                       </div>

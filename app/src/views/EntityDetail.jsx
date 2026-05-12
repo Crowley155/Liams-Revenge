@@ -304,7 +304,7 @@ export default function EntityDetail() {
                     },
                   });
                 }}
-                className="text-[10px] font-medium px-3 py-1.5 rounded-lg bg-surface-alt text-text-dim hover:text-text hover:bg-border/40 transition-colors"
+                className="inline-flex min-h-11 items-center rounded-md border border-border bg-surface-alt px-4 text-xs font-semibold text-text-dim transition-colors hover:border-accent/40 hover:text-text focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/45"
               >
                 Export PDF
               </button>
@@ -312,7 +312,7 @@ export default function EntityDetail() {
             {researchRunning && (
               <button
                 onClick={cancelResearch}
-                className="text-[10px] font-medium px-2.5 py-1 rounded-lg bg-danger/15 text-danger hover:bg-danger/25 transition-colors"
+                className="inline-flex min-h-11 items-center rounded-md border border-danger/35 bg-danger/15 px-4 text-xs font-semibold text-danger transition-colors hover:bg-danger/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger/35"
               >
                 Cancel
               </button>
@@ -416,7 +416,7 @@ export default function EntityDetail() {
               <h3 className="text-sm font-semibold mb-3">Key Policies</h3>
               <div className="space-y-2">
                 {entity.key_policies.map((p, i) => (
-                  <div key={i} className="pl-4 border-l-2 border-accent/40">
+                  <div key={i} className="rounded-md border border-border bg-background/45 px-3 py-2">
                     <p className="text-sm text-text leading-relaxed">{p}</p>
                   </div>
                 ))}
@@ -594,7 +594,7 @@ export default function EntityDetail() {
               <button
                 onClick={() => setShowPrompt(true)}
                 disabled={discovering}
-                className="text-xs font-medium px-4 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="min-h-11 rounded-md bg-accent px-4 py-2 text-xs font-medium text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
                 title="Search for people associated with this entity"
               >
                 {discovering ? 'Discovering...' : 'Find Members'}
@@ -607,19 +607,19 @@ export default function EntityDetail() {
                   onChange={(e) => setDiscoveryPrompt(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleDiscover()}
                   placeholder='e.g. "All active school board members"'
-                  className="text-xs bg-surface border border-border rounded-lg px-3 py-1.5 text-text placeholder-text-dim/50 focus:outline-none focus:border-accent/50 w-64 transition-colors"
+                  className="min-h-11 w-64 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text transition-colors placeholder-text-dim/50 focus:border-accent/50 focus:outline-none"
                   autoFocus
                 />
                 <button
                   onClick={handleDiscover}
                   disabled={launchingDiscover || !discoveryPrompt.trim()}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-accent text-white hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="min-h-11 rounded-md bg-accent px-3 py-2 text-xs font-medium text-background transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {launchingDiscover ? 'Starting...' : 'Search'}
                 </button>
                 <button
                   onClick={() => { setShowPrompt(false); setDiscoveryPrompt(''); }}
-                  className="text-xs px-2 py-1.5 text-text-dim hover:text-text transition-colors"
+                  className="min-h-11 rounded-md px-3 py-2 text-xs text-text-dim transition-colors hover:bg-surface-alt hover:text-text"
                 >
                   Cancel
                 </button>

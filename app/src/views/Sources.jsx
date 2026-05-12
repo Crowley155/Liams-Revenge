@@ -102,7 +102,7 @@ export default function Sources() {
             <button
               key={c.key}
               onClick={() => { setCategoryFilter(c.key); setTypeFilter('all'); }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              className={`min-h-11 rounded-md px-3 text-xs font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 ${
                 categoryFilter === c.key
                   ? 'bg-accent/15 text-accent ring-1 ring-accent/30'
                   : 'bg-surface-alt text-text-dim hover:text-text'
@@ -123,7 +123,7 @@ export default function Sources() {
           />
           <button
             onClick={() => setImportantOnly(!importantOnly)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+            className={`min-h-11 rounded-md px-3 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 ${
               importantOnly
                 ? 'bg-amber-500/20 text-amber-300 ring-1 ring-amber-500/40'
                 : 'bg-surface-alt text-text-dim hover:text-text'
@@ -136,7 +136,7 @@ export default function Sources() {
               <button
                 key={t}
                 onClick={() => setTypeFilter(t)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                className={`min-h-11 rounded-md px-3 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 ${
                   typeFilter === t ? 'bg-accent/15 text-accent' : 'bg-surface-alt text-text-dim hover:text-text'
                 }`}
               >
@@ -231,7 +231,7 @@ function SourceRow({ source }) {
       {expanded && (
         <div className="border-t border-border p-4 space-y-4">
           {source.keyQuote && (
-            <div className="border-l-2 border-accent pl-3">
+            <div className="rounded-md border border-border bg-background/45 p-3">
               <h4 className="text-[10px] font-bold uppercase text-accent mb-1">Key Quote</h4>
               <p className="text-sm italic text-text leading-relaxed">{source.keyQuote}</p>
             </div>

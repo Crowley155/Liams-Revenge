@@ -1,7 +1,7 @@
 const SOURCE_COLORS = {
   serpapi_kg: 'bg-blue-400/15 text-blue-400',
   serpapi_organic: 'bg-blue-300/15 text-blue-300',
-  pdl: 'bg-purple-400/15 text-purple-400',
+  pdl: 'bg-info/15 text-info',
   maigret: 'bg-orange-400/15 text-orange-400',
   linkedin_scrape: 'bg-sky-400/15 text-sky-400',
   facebook_scrape: 'bg-indigo-400/15 text-indigo-400',

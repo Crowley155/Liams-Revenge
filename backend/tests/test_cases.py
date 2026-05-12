@@ -297,6 +297,36 @@ def test_manual_family_narrative_override_beats_agent_patch(monkeypatch):
     assert updated.json()["intake"]["narrative"] == "Parent-edited narrative should stay."
 
 
+def test_case_desired_outcome_can_be_updated_without_replacing_intake():
+    user = _user()
+    _override_user(user)
+
+    draft = client.post("/api/cases/draft")
+    case_id = draft.json()["id"]
+    original_school = draft.json()["intake"]["school"]
+
+    updated = client.patch(
+        f"/api/cases/{case_id}",
+        json={
+            "desired_outcome": "A written safety plan and policy changes.",
+            "desired_outcomes": [
+                "Separate young children from older children during outdoor play",
+                "Document critical incidents accurately",
+                "",
+            ],
+        },
+    )
+
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["intake"]["desired_outcome"] == "A written safety plan and policy changes."
+    assert body["intake"]["desired_outcomes"] == [
+        "Separate young children from older children during outdoor play",
+        "Document critical incidents accurately",
+    ]
+    assert body["intake"]["school"] == original_school
+
+
 def test_model_provider_guard_rejects_disallowed_models(monkeypatch):
     monkeypatch.setenv("DEEPINFRA_REASONING_MODEL", "anthropic/claude-sonnet")
     try:

@@ -148,7 +148,7 @@ export default function MemberPreview() {
               </p>
             )}
             {bio && (
-              <p className="text-sm text-text leading-relaxed mt-3 border-l-2 border-accent/40 pl-3">
+              <p className="mt-3 rounded-md border border-border bg-background/45 px-3 py-2 text-sm leading-relaxed text-text">
                 {bio}
               </p>
             )}
@@ -166,14 +166,14 @@ export default function MemberPreview() {
             <button
               onClick={handleAccept}
               disabled={acting}
-              className="text-sm font-medium px-5 py-2 rounded-lg bg-success/15 text-success hover:bg-success/30 disabled:opacity-50 transition-colors"
+              className="min-h-11 rounded-md bg-success/15 px-5 py-2 text-sm font-medium text-success transition-colors hover:bg-success/30 disabled:opacity-50"
             >
               {acting ? 'Working...' : 'Accept Member'}
             </button>
             <button
               onClick={handleReject}
               disabled={acting}
-              className="text-sm font-medium px-5 py-2 rounded-lg bg-text-dim/10 text-text-dim hover:bg-danger/15 hover:text-danger disabled:opacity-50 transition-colors"
+              className="min-h-11 rounded-md bg-text-dim/10 px-5 py-2 text-sm font-medium text-text-dim transition-colors hover:bg-danger/15 hover:text-danger disabled:opacity-50"
             >
               Reject
             </button>
@@ -298,7 +298,7 @@ export default function MemberPreview() {
 
       {/* Bottom action bar for long pages */}
       {isPending && (searchResults.length > 3 || socials.length > 2) && (
-        <div className="sticky bottom-4 bg-surface/95 backdrop-blur border border-border rounded-xl p-4 flex items-center gap-3" style={{ boxShadow: 'var(--shadow-elevated)' }}>
+        <div className="sticky bottom-4 flex items-center gap-3 rounded-md border border-border bg-surface/95 p-4" style={{ boxShadow: 'var(--shadow-elevated)' }}>
           <Initials name={member.discovered_name} />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium">{member.discovered_name}</p>
@@ -307,14 +307,14 @@ export default function MemberPreview() {
           <button
             onClick={handleAccept}
             disabled={acting}
-            className="text-sm font-medium px-4 py-1.5 rounded-lg bg-success/15 text-success hover:bg-success/30 disabled:opacity-50 transition-colors"
+            className="min-h-11 rounded-md bg-success/15 px-4 py-2 text-sm font-medium text-success transition-colors hover:bg-success/30 disabled:opacity-50"
           >
             Accept
           </button>
           <button
             onClick={handleReject}
             disabled={acting}
-            className="text-sm font-medium px-4 py-1.5 rounded-lg bg-text-dim/10 text-text-dim hover:bg-danger/15 hover:text-danger disabled:opacity-50 transition-colors"
+            className="min-h-11 rounded-md bg-text-dim/10 px-4 py-2 text-sm font-medium text-text-dim transition-colors hover:bg-danger/15 hover:text-danger disabled:opacity-50"
           >
             Reject
           </button>

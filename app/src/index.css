@@ -112,6 +112,13 @@ h1, h2, h3 {
   overflow: hidden;
 }
 
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.85; }
@@ -587,6 +594,18 @@ h1, h2, h3 {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-slide-in,
+  .animate-pulse-subtle {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
   .case-advocate-panel,
   .advocate-character-ready .advocate-body,
   .advocate-character-gap .advocate-body,

@@ -16,6 +16,7 @@ import {
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
 import {
+  ActionButton,
   EMPTY_SUPPORT,
   Metric,
   Panel,
@@ -24,6 +25,19 @@ import {
   checklistStatusCount,
   formatLabel,
 } from './caseShared';
+
+function outcomeLines(value) {
+  return String(value || '')
+    .split(/\r?\n|;/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function outcomeTextFromCase(caseRecord) {
+  const intake = caseRecord?.intake || {};
+  if (intake.desired_outcome) return intake.desired_outcome;
+  return (intake.desired_outcomes || []).join('\n');
+}
 
 export default function CaseDetail() {
   const { caseId } = useParams();
@@ -35,9 +49,11 @@ export default function CaseDetail() {
   const [recordsDrafts, setRecordsDrafts] = useState([]);
   const [supportForm, setSupportForm] = useState(EMPTY_SUPPORT);
   const [familyNarrative, setFamilyNarrative] = useState('');
+  const [desiredOutcome, setDesiredOutcome] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [savingNarrative, setSavingNarrative] = useState(false);
+  const [savingOutcome, setSavingOutcome] = useState(false);
   const [savingSupport, setSavingSupport] = useState(false);
 
   const loadCase = useCallback(async () => {
@@ -60,6 +76,7 @@ export default function CaseDetail() {
       ]);
       setCaseRecord(nextCase);
       setFamilyNarrative(nextCase.family_narrative || nextCase.intake?.narrative || '');
+      setDesiredOutcome(outcomeTextFromCase(nextCase));
       setDocuments(nextDocs);
       setEvaluation(nextEval);
       setPacket(nextPacket);
@@ -139,16 +156,19 @@ export default function CaseDetail() {
   const missingCount = checklistStatusCount(checklist, 'missing') + checklistStatusCount(checklist, 'recommended');
   const activeRecordCount = recordsDrafts.length;
   const anySupport = supportForm.attorney_contact_opt_in || supportForm.advocacy_contact_opt_in || supportForm.media_contact_opt_in;
+  const savedDesiredOutcome = outcomeTextFromCase(caseRecord);
+  const hasDesiredOutcome = Boolean(savedDesiredOutcome.trim());
 
   const nextActions = useMemo(() => {
     const actions = [];
     if (!(caseRecord?.family_narrative || caseRecord?.intake?.narrative)) actions.push('Tell the Case Advocate what happened so USDWatch can start a Family Narrative.');
+    if (!hasDesiredOutcome) actions.push('Summarize what a good outcome would look like, including any safety changes, records, supports, or policy fixes you want.');
     if (!documents.length) actions.push('Add the strongest document, email, screenshot, or incident note to the Evidence Locker.');
     if (!evaluation) actions.push('Run the first Case Read so USDWatch can organize what it sees from the story and evidence.');
     if (missingCount > 0) actions.push('Review missing evidence and decide which records requests should be sent first.');
     if (!packet && evaluation) actions.push('Open the packet tab after the Case Read to print a self-advocacy plan.');
     return actions.length ? actions.slice(0, 4) : ['Keep evidence current, track records responses, and refresh the Case Read when something important changes.'];
-  }, [caseRecord?.family_narrative, caseRecord?.intake?.narrative, documents.length, evaluation, missingCount, packet]);
+  }, [caseRecord?.family_narrative, caseRecord?.intake?.narrative, documents.length, evaluation, hasDesiredOutcome, missingCount, packet]);
 
   const updateSupportField = (field, value) => {
     setSupportForm((current) => ({ ...current, [field]: value }));
@@ -178,6 +198,24 @@ export default function CaseDetail() {
       setError(err.message || 'Failed to save Family Narrative');
     } finally {
       setSavingNarrative(false);
+    }
+  };
+
+  const handleSaveDesiredOutcome = async () => {
+    setSavingOutcome(true);
+    setError('');
+    try {
+      const desiredOutcomes = outcomeLines(desiredOutcome);
+      const nextCase = await updateCase(caseId, {
+        desired_outcome: desiredOutcome.trim(),
+        desired_outcomes: desiredOutcomes,
+      });
+      setCaseRecord(nextCase);
+      setDesiredOutcome(outcomeTextFromCase(nextCase));
+    } catch (err) {
+      setError(err.message || 'Failed to save desired outcome');
+    } finally {
+      setSavingOutcome(false);
     }
   };
 
@@ -268,38 +306,41 @@ export default function CaseDetail() {
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <button
+          <ActionButton
             disabled={busy || !packet}
             onClick={handlePrintPacket}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60"
+            variant="secondary"
+            className="px-4"
           >
             <Printer className="h-4 w-4" aria-hidden="true" />
             Print Packet
-          </button>
-          <button
+          </ActionButton>
+          <ActionButton
             disabled={busy}
             onClick={handleExportCase}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60"
+            variant="download"
+            className="px-4"
           >
             <Download className="h-4 w-4" aria-hidden="true" />
             Export Case
-          </button>
-          <button
+          </ActionButton>
+          <ActionButton
             disabled={busy || caseReadInProgress}
             onClick={handleRunEvaluation}
-            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
+            variant="primary"
+            className="px-4"
           >
             {busy || caseReadInProgress ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileText className="h-4 w-4" aria-hidden="true" />}
             {caseReadInProgress ? 'Case Read running...' : evaluation ? 'Refresh Case Read' : 'Run Case Read'}
-          </button>
+          </ActionButton>
         </div>
       </div>
 
       {error && <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
 
       <div className="grid gap-3 md:grid-cols-4">
-        <Metric label="Evidence Strength" value={formatLabel(result?.evidence_strength || packet?.evidence_strength || 'unknown')} detail="Current confidence from story and files." />
-        <Metric label="Evidence Locker" value={documents.length} detail={`${indexedCount} indexed${reviewCount ? `, ${reviewCount} need review` : ''}`} />
+        <Metric label="Evidence Strength" value={formatLabel(result?.evidence_strength || packet?.evidence_strength || 'unknown')} detail="Current support from story and files." />
+        <Metric label="Evidence Files" value={documents.length} detail={`${indexedCount} ready${reviewCount ? `, ${reviewCount} need review` : ''}`} />
         <Metric label="Gaps To Close" value={missingCount} detail="Missing or recommended evidence." />
         <Metric label="Records Requests" value={activeRecordCount} detail="Drafts and tracked requests." />
       </div>
@@ -308,13 +349,13 @@ export default function CaseDetail() {
         title="Family Narrative"
         eyebrow={caseRecord.advocate_state?.family_narrative_manual ? 'Parent-edited' : 'Case Advocate draft'}
         action={(
-          <button
+          <ActionButton
             disabled={savingNarrative || familyNarrative === (caseRecord.family_narrative || caseRecord.intake?.narrative || '')}
             onClick={handleSaveNarrative}
-            className="rounded-md bg-accent px-3 py-2 text-xs font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
+            variant="primary"
           >
             {savingNarrative ? 'Saving...' : 'Save Narrative'}
-          </button>
+          </ActionButton>
         )}
       >
         <p className="mb-3 max-w-3xl text-sm leading-relaxed text-text-dim">
@@ -326,6 +367,45 @@ export default function CaseDetail() {
           className="min-h-[150px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-relaxed text-text outline-none transition-colors focus:border-accent"
           placeholder="Tell the story the way you would tell a trusted advocate: what happened, who was affected, what worries you now, and what you need next."
         />
+      </Panel>
+
+      <Panel
+        title="Desired Outcome"
+        eyebrow="What you want changed"
+        action={(
+          <ActionButton
+            disabled={savingOutcome || desiredOutcome.trim() === savedDesiredOutcome.trim()}
+            onClick={handleSaveDesiredOutcome}
+            variant="primary"
+          >
+            {savingOutcome ? 'Saving...' : 'Save Desired Outcome'}
+          </ActionButton>
+        )}
+      >
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="min-w-0">
+            <p className="mb-3 max-w-3xl text-sm leading-relaxed text-text-dim">
+              Write what a practical resolution would look like. This can be one clear ask or a short list: safety changes, records, accountability, support for your child, or policy fixes you want the program to make.
+            </p>
+            <textarea
+              value={desiredOutcome}
+              onChange={(event) => setDesiredOutcome(event.target.value)}
+              className="min-h-[130px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-relaxed text-text outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45"
+              placeholder="Example: I want a written safety plan, a corrected incident report, age-group separation during outdoor play, and clear parent notification after serious injuries."
+            />
+          </div>
+          <aside className="rounded-md border border-border bg-background/65 p-3">
+            <p className="text-xs font-semibold text-text">Helpful prompts</p>
+            <ul className="mt-2 space-y-2 text-xs leading-relaxed text-text-dim">
+              <li>What needs to happen for your child to be safe?</li>
+              <li>What records, corrections, or explanations do you still need?</li>
+              <li>What should JCPRD, the school, or the district change before this happens again?</li>
+            </ul>
+            <p className="mt-3 text-xs leading-relaxed text-text-dim">
+              Later, USDWatch can suggest specific policy reforms from this section. For now, it keeps your ask tied to this case.
+            </p>
+          </aside>
+        </div>
       </Panel>
 
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
@@ -382,52 +462,60 @@ export default function CaseDetail() {
               Default is no sharing. These preferences only allow USDWatch to manually review your case before any limited summary is shared with the support category you choose.
             </p>
             <div className="grid gap-3">
-              <label className="flex items-start gap-3 rounded-md border border-border bg-background p-3 text-sm">
+              <label className="flex min-h-11 items-start gap-3 rounded-md border border-border bg-background p-3 text-sm">
                 <input type="checkbox" className="mt-1" checked={supportForm.attorney_contact_opt_in} onChange={(event) => updateSupportField('attorney_contact_opt_in', event.target.checked)} />
                 <span><strong className="text-text">Attorney contact</strong><span className="block text-text-dim">I may want a qualified attorney to review whether this needs legal help.</span></span>
               </label>
-              <label className="flex items-start gap-3 rounded-md border border-border bg-background p-3 text-sm">
+              <label className="flex min-h-11 items-start gap-3 rounded-md border border-border bg-background p-3 text-sm">
                 <input type="checkbox" className="mt-1" checked={supportForm.advocacy_contact_opt_in} onChange={(event) => updateSupportField('advocacy_contact_opt_in', event.target.checked)} />
                 <span><strong className="text-text">Advocacy or parent-group support</strong><span className="block text-text-dim">I may want help with meetings, records requests, or complaint options.</span></span>
               </label>
-              <label className="flex items-start gap-3 rounded-md border border-border bg-background p-3 text-sm">
+              <label className="flex min-h-11 items-start gap-3 rounded-md border border-border bg-background p-3 text-sm">
                 <input type="checkbox" className="mt-1" checked={supportForm.media_contact_opt_in} onChange={(event) => updateSupportField('media_contact_opt_in', event.target.checked)} />
                 <span><strong className="text-text">Media interest</strong><span className="block text-text-dim">I may be open to a reporter if this appears to show a broader public problem.</span></span>
               </label>
-              <label className="flex items-start gap-3 rounded-md border border-warning/30 bg-warning/8 p-3 text-sm text-text-dim">
+              <label className="flex min-h-11 items-start gap-3 rounded-md border border-warning/30 bg-warning/8 p-3 text-sm text-text-dim">
                 <input type="checkbox" className="mt-1" checked={supportForm.share_summary_consent} onChange={(event) => updateSupportField('share_summary_consent', event.target.checked)} />
                 I consent to USDWatch manually reviewing and preparing a limited case summary for the support categories I selected.
               </label>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <input
-                className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-                value={supportForm.contact_preference}
-                onChange={(event) => updateSupportField('contact_preference', event.target.value)}
-                placeholder="Best contact preference"
-              />
-              <input
-                className="rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
-                value={supportForm.sensitivity_notes}
-                onChange={(event) => updateSupportField('sensitivity_notes', event.target.value)}
-                placeholder="Sensitivity notes"
-              />
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold text-text-dim">Best way to reach you</span>
+                <input
+                  className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+                  value={supportForm.contact_preference}
+                  onChange={(event) => updateSupportField('contact_preference', event.target.value)}
+                  placeholder="Email after 5pm, text first, etc."
+                />
+              </label>
+              <label className="block space-y-2">
+                <span className="text-xs font-semibold text-text-dim">Sensitive details to protect</span>
+                <input
+                  className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent"
+                  value={supportForm.sensitivity_notes}
+                  onChange={(event) => updateSupportField('sensitivity_notes', event.target.value)}
+                  placeholder="No media contact, avoid names, etc."
+                />
+              </label>
             </div>
             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-              <button
+              <ActionButton
                 disabled={savingSupport}
                 onClick={handleSaveSupport}
-                className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
+                variant="primary"
+                className="px-4"
               >
                 Save Support Preferences
-              </button>
-              <button
+              </ActionButton>
+              <ActionButton
                 disabled={savingSupport}
                 onClick={handleRevokeSupport}
-                className="rounded-md border border-border px-4 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60"
+                variant="danger"
+                className="px-4"
               >
                 Revoke Support Consent
-              </button>
+              </ActionButton>
             </div>
           </Panel>
         </main>
