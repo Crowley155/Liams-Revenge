@@ -10,8 +10,10 @@ export const PROTECTED_NAV = [
   { href: '/cases', to: '/cases', label: 'Cases' },
 ];
 
-export function navItemsForAuth(isAuthenticated) {
-  return isAuthenticated ? [...PROTECTED_NAV, ...PUBLIC_NAV] : PUBLIC_NAV;
+export const PRIMARY_NAV = [...PROTECTED_NAV, ...PUBLIC_NAV];
+
+export function navItemsForAuth() {
+  return PRIMARY_NAV;
 }
 
 export function isNavItemActive(pathname, item) {

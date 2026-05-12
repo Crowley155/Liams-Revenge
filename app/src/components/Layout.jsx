@@ -12,7 +12,7 @@ export default function Layout() {
   const navigate = useNavigate();
   const { isAuthenticated, user, workspace, logout } = useAuth();
 
-  const navItems = navItemsForAuth(isAuthenticated);
+  const navItems = navItemsForAuth();
 
   const closeMenu = () => setMenuOpen(false);
 

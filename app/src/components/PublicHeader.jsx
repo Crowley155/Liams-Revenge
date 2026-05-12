@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ClerkProvider, UserButton, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { Menu, X } from 'lucide-react';
 import { isNavItemActive, navItemsForAuth } from '../navigation';
@@ -44,7 +44,7 @@ function NavMenu({ items, pathname, onNavigate, mobile = false }) {
 function PublicHeaderFrame({ isAuthenticated, onSignOut, accountControl, mobileAccountControl }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [pathname, setPathname] = useState(pathFromWindow);
-  const items = useMemo(() => navItemsForAuth(isAuthenticated), [isAuthenticated]);
+  const items = navItemsForAuth();
 
   useEffect(() => {
     setPathname(pathFromWindow());
