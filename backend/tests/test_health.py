@@ -143,6 +143,54 @@ def test_document_insight_backfill_requires_admin_and_skips_ready_docs(monkeypat
     assert case_documents[ready.id].document_summary == "Existing summary"
 
 
+def test_backfill_can_target_ready_docs_missing_relevance_metadata(monkeypatch):
+    from app.api._store import case_documents
+    from app.models import CaseDocument
+    from app.scripts import backfill_document_insights as backfill_script
+
+    workspace_id = f"missing-rel-{uuid.uuid4().hex[:6]}"
+    missing = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=workspace_id,
+        filename="ready-missing-relevance.txt",
+        extracted_text="Already summarized, but missing deterministic relevance metadata.",
+        document_summary="Existing summary",
+        case_relevance="Existing relevance",
+        insight_status="ready",
+    )
+    complete = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=workspace_id,
+        filename="ready-complete.txt",
+        extracted_text="Already complete.",
+        document_summary="Existing summary",
+        case_relevance="Existing relevance",
+        insight_status="ready",
+        evidence_role="supporting_context",
+        relevance_model="deterministic:evidence-relevance-v1",
+    )
+    case_documents[missing.id] = missing
+    case_documents[complete.id] = complete
+
+    def fake_generate(doc, case=None, *, force=False):
+        assert force is True
+        doc.evidence_role = "supporting_context"
+        doc.relevance_model = "deterministic:evidence-relevance-v1"
+        doc.insight_status = "ready"
+        return doc
+
+    monkeypatch.setattr(backfill_script, "generate_document_insight", fake_generate)
+    result = backfill_script.backfill_document_insights(
+        limit=10,
+        only_missing_relevance=True,
+        workspace_id=workspace_id,
+    )
+
+    assert result["candidate_total"] == 1
+    assert result["processed"] == 1
+    assert case_documents[missing.id].relevance_model == "deterministic:evidence-relevance-v1"
+
+
 def test_job_not_found_for_authenticated_user():
     _override_user(_user())
     resp = client.get("/api/research/nonexistent")
