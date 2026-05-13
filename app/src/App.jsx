@@ -5,6 +5,7 @@ import RequireAuth from './auth/RequireAuth';
 import { fetchCase, openOrCreateDraftCase } from './api/client';
 import { EvidencePanelProvider } from './components/EvidencePanel';
 import Layout from './components/Layout';
+import { hasCasePolicyReforms } from './utils/casePolicyReforms';
 
 const CaseFileLayout = lazy(() => import('./components/CaseFileLayout'));
 const Login = lazy(() => import('./views/Login'));
@@ -113,6 +114,34 @@ function DemoOnlyRoute({ children, fallbackSection = '' }) {
   return children;
 }
 
+function PolicyReformsRoute() {
+  const { caseId } = useParams();
+  const [caseRecord, setCaseRecord] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchCase(caseId)
+      .then((record) => {
+        if (!cancelled) setCaseRecord(record);
+      })
+      .catch(() => {
+        if (!cancelled) setCaseRecord(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId]);
+
+  if (loading) return <RouteFallback />;
+  if (!hasCasePolicyReforms(caseRecord)) return <Navigate to={`/cases/${caseId}`} replace />;
+  return <PolicyReforms />;
+}
+
 export default function App() {
   restoreGithubPagesSpaPath();
 
@@ -154,7 +183,7 @@ export default function App() {
                     <Route path="evidence-gaps" element={<DemoOnlyRoute fallbackSection="records"><EvidenceGaps /></DemoOnlyRoute>} />
                     <Route path="timeline" element={<CaseSectionRedirect />} />
                     <Route path="sources" element={<DemoOnlyRoute fallbackSection="locker"><Sources /></DemoOnlyRoute>} />
-                    <Route path="policy-reforms" element={<DemoOnlyRoute><PolicyReforms /></DemoOnlyRoute>} />
+                    <Route path="policy-reforms" element={<PolicyReformsRoute />} />
                   </Route>
 
                   <Route path="policy-reforms" element={<LegacyCaseRedirect section="policy-reforms" />} />

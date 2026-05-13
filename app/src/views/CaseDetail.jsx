@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Download, FileText, Loader2, Printer } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { Download, FileText, Loader2, Printer, Scale } from 'lucide-react';
 import {
   fetchCase,
   fetchCaseAccess,
@@ -16,11 +16,13 @@ import {
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
 import { casePermissions } from '../utils/caseAccess';
+import { getCasePolicyReforms, policyReformCount } from '../utils/casePolicyReforms';
 import {
   ActionButton,
   Metric,
   Panel,
   StatusPill,
+  actionButtonClasses,
   buildPacketText,
   checklistStatusCount,
   formatLabel,
@@ -158,6 +160,9 @@ export default function CaseDetail() {
   const activeRecordCount = recordsDrafts.length;
   const savedDesiredOutcome = outcomeTextFromCase(caseRecord);
   const hasDesiredOutcome = Boolean(savedDesiredOutcome.trim());
+  const policyReformSections = useMemo(() => getCasePolicyReforms(caseRecord), [caseRecord]);
+  const totalPolicyReforms = policyReformCount(policyReformSections);
+  const hasPolicyReforms = policyReformSections.length > 0;
   const caseReadSummary = evaluation
     ? packet?.what_usdwatch_sees || result?.executive_summary || 'Run a Case Read to generate a summary.'
     : 'Run a Case Read to generate a summary.';
@@ -342,6 +347,54 @@ export default function CaseDetail() {
           placeholder="What needs to change? Include safety steps, records, supports, corrections, or policy fixes."
         />
       </Panel>
+
+      {hasPolicyReforms && (
+        <Panel
+          title="What We're Asking For"
+          action={(
+            <Link to="policy-reforms" className={actionButtonClasses('secondary', 'px-4')}>
+              <Scale className="h-4 w-4" aria-hidden="true" />
+              View Reforms
+            </Link>
+          )}
+        >
+          <p className="max-w-3xl text-sm leading-relaxed text-text-dim">
+            {totalPolicyReforms} specific policy changes tied to this case. These are separate from the personal case outcome above.
+          </p>
+          <div className="mt-4 grid gap-x-6 gap-y-5 lg:grid-cols-3">
+            {policyReformSections.map((section) => (
+              <section key={section.id} className="min-w-0">
+                <div className="flex items-baseline justify-between gap-3 border-b border-border pb-2">
+                  <div>
+                    <h4 className="text-sm font-bold text-text">{section.entity}</h4>
+                    <p className="text-xs text-text-dim">{section.label}</p>
+                  </div>
+                  <span className="text-xs font-semibold text-text-dim">{section.reforms.length}</span>
+                </div>
+                <ol className="mt-3 space-y-3">
+                  {section.reforms.map((reform, index) => (
+                    <li key={reform.title} className="grid grid-cols-[1.5rem_1fr] gap-2 text-sm">
+                      <span
+                        className="mt-0.5 grid h-6 w-6 place-items-center rounded-full border text-xs font-bold"
+                        style={{
+                          borderColor: `color-mix(in srgb, var(${section.colorVar}) 45%, transparent)`,
+                          color: `var(${section.colorVar})`,
+                        }}
+                      >
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block font-semibold leading-snug text-text">{reform.title}</span>
+                        <span className="mt-1 block leading-relaxed text-text-dim">{reform.summary}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ))}
+          </div>
+        </Panel>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
         <aside className="space-y-5">

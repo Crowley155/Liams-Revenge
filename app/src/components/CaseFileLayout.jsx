@@ -4,6 +4,7 @@ import { Building2, ClipboardList, FileText, FolderOpen, Home, Scale, Settings, 
 import { fetchCase, fetchCaseAccess } from '../api/client';
 import { CaseProvider } from '../data/useCase';
 import { sharedAccessLabel } from '../utils/caseAccess';
+import { hasCasePolicyReforms } from '../utils/casePolicyReforms';
 
 const PARENT_CASE_TABS = [
   { to: '', label: 'Case Plan', icon: Home, end: true },
@@ -14,12 +15,12 @@ const PARENT_CASE_TABS = [
   { to: 'settings', label: 'Settings', icon: Settings },
 ];
 
+const POLICY_REFORMS_TAB = { to: 'policy-reforms', label: 'Reforms', icon: FileText };
+
 const DEMO_CASE_TABS = [
-  ...PARENT_CASE_TABS,
   { to: 'entities', label: 'Agencies', icon: Building2 },
   { to: 'non-compliance', label: 'Non-Compliance', icon: Scale },
   { to: 'contradictions', label: 'Contradictions', icon: ClipboardList },
-  { to: 'policy-reforms', label: 'Reforms', icon: FileText },
 ];
 
 export default function CaseFileLayout() {
@@ -27,7 +28,12 @@ export default function CaseFileLayout() {
   const [caseRecord, setCaseRecord] = useState(null);
   const [access, setAccess] = useState(null);
   const isDemoCase = caseRecord?.status === 'demo';
-  const tabs = isDemoCase ? DEMO_CASE_TABS : PARENT_CASE_TABS;
+  const showPolicyReforms = hasCasePolicyReforms(caseRecord);
+  const tabs = [
+    ...PARENT_CASE_TABS,
+    ...(showPolicyReforms ? [POLICY_REFORMS_TAB] : []),
+    ...(isDemoCase ? DEMO_CASE_TABS : []),
+  ];
   const accessLabel = sharedAccessLabel(access);
 
   useEffect(() => {
