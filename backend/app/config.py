@@ -70,6 +70,9 @@ class Settings:
     clerk_jwks_url: str | None = field(
         default_factory=lambda: _env("CLERK_JWKS_URL")
     )
+    clerk_secret_key: str | None = field(
+        default_factory=lambda: _env("CLERK_SECRET_KEY")
+    )
 
     deepinfra_api_key: str | None = field(
         default_factory=lambda: _env("DEEPINFRA_API_KEY")
@@ -106,19 +109,6 @@ class Settings:
     frontend_public_url: str = field(
         default_factory=lambda: _env("FRONTEND_PUBLIC_URL", _env("PUBLIC_APP_URL", "http://localhost:4321"))
     )
-    google_oauth_client_id: str | None = field(
-        default_factory=lambda: _env("GOOGLE_OAUTH_CLIENT_ID")
-    )
-    google_oauth_client_secret: str | None = field(
-        default_factory=lambda: _env("GOOGLE_OAUTH_CLIENT_SECRET")
-    )
-    google_oauth_redirect_uri: str | None = field(
-        default_factory=lambda: _env("GOOGLE_OAUTH_REDIRECT_URI")
-    )
-    gmail_token_encryption_key: str | None = field(
-        default_factory=lambda: _env("GMAIL_TOKEN_ENCRYPTION_KEY")
-    )
-
     langfuse_public_key: str | None = field(
         default_factory=lambda: _env("LANGFUSE_PUBLIC_KEY")
     )
@@ -169,14 +159,6 @@ class Settings:
     @property
     def has_deepinfra(self) -> bool:
         return bool(self.deepinfra_api_key)
-
-    @property
-    def has_google_oauth(self) -> bool:
-        return bool(self.google_oauth_client_id and self.google_oauth_client_secret)
-
-    @property
-    def has_gmail_token_encryption(self) -> bool:
-        return bool(self.gmail_token_encryption_key)
 
     def validate_ai_model_providers(self) -> None:
         """Keep production agent routing on the approved DeepInfra/NVIDIA path."""

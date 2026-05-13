@@ -2,7 +2,6 @@ import json
 import uuid
 import time
 from datetime import datetime, timedelta, timezone
-from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
 
@@ -13,7 +12,6 @@ from app.db import _connect, init_db
 from app.main import app
 from app.models import CaseDocument, CaseIntake, CaseRecord, CaseStatus, GmailConnection, GmailImportRule
 from app.services.gmail_importer import import_matching_messages
-from app.services.gmail_security import encrypt_token
 
 client = TestClient(app)
 
@@ -240,7 +238,6 @@ def test_editor_can_edit_case_and_evidence_but_not_manage_owner_only_surfaces(tm
         "email_addresses": [],
         "keywords": [],
         "include_attachments": True,
-        "auto_sync": False,
     })
     assert gmail.status_code == 403
 
@@ -1530,8 +1527,7 @@ def test_document_delete_cleans_qdrant_points(monkeypatch, tmp_path):
 
 
 def test_gmail_import_rule_scaffolding_is_private_to_workspace(monkeypatch):
-    monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_ID", raising=False)
-    monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("CLERK_SECRET_KEY", raising=False)
     owner = _user()
     outsider = _user()
     _override_user(owner)
@@ -1546,64 +1542,145 @@ def test_gmail_import_rule_scaffolding_is_private_to_workspace(monkeypatch):
         "email_addresses": ["principal@usd232.org"],
         "keywords": ["incident"],
         "include_attachments": True,
-        "auto_sync": True,
     })
     assert run.status_code == 200
-    assert run.json()["status"] == "needs_oauth"
+    assert run.json()["status"] == "needs_consent"
 
     status = client.get(f"/api/gmail/status?case_id={case_id}")
     assert status.status_code == 200
     assert status.json()["configured"] is False
+    assert status.json()["auth_provider"] == "clerk"
     assert status.json()["connections"][0]["rule"]["domains"] == ["usd232.org"]
-    assert "encrypted_refresh_token" not in status.json()["connections"][0]
-    assert "oauth_state_hash" not in status.json()["connections"][0]
+    assert status.json()["connections"][0]["token_stored"] is False
 
     _override_user(outsider)
     hidden = client.get(f"/api/gmail/status?case_id={case_id}")
     assert hidden.status_code == 404
 
 
-def test_gmail_oauth_state_flow_stores_no_public_secrets(monkeypatch):
-    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "client-id")
-    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "client-secret")
-    monkeypatch.setenv("GOOGLE_OAUTH_REDIRECT_URI", "https://api.usdwatch.com/api/gmail/oauth/callback")
-    monkeypatch.setenv("GMAIL_TOKEN_ENCRYPTION_KEY", "test-gmail-token-key")
+def test_gmail_backend_oauth_routes_are_removed(monkeypatch):
+    monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_clerk")
     user = _user()
     _override_user(user)
 
-    created = client.post("/api/cases", json=_case_payload("Gmail OAuth case"))
+    created = client.post("/api/cases", json=_case_payload("Clerk-only Gmail case"))
     assert created.status_code == 200
     case_id = created.json()["id"]
 
-    client.post("/api/gmail/import-rules", json={
+    assert client.post("/api/gmail/oauth/start", json={"case_id": case_id}).status_code == 404
+    assert client.get("/api/gmail/oauth/callback?code=abc&state=def").status_code == 404
+
+
+def test_gmail_status_uses_clerk_google_token_when_scope_granted(monkeypatch):
+    monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_clerk")
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Clerk Gmail case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    saved = client.post("/api/gmail/import-rules", json={
         "case_id": case_id,
         "domains": ["usd232.org"],
         "email_addresses": [],
         "keywords": [],
         "include_attachments": True,
-        "auto_sync": False,
     })
+    assert saved.status_code == 200
+    assert saved.json()["status"] == "needs_consent"
 
-    started = client.post("/api/gmail/oauth/start", json={"case_id": case_id})
-    assert started.status_code == 200
-    auth_url = started.json()["authorization_url"]
-    parsed = urlparse(auth_url)
-    params = parse_qs(parsed.query)
-    assert params["scope"] == ["https://www.googleapis.com/auth/gmail.readonly"]
-    assert params["access_type"] == ["offline"]
-    assert params["include_granted_scopes"] == ["true"]
-    assert params["state"][0]
+    def fake_token(clerk_user_id: str, required_scope: str = ""):
+        assert clerk_user_id == user["clerk_user_id"]
+        assert required_scope == "https://www.googleapis.com/auth/gmail.readonly"
+        return {
+            "token": "clerk-google-token",
+            "scopes": ["openid", "email", "profile", required_scope],
+        }
+
+    def fake_profile(access_token: str):
+        assert access_token == "clerk-google-token"
+        return {"emailAddress": "parent@gmail.com", "historyId": "12345"}
+
+    monkeypatch.setattr("app.api.gmail.fetch_clerk_google_oauth_token", fake_token)
+    monkeypatch.setattr("app.api.gmail.gmail_user_profile", fake_profile)
 
     status = client.get(f"/api/gmail/status?case_id={case_id}")
     assert status.status_code == 200
-    public_connection = status.json()["connections"][0]
-    assert public_connection["token_stored"] is False
-    assert "encrypted_refresh_token" not in public_connection
+    body = status.json()
+    assert body["configured"] is True
+    assert body["auth_provider"] == "clerk"
+    assert body["connections"][0]["status"] == "connected"
+    assert body["connections"][0]["google_email"] == "parent@gmail.com"
+    assert body["connections"][0]["token_stored"] is False
+
+
+def test_gmail_search_uses_clerk_token_only(monkeypatch):
+    monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_clerk")
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Clerk Gmail search case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    saved = client.post("/api/gmail/import-rules", json={
+        "case_id": case_id,
+        "domains": ["usd232.org"],
+        "email_addresses": [],
+        "keywords": ["incident"],
+        "include_attachments": True,
+    })
+    assert saved.status_code == 200
+    connection_id = saved.json()["connection_id"]
+
+    def fake_token(_clerk_user_id: str, required_scope: str = ""):
+        return {
+            "token": "clerk-google-token",
+            "scopes": ["openid", "email", "profile", required_scope],
+        }
+
+    def fake_profile(_access_token: str):
+        return {"emailAddress": "parent@gmail.com", "historyId": "12345"}
+
+    def fake_get_json(path, access_token, params=None):
+        assert access_token == "clerk-google-token"
+        if path == "messages":
+            return {"messages": [{"id": "msg-1"}], "resultSizeEstimate": 1}
+        if path == "messages/msg-1":
+            return {
+                "id": "msg-1",
+                "threadId": "thread-1",
+                "internalDate": "1775000000000",
+                "snippet": "Incident report attached",
+                "payload": {
+                    "headers": [
+                        {"name": "From", "value": "principal@usd232.org"},
+                        {"name": "To", "value": "parent@gmail.com"},
+                        {"name": "Subject", "value": "Incident follow-up"},
+                        {"name": "Date", "value": "Tue, 28 Apr 2026 12:00:00 -0500"},
+                    ],
+                },
+            }
+        raise AssertionError(path)
+
+    monkeypatch.setattr("app.api.gmail.fetch_clerk_google_oauth_token", fake_token)
+    monkeypatch.setattr("app.api.gmail.gmail_user_profile", fake_profile)
+    monkeypatch.setattr("app.services.gmail_importer.gmail_get_json", fake_get_json)
+
+    result = client.post("/api/gmail/search", json={
+        "case_id": case_id,
+        "connection_id": connection_id,
+        "max_results": 25,
+    })
+    assert result.status_code == 200
+    body = result.json()
+    assert body["query"] == "(from:usd232.org OR to:usd232.org) incident"
+    assert body["messages"][0]["subject"] == "Incident follow-up"
 
 
 def test_gmail_import_stores_matching_message_and_attachment(monkeypatch, tmp_path):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    monkeypatch.setenv("GMAIL_TOKEN_ENCRYPTION_KEY", "test-gmail-token-key")
     user = _user()
     _override_user(user)
 
@@ -1617,12 +1694,8 @@ def test_gmail_import_stores_matching_message_and_attachment(monkeypatch, tmp_pa
         google_email="parent@example.com",
         status="connected",
         rule=GmailImportRule(domains=["usd232.org"], include_attachments=True),
-        encrypted_refresh_token=encrypt_token("refresh-token"),
     )
     gmail_connections[connection.id] = connection
-
-    def fake_refresh(_connection):
-        return "access-token"
 
     def fake_get_json(path, _access_token, params=None):
         if path == "messages":
@@ -1657,10 +1730,9 @@ def test_gmail_import_stores_matching_message_and_attachment(monkeypatch, tmp_pa
             return {"data": "U3RhZmYgbm90ZXMgYWJvdXQgdGhlIGluY2lkZW50Lg=="}
         raise AssertionError(path)
 
-    monkeypatch.setattr("app.services.gmail_importer.refresh_access_token", fake_refresh)
     monkeypatch.setattr("app.services.gmail_importer.gmail_get_json", fake_get_json)
 
-    run = import_matching_messages(connection, cases.get(case["id"]))
+    run = import_matching_messages(connection, cases.get(case["id"]), access_token="access-token")
     assert run.status == "complete"
     assert run.imported_messages == 1
     assert run.imported_attachments == 1

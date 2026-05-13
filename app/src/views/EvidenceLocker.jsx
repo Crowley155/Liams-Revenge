@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useClerk } from '@clerk/clerk-react';
 import { useParams } from 'react-router-dom';
 import {
   Check,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import {
   deleteDocument,
+  connectGmail,
   disconnectGmail,
   fetchCaseAccess,
   fetchCaseDocuments,
@@ -26,10 +28,11 @@ import {
   saveGmailImportRule,
   searchCaseDocuments,
   searchGmailMessages,
-  startGmailOAuth,
   syncGmailMessages,
   uploadCaseDocument,
 } from '../api/client';
+import { clerkEnabled } from '../auth/AuthContext';
+import { gmailOAuthScopes } from '../auth/gmailAccess';
 import { casePermissions, caseRoleLabel } from '../utils/caseAccess';
 import {
   ActionButton,
@@ -334,6 +337,20 @@ function EvidenceRow({ doc, viewHref, onDownload, onDelete, downloading, canDele
   );
 }
 
+function ClerkGmailAccessButton({ busy, connected, disabled }) {
+  const { openUserProfile } = useClerk();
+  return (
+    <button
+      disabled={busy || disabled}
+      onClick={() => openUserProfile({ additionalOAuthScopes: gmailOAuthScopes })}
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
+    >
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Mail className="h-4 w-4" aria-hidden="true" />}
+      {connected ? 'Manage Gmail access' : 'Grant Gmail access'}
+    </button>
+  );
+}
+
 export default function EvidenceLocker() {
   const { caseId } = useParams();
   const [access, setAccess] = useState(null);
@@ -346,7 +363,7 @@ export default function EvidenceLocker() {
   const [filters, setFilters] = useState({ q: '', category: '', status: '', sort: 'uploaded_at', direction: 'desc' });
   const [activeStack, setActiveStack] = useState('all');
   const [gmailStatus, setGmailStatus] = useState(null);
-  const [gmailRule, setGmailRule] = useState({ domains: '', email_addresses: '', keywords: '', include_attachments: true, auto_sync: false });
+  const [gmailRule, setGmailRule] = useState({ domains: '', email_addresses: '', keywords: '', include_attachments: true });
   const [gmailMessages, setGmailMessages] = useState([]);
   const [gmailQuery, setGmailQuery] = useState('');
   const [selectedGmailMessages, setSelectedGmailMessages] = useState([]);
@@ -466,7 +483,6 @@ export default function EvidenceLocker() {
               email_addresses: (rule.email_addresses || []).join(', '),
               keywords: (rule.keywords || []).join(', '),
               include_attachments: rule.include_attachments ?? true,
-              auto_sync: rule.auto_sync ?? false,
             });
           }
         }
@@ -652,11 +668,10 @@ export default function EvidenceLocker() {
         email_addresses: gmailRule.email_addresses.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean),
         keywords: gmailRule.keywords.split(',').map((item) => item.trim()).filter(Boolean),
         include_attachments: gmailRule.include_attachments,
-        auto_sync: gmailRule.auto_sync,
       });
       const status = await fetchGmailStatus(caseId);
       setGmailStatus(status);
-      showNotice(run.error ? 'warning' : 'success', run.error || (status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved.' : 'Gmail rule saved. Connect Gmail before messages can import.'));
+      showNotice(run.error ? 'warning' : 'success', run.error || (status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved.' : 'Gmail rule saved. Grant Gmail access, then check the connection.'));
     } catch (err) {
       showNotice('error', err.message || 'Gmail rule failed');
     } finally {
@@ -668,10 +683,14 @@ export default function EvidenceLocker() {
     setBusy(true);
     showNotice(null, '');
     try {
-      const result = await startGmailOAuth(caseId);
-      window.location.href = result.authorization_url;
+      const result = await connectGmail(caseId);
+      const status = await fetchGmailStatus(caseId);
+      setGmailStatus(status);
+      const email = result.connection?.google_email || status.connections?.[0]?.google_email;
+      showNotice('success', email ? `Gmail connected for ${email}.` : 'Gmail connected.');
     } catch (err) {
-      showNotice('error', err.message || 'Gmail connection failed');
+      showNotice('warning', err.message || 'Grant Gmail access in your account, then check the connection.');
+    } finally {
       setBusy(false);
     }
   };
@@ -836,17 +855,18 @@ export default function EvidenceLocker() {
                   <input type="checkbox" className="h-4 w-4" checked={gmailRule.include_attachments} onChange={(event) => setGmailRule((current) => ({ ...current, include_attachments: event.target.checked }))} />
                   Import attachments
                 </label>
-                <label className="flex min-h-11 items-center gap-2">
-                  <input type="checkbox" className="h-4 w-4" checked={gmailRule.auto_sync} onChange={(event) => setGmailRule((current) => ({ ...current, auto_sync: event.target.checked }))} />
-                  Auto-sync
-                </label>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button disabled={busy} onClick={handleSaveGmailRule} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Save rule</button>
-                <button disabled={busy || !gmailStatus?.configured} onClick={handleConnectGmail} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60">
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Mail className="h-4 w-4" aria-hidden="true" />}
-                  {gmailConnected ? 'Reconnect Gmail' : 'Connect Gmail'}
-                </button>
+                {clerkEnabled ? (
+                  <ClerkGmailAccessButton busy={busy} connected={gmailConnected} disabled={!gmailStatus?.configured} />
+                ) : (
+                  <button disabled className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background opacity-60">
+                    <Mail className="h-4 w-4" aria-hidden="true" />
+                    Grant Gmail access
+                  </button>
+                )}
+                <button disabled={busy || !gmailStatus?.configured} onClick={handleConnectGmail} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Check connection</button>
                 {gmailConnected && <button disabled={busy} onClick={handleDisconnectGmail} className="min-h-11 rounded-md border border-danger/40 px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60">Disconnect</button>}
               </div>
               {gmailConnected && (
@@ -879,7 +899,7 @@ export default function EvidenceLocker() {
                   )}
                 </div>
               )}
-              <p className="text-xs leading-relaxed text-text-dim">{gmailStatus?.configured ? 'OAuth and encrypted token storage are configured on the backend.' : gmailStatus?.message || 'Backend OAuth credentials are not configured yet, so this saves the rule but does not connect Gmail.'}</p>
+              <p className="text-xs leading-relaxed text-text-dim">{gmailStatus?.configured ? 'Gmail access is granted through your USDWatch account. USDWatch does not store Google refresh tokens.' : gmailStatus?.message || 'Gmail import needs Clerk backend credentials before it can connect.'}</p>
             </div>
           </details>
         </div>

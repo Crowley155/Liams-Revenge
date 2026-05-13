@@ -733,15 +733,15 @@ export async function saveGmailImportRule(data) {
   return res.json();
 }
 
-export async function startGmailOAuth(caseId) {
-  const res = await authFetch(`${API_BASE}/api/gmail/oauth/start`, {
+export async function connectGmail(caseId) {
+  const res = await authFetch(`${API_BASE}/api/gmail/connect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ case_id: caseId }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Failed to start Gmail OAuth: ${res.status}`);
+    throw new Error(err.detail || `Failed to connect Gmail: ${res.status}`);
   }
   return res.json();
 }

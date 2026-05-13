@@ -5,14 +5,12 @@ from app.time import utc_now
 import base64
 import hashlib
 import html
-import logging
 import mimetypes
 import re
 import uuid
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
-from urllib.parse import urlencode
 
 import httpx
 
@@ -22,96 +20,14 @@ from app.services.document_classifier import infer_document_metadata
 from app.services.document_ingestion import process_document_bytes
 from app.services.document_storage import save_case_document_file
 from app.services.file_types import normalize_file_type
-from app.services.gmail_security import (
-    decrypt_token,
-    encrypt_token,
-    frontend_public_url,
-    gmail_client_id,
-    gmail_client_secret,
-    gmail_redirect_uri,
-)
-
-logger = logging.getLogger(__name__)
 
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
-GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
 MAX_GMAIL_IMPORT_BYTES = 50 * 1024 * 1024
 
 
 class GmailImportError(RuntimeError):
     pass
-
-
-def authorization_url(state: str, *, login_hint: str = "") -> str:
-    params = {
-        "client_id": gmail_client_id(),
-        "redirect_uri": gmail_redirect_uri(),
-        "response_type": "code",
-        "scope": GMAIL_READONLY_SCOPE,
-        "access_type": "offline",
-        "include_granted_scopes": "true",
-        "prompt": "consent",
-        "state": state,
-    }
-    if login_hint:
-        params["login_hint"] = login_hint
-    return f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
-
-
-def exchange_code_for_tokens(code: str) -> dict[str, Any]:
-    payload = {
-        "code": code,
-        "client_id": gmail_client_id(),
-        "client_secret": gmail_client_secret(),
-        "redirect_uri": gmail_redirect_uri(),
-        "grant_type": "authorization_code",
-    }
-    with httpx.Client(timeout=20) as client:
-        response = client.post(GOOGLE_TOKEN_URL, data=payload)
-    if response.status_code >= 400:
-        raise GmailImportError(f"Google token exchange failed: {response.status_code} {response.text[:300]}")
-    return response.json()
-
-
-def refresh_access_token(connection: GmailConnection) -> str:
-    refresh_token = decrypt_token(connection.encrypted_refresh_token)
-    if not refresh_token:
-        raise GmailImportError("Gmail is not connected")
-    payload = {
-        "client_id": gmail_client_id(),
-        "client_secret": gmail_client_secret(),
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
-    }
-    with httpx.Client(timeout=20) as client:
-        response = client.post(GOOGLE_TOKEN_URL, data=payload)
-    if response.status_code >= 400:
-        connection.status = "error"
-        connection.error = f"Google token refresh failed: {response.status_code}"
-        connection.updated_at = utc_now()
-        gmail_connections[connection.id] = connection
-        raise GmailImportError(connection.error)
-    body = response.json()
-    connection.token_last_refreshed_at = utc_now()
-    connection.updated_at = utc_now()
-    gmail_connections[connection.id] = connection
-    return body["access_token"]
-
-
-def revoke_connection_token(connection: GmailConnection) -> bool:
-    refresh_token = decrypt_token(connection.encrypted_refresh_token) if connection.encrypted_refresh_token else ""
-    if not refresh_token:
-        return False
-    try:
-        with httpx.Client(timeout=15) as client:
-            response = client.post(GOOGLE_REVOKE_URL, params={"token": refresh_token})
-        return response.status_code < 400
-    except Exception as exc:
-        logger.warning("Gmail token revoke failed for connection %s: %s", connection.id, exc)
-        return False
 
 
 def gmail_get_json(path: str, access_token: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -125,32 +41,6 @@ def gmail_get_json(path: str, access_token: str, params: dict[str, Any] | None =
 
 def gmail_user_profile(access_token: str) -> dict[str, Any]:
     return gmail_get_json("profile", access_token)
-
-
-def store_refresh_token(connection: GmailConnection, tokens: dict[str, Any], *, access_token: str) -> GmailConnection:
-    refresh_token = tokens.get("refresh_token")
-    if not refresh_token and not connection.encrypted_refresh_token:
-        raise GmailImportError("Google did not return a refresh token. Reconnect with consent to enable imports.")
-    if refresh_token:
-        connection.encrypted_refresh_token = encrypt_token(refresh_token)
-    granted_scope = tokens.get("scope", GMAIL_READONLY_SCOPE)
-    connection.scopes = [scope for scope in granted_scope.split() if scope]
-    profile = gmail_user_profile(access_token)
-    connection.google_email = profile.get("emailAddress", connection.google_email)
-    connection.last_history_id = str(profile.get("historyId") or connection.last_history_id or "")
-    connection.status = "connected"
-    connection.error = ""
-    connection.oauth_state_hash = ""
-    connection.oauth_state_expires_at = None
-    connection.connected_at = utc_now()
-    connection.disconnected_at = None
-    connection.updated_at = utc_now()
-    gmail_connections[connection.id] = connection
-    return connection
-
-
-def gmail_redirect_for(connection: GmailConnection, status: str = "connected") -> str:
-    return f"{frontend_public_url()}/cases/{connection.case_id}/locker?gmail={status}"
 
 
 def build_gmail_query(rule: GmailImportRule, *, newer_than_days: int | None = None) -> str:
@@ -176,8 +66,7 @@ def build_gmail_query(rule: GmailImportRule, *, newer_than_days: int | None = No
     return " ".join(chunks).strip()
 
 
-def list_matching_messages(connection: GmailConnection, *, max_results: int = 25, query: str = "") -> dict[str, Any]:
-    access_token = refresh_access_token(connection)
+def list_matching_messages(connection: GmailConnection, *, access_token: str, max_results: int = 25, query: str = "") -> dict[str, Any]:
     q = query.strip() or build_gmail_query(connection.rule)
     if not q:
         raise GmailImportError("Add at least one domain, email address, or keyword before searching Gmail.")
@@ -202,11 +91,11 @@ def import_matching_messages(
     connection: GmailConnection,
     case: CaseRecord,
     *,
+    access_token: str,
     message_ids: list[str] | None = None,
     max_results: int = 25,
     query: str = "",
 ) -> GmailImportRun:
-    access_token = refresh_access_token(connection)
     q = query.strip() or build_gmail_query(connection.rule, newer_than_days=30 if connection.last_sync_at else None)
     run = GmailImportRun(
         id=str(uuid.uuid4())[:8],

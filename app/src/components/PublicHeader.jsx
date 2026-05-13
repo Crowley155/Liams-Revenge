@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ClerkProvider, OrganizationSwitcher, UserButton, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { Menu, X } from 'lucide-react';
 import { clerkAppearance } from '../auth/clerkAppearance';
+import { gmailOAuthScopes } from '../auth/gmailAccess';
 import { isNavItemActive, navItemsForAuth } from '../navigation';
 
 const DEV_TOKEN_KEY = 'usdwatch_dev_token';
@@ -149,7 +150,11 @@ function ClerkPublicHeader({ initialPath }) {
         appearance={clerkAppearance}
         hideSlug
       />
-      <UserButton afterSignOutUrl="/" appearance={clerkAppearance} />
+      <UserButton
+        afterSignOutUrl="/"
+        appearance={clerkAppearance}
+        userProfileProps={{ additionalOAuthScopes: gmailOAuthScopes }}
+      />
     </div>
   ) : null;
 

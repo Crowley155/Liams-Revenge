@@ -1004,7 +1004,6 @@ class GmailImportRule(BaseModel):
     email_addresses: list[str] = Field(default_factory=list)
     keywords: list[str] = Field(default_factory=list)
     include_attachments: bool = True
-    auto_sync: bool = False
 
 
 class GmailConnection(BaseModel):
@@ -1012,16 +1011,12 @@ class GmailConnection(BaseModel):
     workspace_id: str
     case_id: str = ""
     google_email: str = ""
-    status: str = Field(default="setup_required", description="setup_required | connected | disconnected | error")
+    status: str = Field(default="needs_consent", description="setup_required | needs_consent | connected | disconnected | error")
     scopes: list[str] = Field(default_factory=lambda: ["https://www.googleapis.com/auth/gmail.readonly"])
     rule: GmailImportRule = Field(default_factory=GmailImportRule)
-    encrypted_refresh_token: str = ""
-    oauth_state_hash: str = ""
-    oauth_state_expires_at: Optional[datetime] = None
+    clerk_external_account_id: str = ""
     last_history_id: str = ""
-    watch_expires_at: Optional[datetime] = None
     last_sync_at: Optional[datetime] = None
-    token_last_refreshed_at: Optional[datetime] = None
     connected_at: Optional[datetime] = None
     disconnected_at: Optional[datetime] = None
     error: str = ""
@@ -1034,7 +1029,7 @@ class GmailImportRun(BaseModel):
     workspace_id: str
     case_id: str
     connection_id: str = ""
-    status: str = Field(default="queued", description="queued | running | complete | failed | needs_oauth")
+    status: str = Field(default="queued", description="queued | running | complete | failed | needs_consent")
     rule: GmailImportRule = Field(default_factory=GmailImportRule)
     matched_messages: int = 0
     imported_messages: int = 0

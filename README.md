@@ -65,6 +65,7 @@ PUBLIC_API_URL=https://your-backend.example.com npm run build
 | --- | --- | --- |
 | `CLERK_ISSUER` | Backend | Clerk issuer URL used to derive JWKS |
 | `CLERK_JWKS_URL` | Backend | Optional JWKS override |
+| `CLERK_SECRET_KEY` | Backend | Clerk Backend API key used to retrieve user-granted Google OAuth access tokens for Gmail import |
 | `USDWATCH_ADMIN_EMAILS` | Backend | Comma-separated admin emails for demo/admin case access |
 | `ALLOW_DEV_AUTH` | Backend | Enables `Authorization: Bearer dev:user@example.com` locally |
 | `DEEPINFRA_API_KEY` | Backend | Enables Agno + DeepInfra model calls |
@@ -73,11 +74,7 @@ PUBLIC_API_URL=https://your-backend.example.com npm run build
 | `DEEPINFRA_PREMIUM_MODEL` | Backend | Defaults to `nvidia/NVIDIA-Nemotron-3-Super-120B-A12B` |
 | `DEEPINFRA_FALLBACK_MODEL` | Backend | Defaults to `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
 | `ENABLE_AGENT_OS` | Backend | Disabled by default; protected admin status endpoint only |
-| `GOOGLE_OAUTH_CLIENT_ID` | Backend | Gmail import OAuth client ID |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | Backend | Gmail import OAuth client secret |
-| `GOOGLE_OAUTH_REDIRECT_URI` | Backend | Must match Google OAuth callback, e.g. `https://<api-host>/api/gmail/oauth/callback` |
-| `GMAIL_TOKEN_ENCRYPTION_KEY` | Backend | Required to encrypt Gmail refresh tokens at rest |
-| `FRONTEND_PUBLIC_URL` | Backend | Used to redirect from Gmail OAuth back to the Evidence Locker |
+| `FRONTEND_PUBLIC_URL` | Backend | Public app URL used in backend-generated links |
 | `SERPAPI_KEY` | Backend | Optional search pipeline input |
 | `QDRANT_URL` / `QDRANT_API_KEY` | Backend | Optional vector storage |
 | `REDIS_URL` | Backend | Optional cache |

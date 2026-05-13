@@ -3,6 +3,7 @@ import { OrganizationSwitcher, UserButton } from '@clerk/clerk-react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clerkEnabled, useAuth } from '../auth/AuthContext';
 import { clerkAppearance } from '../auth/clerkAppearance';
+import { gmailOAuthScopes } from '../auth/gmailAccess';
 import { appRouteForNavItem, isNavItemActive, navItemsForAuth } from '../navigation';
 
 const FloatingCaseAdvocate = lazy(() => import('./FloatingCaseAdvocate'));
@@ -76,7 +77,11 @@ export default function Layout() {
                     appearance={clerkAppearance}
                     hideSlug
                   />
-                  <UserButton afterSignOutUrl="/" appearance={clerkAppearance} />
+                  <UserButton
+                    afterSignOutUrl="/"
+                    appearance={clerkAppearance}
+                    userProfileProps={{ additionalOAuthScopes: gmailOAuthScopes }}
+                  />
                 </div>
               ) : isAuthenticated ? (
                 <button
