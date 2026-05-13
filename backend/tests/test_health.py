@@ -225,15 +225,16 @@ def test_deepinfra_embedding_uses_openai_compatible_route(monkeypatch):
     calls = {}
 
     class FakeSettings:
-        embedding_model = "deepinfra/nvidia/llama-3.2-nv-embedqa-1b-v2"
+        embedding_model = "deepinfra/Qwen/Qwen3-Embedding-8B"
         deepinfra_api_key = "deepinfra-key"
 
     class FakeEmbeddings:
-        def create(self, *, model, input):
+        def create(self, *, model, input, dimensions):
             calls["model"] = model
             calls["input"] = input
+            calls["dimensions"] = dimensions
             return types.SimpleNamespace(
-                data=[types.SimpleNamespace(embedding=[0.1, 0.2, 0.3])]
+                data=[types.SimpleNamespace(embedding=[0.1] * dimensions)]
             )
 
     class FakeOpenAI:
@@ -245,11 +246,13 @@ def test_deepinfra_embedding_uses_openai_compatible_route(monkeypatch):
     monkeypatch.setattr(qdrant_client, "settings", FakeSettings)
     monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=FakeOpenAI))
 
-    assert qdrant_client._embed_text("semantic evidence query") == [0.1, 0.2, 0.3]
+    embedding = qdrant_client._embed_text("semantic evidence query")
+    assert embedding == [0.1] * qdrant_client.VECTOR_SIZE
     assert calls["api_key"] == "deepinfra-key"
     assert calls["base_url"] == "https://api.deepinfra.com/v1/openai"
-    assert calls["model"] == "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    assert calls["model"] == "Qwen/Qwen3-Embedding-8B"
     assert calls["input"] == ["semantic evidence query"]
+    assert calls["dimensions"] == qdrant_client.VECTOR_SIZE
 
 
 def test_job_not_found_for_authenticated_user():

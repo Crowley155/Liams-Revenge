@@ -75,6 +75,20 @@ def _hash_text(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
+def _validated_embedding(embedding: list[float] | None) -> list[float] | None:
+    if not embedding:
+        return None
+    if len(embedding) != VECTOR_SIZE:
+        logger.warning(
+            "Embedding dimension mismatch: got %s dimensions, expected %s for Qdrant collection '%s'",
+            len(embedding),
+            VECTOR_SIZE,
+            COLLECTION_NAME,
+        )
+        return None
+    return embedding
+
+
 def _embed_text(text: str) -> list[float] | None:
     """Generate an embedding with the configured provider."""
     model = settings.embedding_model
@@ -92,8 +106,9 @@ def _embed_text(text: str) -> list[float] | None:
             response = client.embeddings.create(
                 model=model.removeprefix("deepinfra/"),
                 input=[text[:8000]],
+                dimensions=VECTOR_SIZE,
             )
-            return list(response.data[0].embedding)
+            return _validated_embedding(list(response.data[0].embedding))
         except Exception as e:
             logger.warning("DeepInfra embedding generation failed: %s", e)
             return None
@@ -104,7 +119,7 @@ def _embed_text(text: str) -> list[float] | None:
             model=model,
             input=[text[:8000]],
         )
-        return response.data[0]["embedding"]
+        return _validated_embedding(response.data[0]["embedding"])
     except Exception as e:
         logger.warning("Embedding generation failed: %s", e)
         return None

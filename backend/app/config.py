@@ -37,7 +37,7 @@ class Settings:
         )
     )
     embedding_model: str = field(
-        default_factory=lambda: _env("EMBEDDING_MODEL", "deepinfra/nvidia/llama-3.2-nv-embedqa-1b-v2")
+        default_factory=lambda: _env("EMBEDDING_MODEL", "deepinfra/Qwen/Qwen3-Embedding-8B")
     )
 
     serpapi_key: str | None = field(
