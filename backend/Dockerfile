@@ -4,16 +4,9 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 
-COPY pyproject.toml .
-RUN uv pip install --system --no-build-isolation \
-    fastapi uvicorn[standard] dspy httpx beautifulsoup4 \
-    python-dotenv qdrant-client "langfuse>=3.0" \
-    openinference-instrumentation-dspy redis pdfplumber pypdf \
-    python-docx python-multipart "pyjwt[crypto]" agno[os] litellm openai \
-    pytest pytest-asyncio
-
 COPY . .
+RUN uv pip install --system --no-build-isolation .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
