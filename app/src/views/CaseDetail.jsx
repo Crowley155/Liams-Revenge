@@ -17,7 +17,7 @@ import {
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
 import { casePermissions } from '../utils/caseAccess';
-import { caseGapMetric, recordsRequestMetric } from '../utils/caseMetrics';
+import { caseGapMetric, caseHasDraftSource, recordsRequestMetric } from '../utils/caseMetrics';
 import { CASE_PLAN_HELP } from '../utils/casePlanHelp';
 import { getCasePolicyReforms, policyReformCount } from '../utils/casePolicyReforms';
 import {
@@ -164,6 +164,8 @@ export default function CaseDetail() {
   const recordsMetric = recordsRequestMetric({ evaluation, recordsDrafts });
   const savedDesiredOutcome = outcomeTextFromCase(caseRecord);
   const hasDesiredOutcome = Boolean(savedDesiredOutcome.trim());
+  const canDraftFamilyNarrative = caseHasDraftSource(caseRecord, documents, 'family_narrative');
+  const canDraftDesiredOutcome = caseHasDraftSource(caseRecord, documents, 'desired_outcome');
   const policyReformSections = useMemo(() => getCasePolicyReforms(caseRecord), [caseRecord]);
   const totalPolicyReforms = policyReformCount(policyReformSections);
   const hasPolicyReforms = policyReformSections.length > 0;
@@ -232,6 +234,13 @@ export default function CaseDetail() {
 
   const handleDraftAssist = async (target) => {
     if (!canEditCase) return;
+    const canDraft = target === 'family_narrative' ? canDraftFamilyNarrative : canDraftDesiredOutcome;
+    if (!canDraft) {
+      setError(target === 'family_narrative'
+        ? 'Add and save a story or evidence before using Draft.'
+        : 'Add and save a story, desired outcome, or evidence before using Draft.');
+      return;
+    }
     const setDrafting = target === 'family_narrative' ? setDraftingNarrative : setDraftingOutcome;
     setDrafting(true);
     setError('');
@@ -335,10 +344,10 @@ export default function CaseDetail() {
         action={canEditCase ? (
           <div className="flex flex-wrap gap-2">
             <ActionButton
-              disabled={draftingNarrative}
+              disabled={draftingNarrative || !canDraftFamilyNarrative}
               onClick={() => handleDraftAssist('family_narrative')}
               variant="secondary"
-              aria-label="Draft family narrative from the case file"
+              aria-label={canDraftFamilyNarrative ? 'Draft family narrative from the case file' : 'Add and save a story or evidence before using Draft'}
             >
               {draftingNarrative ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wand2 className="h-4 w-4" aria-hidden="true" />}
               Draft
@@ -368,10 +377,10 @@ export default function CaseDetail() {
         action={canEditCase ? (
           <div className="flex flex-wrap gap-2">
             <ActionButton
-              disabled={draftingOutcome}
+              disabled={draftingOutcome || !canDraftDesiredOutcome}
               onClick={() => handleDraftAssist('desired_outcome')}
               variant="secondary"
-              aria-label="Draft desired outcome from the case file"
+              aria-label={canDraftDesiredOutcome ? 'Draft desired outcome from the case file' : 'Add and save a story, desired outcome, or evidence before using Draft'}
             >
               {draftingOutcome ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wand2 className="h-4 w-4" aria-hidden="true" />}
               Draft

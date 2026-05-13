@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { caseGapMetric, recordsRequestMetric } from './caseMetrics.js';
+import { caseGapMetric, caseHasDraftSource, recordsRequestMetric } from './caseMetrics.js';
 
 const starterChecklist = [
   { item: 'Story', status: 'missing' },
@@ -52,4 +52,20 @@ test('records request metric counts drafts after a Case Read exists', () => {
 
   assert.equal(metric.value, 2);
   assert.match(metric.detail, /case read/i);
+});
+
+test('empty cases are not draftable from default issue type alone', () => {
+  assert.equal(caseHasDraftSource({ intake: { issue_type: 'special_education' } }, []), false);
+});
+
+test('cases become draftable after saved source material exists', () => {
+  assert.equal(caseHasDraftSource({ intake: { narrative: 'The school has not responded.' } }, []), true);
+  assert.equal(caseHasDraftSource({ intake: {} }, [{ id: 'doc-1' }]), true);
+});
+
+test('family narrative drafts require story or evidence, not desired outcome alone', () => {
+  const caseRecord = { intake: { desired_outcome: 'A safer pickup plan.' } };
+
+  assert.equal(caseHasDraftSource(caseRecord, [], 'family_narrative'), false);
+  assert.equal(caseHasDraftSource(caseRecord, [], 'desired_outcome'), true);
 });

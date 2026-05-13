@@ -14,10 +14,37 @@ DRAFT_MODEL = settings.deepinfra_reasoning_model
 DraftTarget = Literal["family_narrative", "desired_outcome"]
 
 
+class CaseDraftSourceMissing(ValueError):
+    """Raised when draft assist would have to invent source material."""
+
+
 def _clean(value: str, *, limit: int = 2400) -> str:
     collapsed = re.sub(r"[ \t]+", " ", value or "").strip()
     collapsed = re.sub(r"\n{3,}", "\n\n", collapsed)
     return collapsed[:limit].strip()
+
+
+def _filled(value: str) -> bool:
+    return bool(_clean(value, limit=400))
+
+
+def _draft_source_message(target: DraftTarget) -> str:
+    if target == "family_narrative":
+        return "Add a story or evidence before using Draft."
+    return "Add a story, desired outcome, or evidence before using Draft."
+
+
+def case_has_draft_source(case: CaseRecord, documents: list[CaseDocument], target: DraftTarget | None = None) -> bool:
+    intake = case.intake
+    has_documents = bool(documents)
+    has_narrative = _filled(case.family_narrative) or _filled(intake.narrative)
+    has_desired_outcome = _filled(intake.desired_outcome) or any(_filled(item) for item in intake.desired_outcomes)
+
+    if target == "family_narrative":
+        return has_documents or has_narrative
+    if target == "desired_outcome":
+        return has_documents or has_narrative or has_desired_outcome
+    return has_documents or has_narrative or has_desired_outcome
 
 
 def _doc_context(documents: list[CaseDocument]) -> str:
@@ -124,6 +151,9 @@ def _run_model(case: CaseRecord, documents: list[CaseDocument], target: DraftTar
 
 
 def draft_case_text(case: CaseRecord, documents: list[CaseDocument], target: DraftTarget) -> dict:
+    if not case_has_draft_source(case, documents, target):
+        raise CaseDraftSourceMissing(_draft_source_message(target))
+
     try:
         draft = _run_model(case, documents, target)
         if draft:

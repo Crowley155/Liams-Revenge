@@ -15,7 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from app.ai_runtime.case_drafting import draft_case_text
+from app.ai_runtime.case_drafting import CaseDraftSourceMissing, draft_case_text
 from app.ai_runtime.evaluation import run_case_evaluation
 from app.ai_runtime.intake import analyze_case_chat_session, analyze_intake_session, classify_case_chat_intent
 from app.api._store import (
@@ -987,7 +987,10 @@ async def case_draft_assist(
     user: dict = Depends(get_current_user),
 ):
     case = require_case_access(user, cases.get(case_id), "edit")
-    result = draft_case_text(case, _case_docs(case), body.target)  # type: ignore[arg-type]
+    try:
+        result = draft_case_text(case, _case_docs(case), body.target)  # type: ignore[arg-type]
+    except CaseDraftSourceMissing as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return CaseDraftAssistResponse(**result)
 
 

@@ -2,15 +2,21 @@ function filled(value) {
   return Boolean(String(value || '').trim());
 }
 
-export function hasCaseSubstance(caseRecord, documents = [], evaluation = null) {
+export function caseHasDraftSource(caseRecord, documents = [], target = 'any') {
   const intake = caseRecord?.intake || {};
+  const hasDocuments = documents.length > 0;
+  const hasNarrative = filled(caseRecord?.family_narrative) || filled(intake.narrative);
+  const hasDesiredOutcome = filled(intake.desired_outcome) || (intake.desired_outcomes || []).some(filled);
+
+  if (target === 'family_narrative') return hasDocuments || hasNarrative;
+  if (target === 'desired_outcome') return hasDocuments || hasNarrative || hasDesiredOutcome;
+  return hasDocuments || hasNarrative || hasDesiredOutcome;
+}
+
+export function hasCaseSubstance(caseRecord, documents = [], evaluation = null) {
   return Boolean(
     evaluation ||
-    documents.length ||
-    filled(caseRecord?.family_narrative) ||
-    filled(intake.narrative) ||
-    filled(intake.desired_outcome) ||
-    (intake.desired_outcomes || []).some(filled),
+    caseHasDraftSource(caseRecord, documents),
   );
 }
 

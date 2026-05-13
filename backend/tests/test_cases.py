@@ -501,6 +501,21 @@ def test_case_draft_assist_generates_text_without_saving(monkeypatch):
     assert fetched.json()["intake"]["desired_outcomes"] == []
 
 
+def test_case_draft_assist_rejects_empty_case_without_source_material(monkeypatch):
+    monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
+    user = _user(plan="admin")
+    _override_user(user)
+
+    created = client.post("/api/cases", json={"title": "Empty draft assist case"})
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    for target in ("family_narrative", "desired_outcome"):
+        assisted = client.post(f"/api/cases/{case_id}/draft-assist", json={"target": target})
+        assert assisted.status_code == 400
+        assert "Add a story" in assisted.json()["detail"]
+
+
 def test_guided_intake_fields_and_support_consent_are_persisted():
     user = _user()
     _override_user(user)
