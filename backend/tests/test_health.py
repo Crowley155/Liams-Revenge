@@ -219,6 +219,39 @@ def test_metadata_backfill_assigns_categories_from_legacy_evidence_types(monkeyp
     assert "incident_safety" in case_documents[incident.id].tags
 
 
+def test_deepinfra_embedding_uses_openai_compatible_route(monkeypatch):
+    from app.services import qdrant_client
+
+    calls = {}
+
+    class FakeSettings:
+        embedding_model = "deepinfra/nvidia/llama-3.2-nv-embedqa-1b-v2"
+        deepinfra_api_key = "deepinfra-key"
+
+    class FakeEmbeddings:
+        def create(self, *, model, input):
+            calls["model"] = model
+            calls["input"] = input
+            return types.SimpleNamespace(
+                data=[types.SimpleNamespace(embedding=[0.1, 0.2, 0.3])]
+            )
+
+    class FakeOpenAI:
+        def __init__(self, *, api_key, base_url):
+            calls["api_key"] = api_key
+            calls["base_url"] = base_url
+            self.embeddings = FakeEmbeddings()
+
+    monkeypatch.setattr(qdrant_client, "settings", FakeSettings)
+    monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=FakeOpenAI))
+
+    assert qdrant_client._embed_text("semantic evidence query") == [0.1, 0.2, 0.3]
+    assert calls["api_key"] == "deepinfra-key"
+    assert calls["base_url"] == "https://api.deepinfra.com/v1/openai"
+    assert calls["model"] == "nvidia/llama-3.2-nv-embedqa-1b-v2"
+    assert calls["input"] == ["semantic evidence query"]
+
+
 def test_job_not_found_for_authenticated_user():
     _override_user(_user())
     resp = client.get("/api/research/nonexistent")

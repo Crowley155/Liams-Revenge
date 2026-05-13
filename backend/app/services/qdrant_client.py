@@ -76,11 +76,32 @@ def _hash_text(text: str) -> str:
 
 
 def _embed_text(text: str) -> list[float] | None:
-    """Generate embedding using the configured model via LiteLLM."""
+    """Generate an embedding with the configured provider."""
+    model = settings.embedding_model
+    if model.startswith("deepinfra/"):
+        if not settings.deepinfra_api_key:
+            logger.warning("Embedding generation skipped: DEEPINFRA_API_KEY is not configured")
+            return None
+        try:
+            from openai import OpenAI
+
+            client = OpenAI(
+                api_key=settings.deepinfra_api_key,
+                base_url="https://api.deepinfra.com/v1/openai",
+            )
+            response = client.embeddings.create(
+                model=model.removeprefix("deepinfra/"),
+                input=[text[:8000]],
+            )
+            return list(response.data[0].embedding)
+        except Exception as e:
+            logger.warning("DeepInfra embedding generation failed: %s", e)
+            return None
+
     try:
         import litellm
         response = litellm.embedding(
-            model=settings.embedding_model,
+            model=model,
             input=[text[:8000]],
         )
         return response.data[0]["embedding"]
