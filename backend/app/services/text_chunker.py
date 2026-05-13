@@ -55,7 +55,8 @@ def chunk_text(
 
         if end >= len(text):
             break
-        start = end - overlap
+        next_start = end - overlap
+        start = next_start if next_start > start else end
 
     for c in chunks:
         c["total_chunks"] = len(chunks)
