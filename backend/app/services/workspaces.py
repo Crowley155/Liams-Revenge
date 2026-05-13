@@ -113,11 +113,14 @@ def _claim_legacy_case_for_owner(user: AppUser, workspace: Workspace) -> None:
         usage_events,
     ):
         for item_id, item in list(store.items()):
-            if getattr(item, "case_id", "") == LEGACY_CASE_ID and getattr(item, "workspace_id", "") == LEGACY_WORKSPACE_ID:
-                item.workspace_id = workspace.id
-                if hasattr(item, "updated_at"):
-                    item.updated_at = utc_now()
-                store[item_id] = item
+            if getattr(item, "case_id", "") != LEGACY_CASE_ID:
+                continue
+            if getattr(item, "workspace_id", "") == workspace.id:
+                continue
+            item.workspace_id = workspace.id
+            if hasattr(item, "updated_at"):
+                item.updated_at = utc_now()
+            store[item_id] = item
 
 
 def _workspace_for_org(clerk_org_id: str, org_name: str = "") -> Workspace:
