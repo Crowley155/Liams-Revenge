@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Copy, Download, FileText, Loader2, MailPlus, Printer, ShieldCheck, Trash2, UserRound, Users } from 'lucide-react';
+import { Download, FileText, Loader2, MailPlus, Printer, ShieldCheck, Trash2, Users } from 'lucide-react';
 import {
   fetchCase,
   fetchCaseAccess,
@@ -12,8 +12,7 @@ import {
   fetchLatestEvaluation,
   fetchRecordsRequestDrafts,
   fetchSelfAdvocacyPacket,
-  inviteCaseCollaborator,
-  revokeCaseInvitation,
+  grantCaseCollaborator,
   revokeCaseShare,
   startCaseEvaluation,
   updateCase,
@@ -51,15 +50,6 @@ const SHARE_ROLE_OPTIONS = [
   { value: 'editor', label: 'Editor' },
 ];
 
-function formatShortDate(value) {
-  if (!value) return '';
-  try {
-    return new Date(value).toLocaleDateString();
-  } catch {
-    return '';
-  }
-}
-
 function AccessSummaryPanel({ access }) {
   const accessLabel = sharedAccessLabel(access);
   if (!accessLabel) return null;
@@ -80,38 +70,33 @@ function AccessSummaryPanel({ access }) {
 
 function CaseSharingPanel({
   shares,
-  inviteEmail,
-  inviteRole,
+  collaboratorEmail,
+  collaboratorRole,
   sharingBusy,
   sharingNotice,
-  copiedInviteUrl,
-  onInviteEmailChange,
-  onInviteRoleChange,
-  onInvite,
-  onCopyInvite,
+  onCollaboratorEmailChange,
+  onCollaboratorRoleChange,
+  onGrant,
   onUpdateRole,
   onRevokeGrant,
-  onRevokeInvite,
 }) {
   const collaborators = shares?.collaborators || [];
-  const invitations = shares?.invitations || [];
-  const pendingInvitations = invitations.filter((invite) => invite.status === 'pending');
 
   return (
     <Panel title="Sharing" eyebrow="Case-level access">
       <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
         <div className="min-w-0">
           <p className="text-sm leading-relaxed text-text-dim">
-            Invite a spouse, attorney, or trusted helper to this case only. They will need a USDWatch account with the same email address.
+            Add a spouse, attorney, or trusted helper to this case only. Once they have a USDWatch account with this email address, the case appears automatically.
           </p>
-          <form onSubmit={onInvite} className="mt-4 grid gap-3">
+          <form onSubmit={onGrant} className="mt-4 grid gap-3">
             <label className="block space-y-2">
               <span className="text-xs font-semibold text-text-dim">Email address</span>
               <input
                 type="email"
                 required
-                value={inviteEmail}
-                onChange={(event) => onInviteEmailChange(event.target.value)}
+                value={collaboratorEmail}
+                onChange={(event) => onCollaboratorEmailChange(event.target.value)}
                 className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45"
                 placeholder="helper@example.com"
               />
@@ -119,17 +104,17 @@ function CaseSharingPanel({
             <label className="block space-y-2">
               <span className="text-xs font-semibold text-text-dim">Access level</span>
               <select
-                value={inviteRole}
-                onChange={(event) => onInviteRoleChange(event.target.value)}
+                value={collaboratorRole}
+                onChange={(event) => onCollaboratorRoleChange(event.target.value)}
                 className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-semibold text-text outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45"
               >
                 {SHARE_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
-              <span className="block text-xs leading-relaxed text-text-dim">{caseRoleHelp(inviteRole)}</span>
+              <span className="block text-xs leading-relaxed text-text-dim">{caseRoleHelp(collaboratorRole)}</span>
             </label>
             <ActionButton type="submit" disabled={sharingBusy} variant="primary" className="w-full">
               {sharingBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <MailPlus className="h-4 w-4" aria-hidden="true" />}
-              Create invite link
+              Add collaborator
             </ActionButton>
           </form>
           {sharingNotice && (
@@ -137,31 +122,21 @@ function CaseSharingPanel({
               {sharingNotice.message}
             </p>
           )}
-          {copiedInviteUrl && (
-            <div className="mt-3 rounded-md border border-info/30 bg-info/8 p-3">
-              <p className="text-xs font-semibold text-info">Invite link ready</p>
-              <p className="wrap-anywhere mt-1 text-xs leading-relaxed text-text-dim">{copiedInviteUrl}</p>
-              <ActionButton onClick={() => onCopyInvite(copiedInviteUrl)} variant="download" className="mt-3">
-                <Copy className="h-4 w-4" aria-hidden="true" />
-                Copy link
-              </ActionButton>
-            </div>
-          )}
         </div>
 
-        <div className="min-w-0 space-y-4">
+        <div className="min-w-0">
           <section className="min-w-0 rounded-md border border-border bg-background/60 p-3">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-accent" aria-hidden="true" />
               <h4 className="text-sm font-bold text-text">Current collaborators</h4>
             </div>
             <div className="mt-3 space-y-2">
-              {!collaborators.length && <p className="text-sm text-text-dim">No one else has accepted access yet.</p>}
+              {!collaborators.length && <p className="text-sm text-text-dim">No one else has access to this case yet.</p>}
               {collaborators.map((grant) => (
                 <article key={grant.id} className="flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="wrap-anywhere text-sm font-semibold text-text">{grant.email || 'Collaborator'}</p>
-                    <p className="mt-1 text-xs text-text-dim">Accepted {formatShortDate(grant.accepted_at) || 'recently'}</p>
+                    <p className="mt-1 text-xs text-text-dim">{caseRoleLabel(grant.role)}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <select
@@ -178,31 +153,6 @@ function CaseSharingPanel({
                       Revoke
                     </ActionButton>
                   </div>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="min-w-0 rounded-md border border-border bg-background/60 p-3">
-            <div className="flex items-center gap-2">
-              <UserRound className="h-4 w-4 text-accent" aria-hidden="true" />
-              <h4 className="text-sm font-bold text-text">Pending invites</h4>
-            </div>
-            <div className="mt-3 space-y-2">
-              {!pendingInvitations.length && <p className="text-sm text-text-dim">No pending invite links.</p>}
-              {pendingInvitations.map((invite) => (
-                <article key={invite.id} className="flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="wrap-anywhere text-sm font-semibold text-text">{invite.email}</p>
-                      <StatusPill status={invite.role} />
-                    </div>
-                    <p className="mt-1 text-xs text-text-dim">Expires {formatShortDate(invite.expires_at) || 'soon'}</p>
-                  </div>
-                  <ActionButton disabled={sharingBusy} onClick={() => onRevokeInvite(invite)} variant="danger">
-                    <Trash2 className="h-4 w-4" aria-hidden="true" />
-                    Revoke invite
-                  </ActionButton>
                 </article>
               ))}
             </div>
@@ -232,10 +182,9 @@ export default function CaseDetail() {
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [savingSupport, setSavingSupport] = useState(false);
   const [sharingBusy, setSharingBusy] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState('viewer');
+  const [collaboratorEmail, setCollaboratorEmail] = useState('');
+  const [collaboratorRole, setCollaboratorRole] = useState('viewer');
   const [sharingNotice, setSharingNotice] = useState(null);
-  const [copiedInviteUrl, setCopiedInviteUrl] = useState('');
 
   const loadCase = useCallback(async () => {
     setError('');
@@ -456,31 +405,20 @@ export default function CaseDetail() {
     }
   };
 
-  const handleInvite = async (event) => {
+  const handleGrantCollaborator = async (event) => {
     event.preventDefault();
     if (!canManageSharing) return;
     setSharingBusy(true);
     setSharingNotice(null);
-    setCopiedInviteUrl('');
     try {
-      const result = await inviteCaseCollaborator(caseId, { email: inviteEmail, role: inviteRole });
-      setInviteEmail('');
-      setCopiedInviteUrl(result.accept_url || '');
-      setSharingNotice({ type: 'success', message: 'Invite link created. Share it with the person you invited.' });
+      await grantCaseCollaborator(caseId, { email: collaboratorEmail, role: collaboratorRole });
+      setCollaboratorEmail('');
+      setSharingNotice({ type: 'success', message: 'Collaborator access added.' });
       await reloadShares();
     } catch (err) {
-      setSharingNotice({ type: 'error', message: err.message || 'Invite failed.' });
+      setSharingNotice({ type: 'error', message: err.message || 'Could not add collaborator.' });
     } finally {
       setSharingBusy(false);
-    }
-  };
-
-  const handleCopyInvite = async (url) => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setSharingNotice({ type: 'success', message: 'Invite link copied.' });
-    } catch {
-      setSharingNotice({ type: 'error', message: 'Could not copy automatically. Select the link and copy it manually.' });
     }
   };
 
@@ -509,21 +447,6 @@ export default function CaseDetail() {
       await reloadShares();
     } catch (err) {
       setSharingNotice({ type: 'error', message: err.message || 'Revoke failed.' });
-    } finally {
-      setSharingBusy(false);
-    }
-  };
-
-  const handleRevokeInvite = async (invite) => {
-    if (!canManageSharing) return;
-    setSharingBusy(true);
-    setSharingNotice(null);
-    try {
-      await revokeCaseInvitation(caseId, invite.id);
-      setSharingNotice({ type: 'success', message: `Invite for ${invite.email} was revoked.` });
-      await reloadShares();
-    } catch (err) {
-      setSharingNotice({ type: 'error', message: err.message || 'Invite revoke failed.' });
     } finally {
       setSharingBusy(false);
     }
@@ -696,18 +619,15 @@ export default function CaseDetail() {
       {canManageSharing && (
         <CaseSharingPanel
           shares={shares}
-          inviteEmail={inviteEmail}
-          inviteRole={inviteRole}
+          collaboratorEmail={collaboratorEmail}
+          collaboratorRole={collaboratorRole}
           sharingBusy={sharingBusy}
           sharingNotice={sharingNotice}
-          copiedInviteUrl={copiedInviteUrl}
-          onInviteEmailChange={setInviteEmail}
-          onInviteRoleChange={setInviteRole}
-          onInvite={handleInvite}
-          onCopyInvite={handleCopyInvite}
+          onCollaboratorEmailChange={setCollaboratorEmail}
+          onCollaboratorRoleChange={setCollaboratorRole}
+          onGrant={handleGrantCollaborator}
           onUpdateRole={handleUpdateShareRole}
           onRevokeGrant={handleRevokeGrant}
-          onRevokeInvite={handleRevokeInvite}
         />
       )}
 

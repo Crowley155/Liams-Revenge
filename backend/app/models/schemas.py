@@ -49,13 +49,6 @@ class CaseShareStatus(str, Enum):
     REVOKED = "revoked"
 
 
-class CaseInvitationStatus(str, Enum):
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    REVOKED = "revoked"
-    EXPIRED = "expired"
-
-
 class CaseStatus(str, Enum):
     DRAFT = "draft"
     ACTIVE = "active"
@@ -414,34 +407,15 @@ class CaseShareGrant(BaseModel):
     email: str = ""
     role: CaseShareRole = CaseShareRole.VIEWER
     status: CaseShareStatus = CaseShareStatus.ACTIVE
-    invited_by_user_id: str = ""
-    invited_by_email: str = ""
+    granted_by_user_id: str = ""
+    granted_by_email: str = ""
     accepted_at: datetime = Field(default_factory=utc_now)
     revoked_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
 
 
-class CaseInvitation(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
-    workspace_id: str
-    case_id: str
-    email: str
-    role: CaseShareRole = CaseShareRole.VIEWER
-    status: CaseInvitationStatus = CaseInvitationStatus.PENDING
-    token_hash: str = ""
-    invited_by_user_id: str = ""
-    invited_by_email: str = ""
-    accepted_by_user_id: str = ""
-    grant_id: str = ""
-    expires_at: datetime
-    accepted_at: Optional[datetime] = None
-    revoked_at: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=utc_now)
-    updated_at: datetime = Field(default_factory=utc_now)
-
-
-class CaseInviteCreate(BaseModel):
+class CaseShareCreate(BaseModel):
     email: str
     role: CaseShareRole = CaseShareRole.VIEWER
 

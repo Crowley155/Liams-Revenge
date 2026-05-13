@@ -20,7 +20,6 @@ from app.api._store import (
     case_documents,
     case_evaluations,
     case_intake_sessions,
-    case_invitations,
     case_share_grants,
     cases,
     gmail_connections,
@@ -35,7 +34,6 @@ from app.models import (
     CaseCreate,
     CaseDocument,
     CaseEvaluation,
-    CaseInviteCreate,
     CaseIntake,
     CaseIntakeFacts,
     CaseIntakeMessage,
@@ -43,6 +41,7 @@ from app.models import (
     CaseIntakeSession,
     CaseRecord,
     CaseShareRoleUpdate,
+    CaseShareCreate,
     CaseShareStatus,
     CaseStatus,
     CaseUpdate,
@@ -55,14 +54,11 @@ from app.models import (
 )
 from app.services.entitlements import ensure_can_create_case, ensure_can_run_evaluation, ensure_can_upload_document
 from app.services.case_access import (
-    accept_case_invitation,
     access_summary,
     can_access_case,
-    create_case_invitation,
+    grant_case_access_by_email,
     public_grant,
-    public_invitation,
     require_case_access,
-    revoke_case_invitation,
     revoke_share_grant,
     update_share_grant_role,
     visible_cases_for_user,
@@ -146,6 +142,49 @@ def _filter_case_docs(
     }
     docs.sort(key=key_map.get(sort, key_map["uploaded_at"]), reverse=direction != "asc")
     return docs[offset:offset + limit]
+
+
+_ADVOCATE_QUERY_STOPWORDS = {
+    "about",
+    "case",
+    "document",
+    "documents",
+    "evidence",
+    "file",
+    "files",
+    "have",
+    "record",
+    "records",
+    "source",
+    "sources",
+    "that",
+    "this",
+    "what",
+    "with",
+}
+
+
+def _advocate_keyword_score(doc: CaseDocument, query: str) -> float:
+    terms = [
+        term
+        for term in re.findall(r"[a-z0-9]{4,}", query.lower())
+        if term not in _ADVOCATE_QUERY_STOPWORDS
+    ]
+    if not terms:
+        return 0.0
+    haystack = " ".join([
+        doc.filename,
+        doc.user_description,
+        doc.source_person,
+        doc.evidence_type,
+        doc.inferred_category,
+        doc.document_summary,
+        doc.case_relevance,
+        " ".join(doc.tags),
+        doc.extracted_text[:4000],
+    ]).lower()
+    matches = sum(1 for term in terms if term in haystack)
+    return matches / len(terms)
 
 
 def _latest_case_evaluation(case: CaseRecord) -> CaseEvaluation | None:
@@ -430,6 +469,12 @@ def _advocate_evidence_sources(case: CaseRecord, query: str, *, limit: int = 4) 
         scores[doc.id] = max(scores.get(doc.id, 0.0), 1.0 + (1.0 / (rank + 1)))
 
     if query:
+        for doc in scoped_docs:
+            keyword_score = _advocate_keyword_score(doc, query)
+            if keyword_score > 0:
+                scores[doc.id] = max(scores.get(doc.id, 0.0), 1.0 + keyword_score)
+
+    if query:
         try:
             from app.services.qdrant_client import is_available, search_case_documents_semantic
 
@@ -464,7 +509,7 @@ def _advocate_evidence_sources(case: CaseRecord, query: str, *, limit: int = 4) 
     return sources
 
 
-def _case_advocate_context(case: CaseRecord, user: dict, content: str) -> dict:
+def _case_advocate_context(case: CaseRecord, user: dict, content: str, *, intent: str = "") -> dict:
     docs = _case_docs(case)
     records = [
         request for request in kora_requests.values()
@@ -482,7 +527,7 @@ def _case_advocate_context(case: CaseRecord, user: dict, content: str) -> dict:
             "workspace_id": user.get("workspace_id", ""),
             "role": user.get("role", ""),
         },
-        "evidence_sources": _advocate_evidence_sources(case, content),
+        "evidence_sources": _advocate_evidence_sources(case, content) if intent == "evidence_question" else [],
         "records": {
             "draft_count": len(records),
             "pending_count": len([item for item in records if item.status not in {"sent", "complete"}]),
@@ -529,7 +574,7 @@ def _append_case_chat_turn(case: CaseRecord, user: dict, content: str, *, intent
     session = _case_advocate_session(case, user)
     session.messages.append(CaseIntakeMessage(role="user", content=content))
     intent = classify_case_chat_intent(content, intent_hint)
-    context = {**_case_advocate_context(case, user, content), "intent": intent, "intent_hint": intent_hint}
+    context = {**_case_advocate_context(case, user, content, intent=intent), "intent": intent, "intent_hint": intent_hint}
     session = analyze_case_chat_session(session, context=context)
     session.case_id = case.id
     session.draft_case_id = case.id
@@ -877,40 +922,19 @@ async def list_case_shares(case_id: str, user: dict = Depends(get_current_user))
         for grant in case_share_grants.values()
         if grant.case_id == case.id and grant.status == CaseShareStatus.ACTIVE
     ]
-    invitations = [
-        public_invitation(invitation)
-        for invitation in case_invitations.values()
-        if invitation.case_id == case.id
-    ]
     collaborators.sort(key=lambda item: item.get("email", ""))
-    invitations.sort(key=lambda item: item.get("created_at", ""), reverse=True)
-    return {"case_id": case.id, "collaborators": collaborators, "invitations": invitations}
+    return {"case_id": case.id, "collaborators": collaborators}
 
 
-@router.post("/cases/{case_id}/invites")
-async def invite_case_collaborator(
+@router.post("/cases/{case_id}/shares")
+async def grant_case_share(
     case_id: str,
-    body: CaseInviteCreate,
+    body: CaseShareCreate,
     user: dict = Depends(get_current_user),
 ):
     case = require_case_access(user, cases.get(case_id), "manage_sharing")
-    invitation, token, accept_url = create_case_invitation(case, user, body.email, body.role)
-    return {
-        "invitation": public_invitation(invitation),
-        "token": token,
-        "accept_url": accept_url,
-    }
-
-
-@router.post("/case-invitations/{token}/accept")
-async def accept_invitation(token: str, user: dict = Depends(get_current_user)):
-    invitation, grant = accept_case_invitation(token, user)
-    case = cases.get(invitation.case_id)
-    return {
-        "invitation": public_invitation(invitation),
-        "grant": public_grant(grant),
-        "case": case.model_dump(mode="json") if case else None,
-    }
+    grant = grant_case_access_by_email(case, user, body.email, body.role)
+    return {"grant": public_grant(grant)}
 
 
 @router.patch("/cases/{case_id}/shares/{grant_id}")
@@ -934,17 +958,6 @@ async def revoke_case_share(
     require_case_access(user, cases.get(case_id), "manage_sharing")
     grant = revoke_share_grant(case_id, grant_id)
     return public_grant(grant)
-
-
-@router.delete("/cases/{case_id}/invites/{invitation_id}")
-async def revoke_case_invite(
-    case_id: str,
-    invitation_id: str,
-    user: dict = Depends(get_current_user),
-):
-    require_case_access(user, cases.get(case_id), "manage_sharing")
-    invitation = revoke_case_invitation(case_id, invitation_id)
-    return public_invitation(invitation)
 
 
 @router.patch("/cases/{case_id}", response_model=CaseRecord)

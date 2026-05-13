@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { clearCaseChat, fetchCaseChatSession, setAuthTokenGetter, streamCaseChatMessage } from './client.js';
+import { clearCaseChat, fetchCaseChatSession, grantCaseCollaborator, setAuthTokenGetter, streamCaseChatMessage } from './client.js';
 
 function streamFromText(chunks) {
   return new ReadableStream({
@@ -173,4 +173,25 @@ test('clearCaseChat posts to the case chat clear endpoint', async () => {
 
   const session = await clearCaseChat('case-1');
   assert.equal(session.id, 'session-1');
+});
+
+test('grantCaseCollaborator creates direct case share grants', async () => {
+  setAuthTokenGetter(async () => 'test-token');
+  globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, 'http://localhost:8000/api/cases/case-1/shares');
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers.Authorization, 'Bearer test-token');
+    assert.deepEqual(JSON.parse(options.body), { email: 'helper@example.com', role: 'viewer' });
+    return new Response(JSON.stringify({
+      grant: { id: 'grant-1', email: 'helper@example.com', role: 'viewer' },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await grantCaseCollaborator('case-1', { email: 'helper@example.com', role: 'viewer' });
+
+  assert.equal(result.grant.id, 'grant-1');
 });

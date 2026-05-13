@@ -12,7 +12,6 @@ from app.models import (
     CaseIntakeSession,
     CaseEvaluation,
     CaseRecord,
-    CaseInvitation,
     CaseShareGrant,
     GmailConnection,
     GmailImportRun,
@@ -95,19 +94,6 @@ case_share_grants = _SqliteStore(
         "user_id": "user_id",
         "clerk_user_id": "clerk_user_id",
         "email": "email",
-        "role": "role",
-        "status": "status",
-    },
-)
-
-case_invitations = _SqliteStore(
-    "case_invitations",
-    CaseInvitation,
-    indexed_cols={
-        "workspace_id": "workspace_id",
-        "case_id": "case_id",
-        "email": "email",
-        "token_hash": "token_hash",
         "role": "role",
         "status": "status",
     },

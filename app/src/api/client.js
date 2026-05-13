@@ -587,27 +587,16 @@ export async function fetchCaseShares(caseId) {
   return res.json();
 }
 
-export async function inviteCaseCollaborator(caseId, data) {
+export async function grantCaseCollaborator(caseId, data) {
   requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/invites`, {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/shares`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Invite failed: ${res.status}`);
-  }
-  return res.json();
-}
-
-export async function acceptCaseInvitation(token) {
-  const res = await authFetch(`${API_BASE}/api/case-invitations/${encodeURIComponent(token)}/accept`, {
-    method: 'POST',
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Invitation failed: ${res.status}`);
+    throw new Error(err.detail || `Share failed: ${res.status}`);
   }
   return res.json();
 }
@@ -632,16 +621,6 @@ export async function revokeCaseShare(caseId, grantId) {
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || `Revoke failed: ${res.status}`);
-  }
-  return res.json();
-}
-
-export async function revokeCaseInvitation(caseId, invitationId) {
-  requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/invites/${invitationId}`, { method: 'DELETE' });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Invite revoke failed: ${res.status}`);
   }
   return res.json();
 }

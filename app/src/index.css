@@ -347,10 +347,19 @@ h1, h2, h3 {
   animation: advocate-panel-in 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.case-advocate-widget.is-expanded .case-advocate-panel {
+  max-height: min(86vh, 48rem);
+  width: min(44rem, calc(100vw - 2rem));
+}
+
 .case-advocate-widget.is-case-sidecar .case-advocate-panel {
   align-self: end;
   max-height: min(72vh, 36rem);
   min-height: auto;
+}
+
+.case-advocate-widget.is-expanded.is-case-sidecar .case-advocate-panel {
+  max-height: min(86vh, 48rem);
 }
 
 .case-advocate-header {
@@ -955,6 +964,16 @@ h1, h2, h3 {
     border-radius: 0.6rem;
     max-height: 78vh;
     width: 100%;
+  }
+
+  .case-advocate-widget.is-expanded .case-advocate-panel {
+    max-height: 86vh;
+    width: 100%;
+  }
+
+  .case-advocate-icon-button {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
   }
 
   .case-advocate-launcher,

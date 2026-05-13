@@ -300,6 +300,20 @@ def _action_proposals_for_message(message: str, context: dict | None) -> list[Ad
 def _safety_flags_for_message(message: str, facts: CaseIntakeFacts, sources: list[AdvocateSource]) -> list[AdvocateSafetyFlag]:
     lowered = message.lower()
     flags: list[AdvocateSafetyFlag] = []
+    asks_about_current_safety = any(
+        phrase in lowered
+        for phrase in (
+            "current safety",
+            "right now",
+            "unsafe",
+            "emergency",
+            "danger",
+            "threat",
+            "harm",
+            "hurt",
+            "injury",
+        )
+    )
     if any(word in lowered for word in ("legal advice", "sue", "lawsuit", "attorney", "lawyer", "file a complaint")):
         flags.append(AdvocateSafetyFlag(
             type="legal_boundary",
@@ -307,7 +321,7 @@ def _safety_flags_for_message(message: str, facts: CaseIntakeFacts, sources: lis
             detail="Chat can organize facts and prepare questions, but it should not be treated as legal advice.",
             severity="warning",
         ))
-    if facts.safety_risk or facts.urgent or facts.urgency_level in {"urgent", "immediate"}:
+    if asks_about_current_safety and (facts.safety_risk or facts.urgent or facts.urgency_level in {"urgent", "immediate"}):
         flags.append(AdvocateSafetyFlag(
             type="urgent_safety",
             label="Safety concern",
@@ -322,6 +336,10 @@ def _safety_flags_for_message(message: str, facts: CaseIntakeFacts, sources: lis
             severity="info",
         ))
     return flags[:3]
+
+
+def _case_chat_should_attach_sources(intent: str) -> bool:
+    return intent == "evidence_question"
 
 
 def _default_message_parts(
@@ -683,22 +701,7 @@ def _suggested_replies_from_question_cards(cards: list[CaseIntakeQuestion]) -> l
 
 
 def _chat_message_parts(message: str, sources: list[AdvocateSource], safety_flags: list[AdvocateSafetyFlag]) -> list[AdvocateMessagePart]:
-    parts = [AdvocateMessagePart(type="text", text=message)]
-    if sources:
-        parts.append(AdvocateMessagePart(
-            type="source_claim",
-            title="Sources checked",
-            text="I found matching evidence in this case file.",
-            source_ids=[source.id for source in sources[:4]],
-        ))
-    if safety_flags:
-        parts.append(AdvocateMessagePart(
-            type="status",
-            title="Boundary",
-            text=safety_flags[0].detail or safety_flags[0].label,
-            severity=safety_flags[0].severity,
-        ))
-    return parts
+    return [AdvocateMessagePart(type="text", text=message)]
 
 
 def _fallback_case_chat_result(
@@ -795,6 +798,7 @@ def _fallback_case_chat_result(
 
     if intent != "action_request":
         actions = []
+    display_sources = sources if _case_chat_should_attach_sources(intent) else []
     route = {
         "runtime": "agno",
         "agent": "case_chat_manager",
@@ -806,9 +810,9 @@ def _fallback_case_chat_result(
     return CaseChatTurnResult(
         intent=intent,
         assistant_message=message,
-        message_parts=_chat_message_parts(message, sources, safety_flags),
-        sources=sources,
-        suggested_replies=_suggested_replies_for_intent(intent, has_story, sources),
+        message_parts=_chat_message_parts(message, display_sources, safety_flags),
+        sources=display_sources,
+        suggested_replies=_suggested_replies_for_intent(intent, has_story, display_sources),
         case_update_proposals=[],
         action_proposals=actions[:3],
         safety_flags=safety_flags,
@@ -861,6 +865,8 @@ def _normalize_case_chat_result(
 ) -> CaseChatTurnResult:
     allowed_sources = {source.id: source for source in _context_sources(context)}
     result.sources = [allowed_sources[source.id] for source in result.sources if source.id in allowed_sources]
+    if not _case_chat_should_attach_sources(intent):
+        result.sources = []
     if not result.assistant_message:
         fallback_result = _fallback_case_chat_result(session, context, intent, model_id=model_id, error=error)
         result.assistant_message = fallback_result.assistant_message
@@ -878,8 +884,7 @@ def _normalize_case_chat_result(
     result.action_proposals = normalized_actions[:3]
     if not result.suggested_replies:
         result.suggested_replies = _suggested_replies_for_intent(intent, _has_case_story(session.facts, context), result.sources)
-    if not result.message_parts:
-        result.message_parts = _chat_message_parts(result.assistant_message, result.sources, result.safety_flags)
+    result.message_parts = _chat_message_parts(result.assistant_message, result.sources, result.safety_flags)
     result.model_route = {
         "runtime": "agno",
         "agent": "case_chat_manager",

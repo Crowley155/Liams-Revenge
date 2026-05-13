@@ -5,7 +5,9 @@ import {
   Check,
   FileUp,
   Loader2,
+  Maximize2,
   MessageCircle,
+  Minimize2,
   MoreHorizontal,
   RefreshCcw,
   Search,
@@ -30,6 +32,24 @@ let optimisticMessageSequence = 0;
 function nextOptimisticMessageId(prefix) {
   optimisticMessageSequence += 1;
   return `${prefix}-${optimisticMessageSequence}`;
+}
+
+function storedChatSize() {
+  try {
+    if (typeof localStorage === 'undefined') return 'compact';
+    return localStorage.getItem('usdwatch_chat_size') || 'compact';
+  } catch {
+    return 'compact';
+  }
+}
+
+function saveChatSize(value) {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem('usdwatch_chat_size', value);
+  } catch {
+    // Non-essential preference; ignore blocked storage.
+  }
 }
 
 function caseIdFromPath(pathname) {
@@ -60,6 +80,14 @@ function suggestedRepliesForSession(structured) {
     ? structured.suggested_replies.filter(Boolean)
     : [];
   return [...new Set(suggestions)].slice(0, 3);
+}
+
+function shouldShowSources(structured) {
+  return structured?.intent === 'evidence_question' && Boolean(structured.sources?.length);
+}
+
+function visibleSafetyFlags(flags = []) {
+  return flags.filter((flag) => flag?.type === 'legal_boundary' || flag?.severity === 'danger').slice(0, 2);
 }
 
 function mergeStreamEvent(prev, event) {
@@ -169,7 +197,10 @@ function ActionCards({ actions, busyActionId, onResolve }) {
 }
 
 function MessageParts({ parts }) {
-  const blocks = (parts || []).filter((part) => part?.type && part.type !== 'text');
+  const blocks = (parts || []).filter((part) => (
+    part?.type
+    && !['text', 'source_claim', 'status'].includes(part.type)
+  ));
   if (!blocks.length) return null;
   return (
     <div className="case-advocate-part-list">
@@ -192,6 +223,8 @@ function ChatMessage({ item, onNavigate, onResolveAction, busyActionId }) {
   const structured = item.structured || {};
   const textPart = structured.message_parts?.find((part) => part.type === 'text' && part.text);
   const displayText = item.content || textPart?.text || '';
+  const sourceCards = shouldShowSources(structured) ? structured.sources : [];
+  const safetyFlags = visibleSafetyFlags(structured.safety_flags || []);
   if (item.role === 'user') {
     return <div className="case-advocate-message from-user">{displayText}</div>;
   }
@@ -199,8 +232,8 @@ function ChatMessage({ item, onNavigate, onResolveAction, busyActionId }) {
     <div className="case-advocate-message from-advocate">
       {displayText && <p className="case-advocate-message-copy">{displayText}</p>}
       <MessageParts parts={structured.message_parts} />
-      <SourceCards sources={structured.sources} onNavigate={onNavigate} />
-      <SafetyFlags flags={structured.safety_flags} />
+      <SourceCards sources={sourceCards} onNavigate={onNavigate} />
+      <SafetyFlags flags={safetyFlags} />
       <ActionCards actions={structured.action_proposals} busyActionId={busyActionId} onResolve={onResolveAction} />
     </div>
   );
@@ -224,6 +257,7 @@ export default function FloatingCaseAdvocate() {
   const [busy, setBusy] = useState(false);
   const [busyActionId, setBusyActionId] = useState('');
   const [error, setError] = useState('');
+  const [expanded, setExpanded] = useState(() => storedChatSize() === 'large');
 
   const caseId = caseIdFromPath(location.pathname);
   const inCaseWorkspace = Boolean(caseId);
@@ -267,6 +301,10 @@ export default function FloatingCaseAdvocate() {
   }, [loadSession]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    saveChatSize(expanded ? 'large' : 'compact');
+  }, [expanded]);
 
   const openChat = async () => {
     if (!isAuthenticated || loading) return;
@@ -410,7 +448,7 @@ export default function FloatingCaseAdvocate() {
   const messages = session?.messages || [];
 
   return (
-    <div className={`case-advocate-widget ${open ? 'is-open' : ''} ${inCaseWorkspace ? 'is-case-sidecar' : ''}`}>
+    <div className={`case-advocate-widget ${open ? 'is-open' : ''} ${expanded ? 'is-expanded' : ''} ${inCaseWorkspace ? 'is-case-sidecar' : ''}`}>
       {open && (
         <section className="case-advocate-panel" aria-label="Chat">
           <header className="case-advocate-header">
@@ -422,6 +460,16 @@ export default function FloatingCaseAdvocate() {
               </div>
             </div>
             <div className="case-advocate-header-actions">
+              <button
+                type="button"
+                onClick={() => setExpanded((value) => !value)}
+                className="case-advocate-icon-button"
+                aria-label={expanded ? 'Make chat smaller' : 'Make chat bigger'}
+                aria-pressed={expanded}
+                title={expanded ? 'Make chat smaller' : 'Make chat bigger'}
+              >
+                {expanded ? <Minimize2 className="h-4 w-4" aria-hidden="true" /> : <Maximize2 className="h-4 w-4" aria-hidden="true" />}
+              </button>
               <div className="case-advocate-menu-wrap">
                 <button
                   type="button"

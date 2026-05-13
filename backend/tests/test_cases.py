@@ -1,6 +1,7 @@
+import json
 import uuid
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs, urlparse
 
 from fastapi.testclient import TestClient
@@ -8,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.api.deps import get_current_user
 from app.api._store import case_documents, cases, gmail_connections
 from app.config import Settings
+from app.db import _connect, init_db
 from app.main import app
 from app.models import CaseDocument, CaseIntake, CaseRecord, CaseStatus, GmailConnection, GmailImportRule
 from app.services.gmail_importer import import_matching_messages
@@ -141,7 +143,7 @@ def test_cases_are_workspace_scoped():
     assert hidden.status_code == 404
 
 
-def test_owner_can_invite_viewer_and_shared_case_is_read_only():
+def test_owner_can_grant_viewer_by_email_and_shared_case_is_read_only():
     owner = _user()
     viewer = _user()
     viewer["email"] = "shared.viewer@example.com"
@@ -151,21 +153,18 @@ def test_owner_can_invite_viewer_and_shared_case_is_read_only():
     assert created.status_code == 200
     case_id = created.json()["id"]
 
-    invited = client.post(
-        f"/api/cases/{case_id}/invites",
+    granted = client.post(
+        f"/api/cases/{case_id}/shares",
         json={"email": viewer["email"], "role": "viewer"},
     )
-    assert invited.status_code == 200
-    invite_body = invited.json()
-    assert invite_body["invitation"]["email"] == viewer["email"]
-    assert invite_body["invitation"]["role"] == "viewer"
-    assert invite_body["accept_url"].endswith(f"/case-invitations/{invite_body['token']}")
+    assert granted.status_code == 200
+    grant_body = granted.json()
+    assert grant_body["grant"]["email"] == viewer["email"]
+    assert grant_body["grant"]["role"] == "viewer"
+    assert "token" not in grant_body
+    assert "accept_url" not in grant_body
 
     _override_user(viewer)
-    accepted = client.post(f"/api/case-invitations/{invite_body['token']}/accept")
-    assert accepted.status_code == 200
-    assert accepted.json()["grant"]["role"] == "viewer"
-
     visible = client.get("/api/cases")
     assert visible.status_code == 200
     assert any(item["id"] == case_id for item in visible.json())
@@ -211,16 +210,13 @@ def test_editor_can_edit_case_and_evidence_but_not_manage_owner_only_surfaces(tm
 
     created = client.post("/api/cases", json=_case_payload("Shared editor case"))
     case_id = created.json()["id"]
-    invited = client.post(
-        f"/api/cases/{case_id}/invites",
+    granted = client.post(
+        f"/api/cases/{case_id}/shares",
         json={"email": editor["email"], "role": "editor"},
     )
-    token = invited.json()["token"]
+    assert granted.status_code == 200
 
     _override_user(editor)
-    accepted = client.post(f"/api/case-invitations/{token}/accept")
-    assert accepted.status_code == 200
-
     update = client.patch(f"/api/cases/{case_id}", json={"desired_outcome": "Prepare a meeting packet."})
     assert update.status_code == 200
     assert update.json()["intake"]["desired_outcome"] == "Prepare a meeting packet."
@@ -259,81 +255,169 @@ def test_editor_can_edit_case_and_evidence_but_not_manage_owner_only_surfaces(tm
     assert support.status_code == 403
 
 
-def test_invitation_acceptance_rejects_wrong_email_reuse_and_revoked_access():
+def test_email_grant_is_immediate_email_scoped_and_revocable():
     owner = _user()
-    invited_user = _user()
-    invited_user["email"] = "invited.parent@example.com"
+    collaborator_user = _user()
+    collaborator_user["email"] = "collaborator.parent@example.com"
     wrong_user = _user()
     wrong_user["email"] = "wrong.person@example.com"
     _override_user(owner)
 
-    created = client.post("/api/cases", json=_case_payload("Invite safety case"))
+    created = client.post("/api/cases", json=_case_payload("Direct share safety case"))
     case_id = created.json()["id"]
-    invited = client.post(
-        f"/api/cases/{case_id}/invites",
-        json={"email": invited_user["email"], "role": "viewer"},
+    granted = client.post(
+        f"/api/cases/{case_id}/shares",
+        json={"email": collaborator_user["email"], "role": "viewer"},
     )
-    token = invited.json()["token"]
+    assert granted.status_code == 200
+    grant_id = granted.json()["grant"]["id"]
+
+    duplicate = client.post(
+        f"/api/cases/{case_id}/shares",
+        json={"email": collaborator_user["email"], "role": "viewer"},
+    )
+    assert duplicate.status_code == 409
 
     _override_user(wrong_user)
-    wrong_accept = client.post(f"/api/case-invitations/{token}/accept")
-    assert wrong_accept.status_code == 403
+    hidden_from_wrong_email = client.get(f"/api/cases/{case_id}")
+    assert hidden_from_wrong_email.status_code == 404
 
-    _override_user(invited_user)
-    first_accept = client.post(f"/api/case-invitations/{token}/accept")
-    assert first_accept.status_code == 200
-    second_accept = client.post(f"/api/case-invitations/{token}/accept")
-    assert second_accept.status_code == 409
+    _override_user(collaborator_user)
+    visible = client.get(f"/api/cases/{case_id}")
+    assert visible.status_code == 200
 
     _override_user(owner)
     shares = client.get(f"/api/cases/{case_id}/shares")
     assert shares.status_code == 200
-    grant_id = shares.json()["collaborators"][0]["id"]
+    assert "invitations" not in shares.json()
+    assert shares.json()["collaborators"][0]["id"] == grant_id
 
     revoked = client.delete(f"/api/cases/{case_id}/shares/{grant_id}")
     assert revoked.status_code == 200
 
-    _override_user(invited_user)
+    _override_user(collaborator_user)
     hidden = client.get(f"/api/cases/{case_id}")
     assert hidden.status_code == 404
 
 
-def test_owner_can_change_collaborator_role_and_revoke_pending_invite():
+def test_legacy_invitation_table_is_backfilled_to_email_grants():
+    owner = _user()
+    collaborator_user = _user()
+    collaborator_user["email"] = "legacy.pending@example.com"
+    _override_user(owner)
+
+    created = client.post("/api/cases", json=_case_payload("Legacy pending case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+    legacy_id = f"legacy-{uuid.uuid4().hex[:8]}"
+    legacy_data = {
+        "id": legacy_id,
+        "workspace_id": created.json()["workspace_id"],
+        "case_id": case_id,
+        "email": collaborator_user["email"],
+        "role": "viewer",
+        "status": "pending",
+        "token_hash": "legacy-token-hash",
+        "invited_by_user_id": owner["id"],
+        "invited_by_email": owner["email"],
+        "accepted_by_user_id": "",
+        "grant_id": "",
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+        "accepted_at": None,
+        "revoked_at": None,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    conn = _connect()
+    try:
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS case_invitations (
+                id TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL,
+                case_id TEXT NOT NULL,
+                email TEXT NOT NULL DEFAULT '',
+                token_hash TEXT NOT NULL DEFAULT '',
+                role TEXT NOT NULL DEFAULT 'viewer',
+                status TEXT NOT NULL DEFAULT 'pending',
+                data TEXT NOT NULL
+            );
+        """)
+        conn.execute(
+            """
+            INSERT INTO case_invitations
+                (id, workspace_id, case_id, email, token_hash, role, status, data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                legacy_id,
+                legacy_data["workspace_id"],
+                case_id,
+                collaborator_user["email"],
+                legacy_data["token_hash"],
+                "viewer",
+                "pending",
+                json.dumps(legacy_data),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    init_db()
+    conn = _connect()
+    try:
+        legacy_table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'case_invitations'"
+        ).fetchone()
+    finally:
+        conn.close()
+    assert legacy_table is None
+
+    _override_user(collaborator_user)
+    visible = client.get(f"/api/cases/{case_id}")
+    assert visible.status_code == 200
+
+    _override_user(owner)
+    shares = client.get(f"/api/cases/{case_id}/shares")
+    assert shares.status_code == 200
+    assert "invitations" not in shares.json()
+    assert any(item["email"] == collaborator_user["email"] for item in shares.json()["collaborators"])
+
+
+def test_owner_can_change_collaborator_role_and_revoke_collaborator():
     owner = _user()
     collaborator = _user()
     collaborator["email"] = "role.change@example.com"
-    pending_email = "pending.revoke@example.com"
+    other_email = "pending.revoke@example.com"
     _override_user(owner)
 
     created = client.post("/api/cases", json=_case_payload("Role changes case"))
     case_id = created.json()["id"]
-    invited = client.post(
-        f"/api/cases/{case_id}/invites",
+    collaborator_grant = client.post(
+        f"/api/cases/{case_id}/shares",
         json={"email": collaborator["email"], "role": "viewer"},
     )
-    pending = client.post(
-        f"/api/cases/{case_id}/invites",
-        json={"email": pending_email, "role": "viewer"},
+    other_grant = client.post(
+        f"/api/cases/{case_id}/shares",
+        json={"email": other_email, "role": "viewer"},
     )
-    assert pending.status_code == 200
-
-    _override_user(collaborator)
-    accepted = client.post(f"/api/case-invitations/{invited.json()['token']}/accept")
-    assert accepted.status_code == 200
+    assert collaborator_grant.status_code == 200
+    assert other_grant.status_code == 200
 
     _override_user(owner)
     shares = client.get(f"/api/cases/{case_id}/shares")
-    grant_id = shares.json()["collaborators"][0]["id"]
-    invite_id = next(item["id"] for item in shares.json()["invitations"] if item["email"] == pending_email)
+    assert "invitations" not in shares.json()
+    grant_id = next(item["id"] for item in shares.json()["collaborators"] if item["email"] == collaborator["email"])
+    other_grant_id = next(item["id"] for item in shares.json()["collaborators"] if item["email"] == other_email)
 
     changed = client.patch(f"/api/cases/{case_id}/shares/{grant_id}", json={"role": "editor"})
     assert changed.status_code == 200
     assert changed.json()["role"] == "editor"
 
-    revoked_invite = client.delete(f"/api/cases/{case_id}/invites/{invite_id}")
-    assert revoked_invite.status_code == 200
+    revoked = client.delete(f"/api/cases/{case_id}/shares/{other_grant_id}")
+    assert revoked.status_code == 200
     after = client.get(f"/api/cases/{case_id}/shares")
-    assert all(item["status"] == "revoked" for item in after.json()["invitations"] if item["id"] == invite_id)
+    assert "invitations" not in after.json()
+    assert all(item["id"] != other_grant_id for item in after.json()["collaborators"])
 
 
 def test_admin_role_does_not_bypass_workspace_case_scope():
@@ -546,6 +630,17 @@ def test_case_chat_summary_answers_from_existing_case_without_forced_question(mo
     assert created.status_code == 200
     case_id = created.json()["id"]
     original_narrative = created.json()["family_narrative"]
+    source_doc = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=user["workspace_id"],
+        case_id=case_id,
+        filename="incident-summary.pdf",
+        extracted_text="This document mentions the unsafe incident and district follow-up.",
+        document_summary="Incident report about the safety event.",
+        processing_status="indexed",
+        status="indexed",
+    )
+    case_documents[source_doc.id] = source_doc
 
     with client.stream(
         "POST",
@@ -556,9 +651,14 @@ def test_case_chat_summary_answers_from_existing_case_without_forced_question(mo
         events = _sse_events(response)
 
     latest = events[-1][1]["session"]["messages"][-1]
+    assert all(name != "source" for name, _payload in events)
+    assert all(name != "safety" for name, _payload in events)
     assert "Summary chat case" in latest["content"]
     assert "unsafe incident" in latest["content"]
     assert latest["structured"]["intent"] == "case_summary"
+    assert latest["structured"]["sources"] == []
+    assert latest["structured"]["safety_flags"] == []
+    assert [part["type"] for part in latest["structured"]["message_parts"]] == ["text"]
     assert latest["structured"].get("question_cards", []) == []
 
     updated = client.get(f"/api/cases/{case_id}")
@@ -626,6 +726,47 @@ def test_case_chat_evidence_question_without_documents_is_answered_not_mutated(m
 
     updated = client.get(f"/api/cases/{case_id}")
     assert updated.json()["family_narrative"] == original_narrative
+
+
+def test_case_chat_evidence_question_returns_sources_only_when_asked(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai_runtime.intake._run_case_chat_agno_analysis",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mock fallback")),
+        raising=False,
+    )
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Evidence source case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+    source_doc = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=user["workspace_id"],
+        case_id=case_id,
+        filename="supervision-note.txt",
+        extracted_text="The supervision note says staff coverage was thin during recess.",
+        document_summary="Supervision note about recess staffing.",
+        processing_status="indexed",
+        status="indexed",
+    )
+    case_documents[source_doc.id] = source_doc
+
+    with client.stream(
+        "POST",
+        f"/api/cases/{case_id}/chat/messages/stream",
+        json={"content": "What evidence do we have about supervision?"},
+    ) as response:
+        assert response.status_code == 200
+        events = _sse_events(response)
+
+    sources = [payload for name, payload in events if name == "source"]
+    assert sources
+    assert sources[0]["document_id"] == source_doc.id
+    latest = events[-1][1]["session"]["messages"][-1]
+    assert latest["structured"]["intent"] == "evidence_question"
+    assert latest["structured"]["sources"][0]["document_id"] == source_doc.id
+    assert [part["type"] for part in latest["structured"]["message_parts"]] == ["text"]
 
 
 def test_case_advocate_stream_emits_case_scoped_sources_actions_and_completion(monkeypatch):

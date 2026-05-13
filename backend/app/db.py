@@ -11,6 +11,8 @@ import json
 import logging
 import os
 import sqlite3
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 
@@ -27,6 +29,115 @@ def _ensure_column(conn: sqlite3.Connection, table: str, name: str, definition: 
     cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
     if name not in cols:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {definition}")
+
+
+def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table,),
+    ).fetchone()
+    return row is not None
+
+
+def _parse_legacy_datetime(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _backfill_legacy_case_invitations(conn: sqlite3.Connection) -> int:
+    """Convert old pending invitation rows into direct email grants, then remove the old table."""
+    if not _table_exists(conn, "case_invitations"):
+        return 0
+
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    created = 0
+    rows = conn.execute(
+        """
+        SELECT id, workspace_id, case_id, email, role, status, data
+        FROM case_invitations
+        """
+    ).fetchall()
+    for row in rows:
+        try:
+            data = json.loads(row["data"] or "{}")
+        except json.JSONDecodeError:
+            data = {}
+
+        status = str(data.get("status") or row["status"] or "").lower()
+        if status != "pending":
+            continue
+
+        expires_at = _parse_legacy_datetime(data.get("expires_at"))
+        if expires_at and expires_at < now_dt:
+            continue
+
+        case_id = data.get("case_id") or row["case_id"]
+        email = str(data.get("email") or row["email"] or "").strip().lower()
+        if not case_id or not email:
+            continue
+
+        existing = conn.execute(
+            """
+            SELECT id FROM case_share_grants
+            WHERE case_id = ?
+              AND lower(email) = ?
+              AND status = 'active'
+            LIMIT 1
+            """,
+            (case_id, email),
+        ).fetchone()
+        if existing:
+            continue
+
+        grant_id = str(uuid.uuid4())[:8]
+        role = str(data.get("role") or row["role"] or "viewer").lower()
+        if role not in {"editor", "viewer"}:
+            role = "viewer"
+        grant_data = {
+            "id": grant_id,
+            "workspace_id": data.get("workspace_id") or row["workspace_id"],
+            "case_id": case_id,
+            "user_id": "",
+            "clerk_user_id": "",
+            "email": email,
+            "role": role,
+            "status": "active",
+            "granted_by_user_id": data.get("granted_by_user_id") or data.get("invited_by_user_id", ""),
+            "granted_by_email": data.get("granted_by_email") or data.get("invited_by_email", ""),
+            "accepted_at": now,
+            "revoked_at": None,
+            "created_at": data.get("created_at") or now,
+            "updated_at": now,
+        }
+        conn.execute(
+            """
+            INSERT INTO case_share_grants
+                (id, workspace_id, case_id, user_id, clerk_user_id, email, role, status, data)
+            VALUES (?, ?, ?, '', '', ?, ?, 'active', ?)
+            """,
+            (
+                grant_id,
+                grant_data["workspace_id"],
+                case_id,
+                email,
+                role,
+                json.dumps(grant_data, default=str),
+            ),
+        )
+        created += 1
+
+    conn.execute("DROP TABLE IF EXISTS case_invitations")
+    if created:
+        logger.info("Backfilled %d legacy case collaborator grants", created)
+    return created
 
 
 def _connect() -> sqlite3.Connection:
@@ -153,20 +264,6 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_case_share_grants_user ON case_share_grants(user_id, status);
         CREATE INDEX IF NOT EXISTS idx_case_share_grants_email ON case_share_grants(email, status);
 
-        CREATE TABLE IF NOT EXISTS case_invitations (
-            id TEXT PRIMARY KEY,
-            workspace_id TEXT NOT NULL,
-            case_id TEXT NOT NULL,
-            email TEXT NOT NULL DEFAULT '',
-            token_hash TEXT NOT NULL DEFAULT '',
-            role TEXT NOT NULL DEFAULT 'viewer',
-            status TEXT NOT NULL DEFAULT 'pending',
-            data TEXT NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_case_invitations_case ON case_invitations(workspace_id, case_id, status);
-        CREATE INDEX IF NOT EXISTS idx_case_invitations_token ON case_invitations(token_hash);
-        CREATE INDEX IF NOT EXISTS idx_case_invitations_email ON case_invitations(email, status);
-
         CREATE TABLE IF NOT EXISTS case_intake_sessions (
             id TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL,
@@ -236,6 +333,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_docs_workspace ON case_documents(workspace_id, case_id);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_user ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL AND clerk_user_id != '';
     """)
+    _backfill_legacy_case_invitations(conn)
     conn.commit()
     conn.close()
     logger.info("SQLite database ready at %s", DB_PATH)
