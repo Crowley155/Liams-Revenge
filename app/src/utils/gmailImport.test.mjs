@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  formatGmailRuleSummary,
   gmailRuleHasCriteria,
+  removeGmailRuleValue,
   parseGmailRuleInput,
   shouldAutoSelectGmailMessage,
 } from './gmailImport.js';
@@ -18,6 +20,34 @@ test('parseGmailRuleInput trims comma and whitespace separated values', () => {
 test('gmailRuleHasCriteria requires at least one searchable rule value', () => {
   assert.equal(gmailRuleHasCriteria({ domains: '', email_addresses: '', keywords: '' }), false);
   assert.equal(gmailRuleHasCriteria({ domains: 'usd232.org', email_addresses: '', keywords: '' }), true);
+});
+
+test('removeGmailRuleValue removes one saved value without touching the rest of the rule', () => {
+  const rule = {
+    domains: ['usd232.org', 'jcocogov.org'],
+    email_addresses: ['principal@usd232.org'],
+    keywords: ['incident'],
+    include_attachments: true,
+  };
+
+  assert.deepEqual(removeGmailRuleValue(rule, 'domains', 'usd232.org'), {
+    domains: ['jcocogov.org'],
+    email_addresses: ['principal@usd232.org'],
+    keywords: ['incident'],
+    include_attachments: true,
+  });
+});
+
+test('formatGmailRuleSummary explains the saved rule in parent language', () => {
+  assert.equal(
+    formatGmailRuleSummary({
+      domains: ['usd232.org', 'jcocogov.org'],
+      email_addresses: ['principal@usd232.org'],
+      keywords: ['incident', 'supervision'],
+    }),
+    'Messages from or to 2 domains or 1 email, narrowed by 2 keywords.',
+  );
+  assert.equal(formatGmailRuleSummary({ domains: [], email_addresses: [], keywords: [] }), 'No saved Gmail search rule yet.');
 });
 
 test('shouldAutoSelectGmailMessage only preselects likely relevant messages', () => {

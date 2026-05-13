@@ -232,7 +232,7 @@ def test_editor_can_edit_case_and_evidence_but_not_manage_owner_only_surfaces(tm
     share_list = client.get(f"/api/cases/{case_id}/shares")
     assert share_list.status_code == 403
 
-    gmail = client.post("/api/gmail/import-rules", json={
+    gmail = client.put("/api/gmail/rule", json={
         "case_id": case_id,
         "domains": ["usd232.org"],
         "email_addresses": [],
@@ -1562,7 +1562,7 @@ def test_gmail_import_rule_scaffolding_is_private_to_workspace(monkeypatch):
     assert created.status_code == 200
     case_id = created.json()["id"]
 
-    run = client.post("/api/gmail/import-rules", json={
+    run = client.put("/api/gmail/rule", json={
         "case_id": case_id,
         "domains": ["usd232.org"],
         "email_addresses": ["principal@usd232.org"],
@@ -1570,13 +1570,14 @@ def test_gmail_import_rule_scaffolding_is_private_to_workspace(monkeypatch):
         "include_attachments": True,
     })
     assert run.status_code == 200
-    assert run.json()["status"] == "needs_consent"
+    assert run.json()["connection"]["status"] == "setup_required"
 
     status = client.get(f"/api/gmail/status?case_id={case_id}")
     assert status.status_code == 200
     assert status.json()["configured"] is False
     assert status.json()["auth_provider"] == "clerk"
     assert status.json()["connections"][0]["rule"]["domains"] == ["usd232.org"]
+    assert status.json()["connections"][0]["query"] == "(from:usd232.org OR to:usd232.org OR from:principal@usd232.org OR to:principal@usd232.org) incident"
     assert status.json()["connections"][0]["token_stored"] is False
 
     _override_user(outsider)
@@ -1606,7 +1607,7 @@ def test_gmail_status_uses_clerk_google_token_when_scope_granted(monkeypatch):
     assert created.status_code == 200
     case_id = created.json()["id"]
 
-    saved = client.post("/api/gmail/import-rules", json={
+    saved = client.put("/api/gmail/rule", json={
         "case_id": case_id,
         "domains": ["usd232.org"],
         "email_addresses": [],
@@ -1614,7 +1615,7 @@ def test_gmail_status_uses_clerk_google_token_when_scope_granted(monkeypatch):
         "include_attachments": True,
     })
     assert saved.status_code == 200
-    assert saved.json()["status"] == "needs_consent"
+    assert saved.json()["connection"]["status"] == "needs_consent"
 
     def fake_token(clerk_user_id: str, required_scope: str = ""):
         assert clerk_user_id == user["clerk_user_id"]
@@ -1650,7 +1651,7 @@ def test_gmail_search_uses_clerk_token_only(monkeypatch):
     assert created.status_code == 200
     case_id = created.json()["id"]
 
-    saved = client.post("/api/gmail/import-rules", json={
+    saved = client.put("/api/gmail/rule", json={
         "case_id": case_id,
         "domains": ["usd232.org"],
         "email_addresses": [],
@@ -1658,7 +1659,7 @@ def test_gmail_search_uses_clerk_token_only(monkeypatch):
         "include_attachments": True,
     })
     assert saved.status_code == 200
-    connection_id = saved.json()["connection_id"]
+    connection_id = saved.json()["connection"]["id"]
 
     def fake_token(_clerk_user_id: str, required_scope: str = ""):
         return {
@@ -1703,6 +1704,39 @@ def test_gmail_search_uses_clerk_token_only(monkeypatch):
     body = result.json()
     assert body["query"] == "(from:usd232.org OR to:usd232.org) incident"
     assert body["messages"][0]["subject"] == "Incident follow-up"
+
+
+def test_gmail_rule_can_be_cleared_without_disconnect(monkeypatch):
+    monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_clerk")
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Clear Gmail rule case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    saved = client.put("/api/gmail/rule", json={
+        "case_id": case_id,
+        "domains": ["usd232.org", "jcocogov.org"],
+        "email_addresses": ["principal@usd232.org"],
+        "keywords": ["incident"],
+        "include_attachments": True,
+    })
+    assert saved.status_code == 200
+    assert saved.json()["connection"]["query"] == (
+        "(from:jcocogov.org OR to:jcocogov.org OR from:usd232.org OR to:usd232.org "
+        "OR from:principal@usd232.org OR to:principal@usd232.org) incident"
+    )
+
+    cleared = client.delete(f"/api/gmail/rule?case_id={case_id}")
+
+    assert cleared.status_code == 200
+    body = cleared.json()
+    assert body["connection"]["status"] == "needs_consent"
+    assert body["connection"]["rule"]["domains"] == []
+    assert body["connection"]["rule"]["email_addresses"] == []
+    assert body["connection"]["rule"]["keywords"] == []
+    assert body["connection"]["has_rule"] is False
 
 
 def test_gmail_import_stores_matching_message_and_attachment(monkeypatch, tmp_path):

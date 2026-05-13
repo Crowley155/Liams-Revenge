@@ -1,5 +1,22 @@
 from app.models import CaseIntake, CaseRecord
-from app.services.gmail_importer import score_gmail_message_relevance
+from app.models import GmailImportRule
+from app.services.gmail_importer import build_gmail_query, score_gmail_message_relevance
+
+
+def test_gmail_query_ors_multiple_domains_and_keyword_groups():
+    rule = GmailImportRule(
+        domains=["usd232.org", "jcocogov.org"],
+        email_addresses=["principal@usd232.org"],
+        keywords=["incident", "aftercare supervision"],
+    )
+
+    query = build_gmail_query(rule)
+
+    assert query == (
+        "(from:usd232.org OR to:usd232.org OR from:jcocogov.org OR to:jcocogov.org "
+        "OR from:principal@usd232.org OR to:principal@usd232.org) "
+        "(incident OR \"aftercare supervision\")"
+    )
 
 
 def _case() -> CaseRecord:

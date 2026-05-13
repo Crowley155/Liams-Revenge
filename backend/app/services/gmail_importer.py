@@ -90,10 +90,15 @@ def build_gmail_query(rule: GmailImportRule, *, newer_than_days: int | None = No
     chunks: list[str] = []
     if identity_terms:
         chunks.append("(" + " OR ".join(identity_terms) + ")")
+    keyword_terms = []
     for keyword in rule.keywords:
         clean = keyword.strip()
         if clean:
-            chunks.append(f'"{clean}"' if " " in clean else clean)
+            keyword_terms.append(f'"{clean}"' if " " in clean else clean)
+    if len(keyword_terms) == 1:
+        chunks.append(keyword_terms[0])
+    elif keyword_terms:
+        chunks.append("(" + " OR ".join(keyword_terms) + ")")
     if newer_than_days:
         chunks.append(f"newer_than:{newer_than_days}d")
     return " ".join(chunks).strip()

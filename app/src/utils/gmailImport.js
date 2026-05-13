@@ -20,6 +20,45 @@ export function gmailRuleHasCriteria(rule) {
   );
 }
 
+function arrayFromRuleValue(value, keyword = false) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
+  return keyword ? parseGmailKeywordInput(value) : parseGmailRuleInput(value);
+}
+
+export function normalizeGmailRule(rule = {}) {
+  return {
+    domains: arrayFromRuleValue(rule.domains).map((item) => item.toLowerCase().replace(/^@+/, '')),
+    email_addresses: arrayFromRuleValue(rule.email_addresses).map((item) => item.toLowerCase()),
+    keywords: arrayFromRuleValue(rule.keywords, true),
+    include_attachments: rule.include_attachments !== false,
+  };
+}
+
+export function removeGmailRuleValue(rule, field, value) {
+  const normalized = normalizeGmailRule(rule);
+  const target = String(value || '').trim().toLowerCase();
+  const values = Array.isArray(normalized[field]) ? normalized[field] : [];
+  return {
+    ...normalized,
+    [field]: values.filter((item) => String(item || '').trim().toLowerCase() !== target),
+  };
+}
+
+export function formatGmailRuleSummary(rule = {}) {
+  const normalized = normalizeGmailRule(rule);
+  const domainCount = normalized.domains.length;
+  const emailCount = normalized.email_addresses.length;
+  const keywordCount = normalized.keywords.length;
+  const identityParts = [];
+  if (domainCount) identityParts.push(`${domainCount} domain${domainCount === 1 ? '' : 's'}`);
+  if (emailCount) identityParts.push(`${emailCount} email${emailCount === 1 ? '' : 's'}`);
+  if (!identityParts.length && !keywordCount) return 'No saved Gmail search rule yet.';
+  if (!identityParts.length) return `Messages matching ${keywordCount} keyword${keywordCount === 1 ? '' : 's'}.`;
+  const identity = identityParts.join(' or ');
+  if (!keywordCount) return `Messages from or to ${identity}.`;
+  return `Messages from or to ${identity}, narrowed by ${keywordCount} keyword${keywordCount === 1 ? '' : 's'}.`;
+}
+
 export function shouldAutoSelectGmailMessage(message) {
   return message?.case_relevance_label === 'likely_relevant'
     || Number(message?.case_relevance_score || 0) >= 0.7;

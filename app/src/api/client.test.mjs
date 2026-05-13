@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { clearCaseChat, draftCaseText, fetchCaseChatSession, grantCaseCollaborator, setAuthTokenGetter, streamCaseChatMessage } from './client.js';
+import {
+  clearCaseChat,
+  deleteGmailImportRule,
+  draftCaseText,
+  fetchCaseChatSession,
+  grantCaseCollaborator,
+  saveGmailImportRule,
+  setAuthTokenGetter,
+  streamCaseChatMessage,
+} from './client.js';
 
 function streamFromText(chunks) {
   return new ReadableStream({
@@ -217,4 +226,61 @@ test('draftCaseText posts a non-mutating draft assist request', async () => {
 
   const result = await draftCaseText('case-1', 'family_narrative');
   assert.equal(result.draft, 'Draft text');
+});
+
+test('saveGmailImportRule replaces the case Gmail rule through the rule endpoint', async () => {
+  setAuthTokenGetter(async () => 'test-token');
+  globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, 'http://localhost:8000/api/gmail/rule');
+    assert.equal(options.method, 'PUT');
+    assert.equal(options.headers.Authorization, 'Bearer test-token');
+    assert.deepEqual(JSON.parse(options.body), {
+      case_id: 'case-1',
+      domains: ['usd232.org', 'jcocogov.org'],
+      email_addresses: [],
+      keywords: ['incident'],
+      include_attachments: true,
+    });
+    return new Response(JSON.stringify({
+      connection: {
+        id: 'gmail-1',
+        rule: { domains: ['jcocogov.org', 'usd232.org'], email_addresses: [], keywords: ['incident'], include_attachments: true },
+        query: '(from:jcocogov.org OR to:jcocogov.org OR from:usd232.org OR to:usd232.org) incident',
+      },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await saveGmailImportRule({
+    case_id: 'case-1',
+    domains: ['usd232.org', 'jcocogov.org'],
+    email_addresses: [],
+    keywords: ['incident'],
+    include_attachments: true,
+  });
+
+  assert.equal(result.connection.id, 'gmail-1');
+});
+
+test('deleteGmailImportRule clears the saved case Gmail rule', async () => {
+  setAuthTokenGetter(async () => 'test-token');
+  globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, 'http://localhost:8000/api/gmail/rule?case_id=case-1');
+    assert.equal(options.method, 'DELETE');
+    assert.equal(options.headers.Authorization, 'Bearer test-token');
+    return new Response(JSON.stringify({
+      connection: { id: 'gmail-1', has_rule: false },
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await deleteGmailImportRule('case-1');
+
+  assert.equal(result.connection.has_rule, false);
 });

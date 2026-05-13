@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import {
   deleteDocument,
+  deleteGmailImportRule,
   connectGmail,
   disconnectGmail,
   fetchCaseAccess,
@@ -35,10 +36,11 @@ import { clerkEnabled } from '../auth/AuthContext';
 import { GMAIL_READONLY_SCOPE } from '../auth/gmailAccess';
 import { casePermissions, caseRoleLabel } from '../utils/caseAccess';
 import {
+  formatGmailRuleSummary,
   gmailRelevanceLabel,
   gmailRuleHasCriteria,
-  parseGmailKeywordInput,
-  parseGmailRuleInput,
+  normalizeGmailRule,
+  removeGmailRuleValue,
   shouldAutoSelectGmailMessage,
 } from '../utils/gmailImport';
 import {
@@ -424,6 +426,84 @@ function GmailField({ id, label, help, value, onChange, placeholder }) {
   );
 }
 
+function GmailRuleChip({ label, value, disabled, onRemove }) {
+  return (
+    <span className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-border bg-background px-2 py-1 text-xs font-medium text-text-dim">
+      <span className="truncate">{label}: <strong className="font-semibold text-text">{value}</strong></span>
+      {onRemove && (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onRemove}
+          className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-danger disabled:opacity-50"
+          aria-label={`Remove ${label} ${value} from Gmail rule`}
+          title={`Remove ${value}`}
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      )}
+    </span>
+  );
+}
+
+function SavedGmailRule({ connection, disabled, onRemoveValue, onClear }) {
+  const rule = normalizeGmailRule(connection?.rule || {});
+  const hasRule = Boolean(connection?.has_rule || gmailRuleHasCriteria(rule));
+  return (
+    <div className="rounded-md border border-border bg-surface px-3 py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-text">Saved Gmail search rule</p>
+          <p className="mt-1 text-xs leading-relaxed text-text-dim">{formatGmailRuleSummary(rule)}</p>
+        </div>
+        {hasRule && (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onClear}
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-danger/40 px-2.5 py-1.5 text-xs font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60"
+          >
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+            Clear rule
+          </button>
+        )}
+      </div>
+      {hasRule ? (
+        <div className="mt-3 flex min-w-0 flex-wrap gap-2">
+          {rule.domains.map((value) => (
+            <GmailRuleChip key={`domain:${value}`} label="Domain" value={value} disabled={disabled} onRemove={() => onRemoveValue('domains', value)} />
+          ))}
+          {rule.email_addresses.map((value) => (
+            <GmailRuleChip key={`email:${value}`} label="Email" value={value} disabled={disabled} onRemove={() => onRemoveValue('email_addresses', value)} />
+          ))}
+          {rule.keywords.map((value) => (
+            <GmailRuleChip key={`keyword:${value}`} label="Keyword" value={value} disabled={disabled} onRemove={() => onRemoveValue('keywords', value)} />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-md border border-border bg-background px-3 py-2 text-xs leading-relaxed text-text-dim">
+          Add a school domain, a person&apos;s email, or case-specific keywords. Saved values will appear here so you can remove them later.
+        </p>
+      )}
+      {connection?.query && (
+        <p className="mt-3 wrap-anywhere rounded-md border border-border bg-background px-3 py-2 text-[11px] leading-relaxed text-text-dim">
+          Gmail search: <span className="font-semibold text-text">{connection.query}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function gmailRuleToForm(rule) {
+  const normalized = normalizeGmailRule(rule);
+  return {
+    domains: normalized.domains.join(', '),
+    email_addresses: normalized.email_addresses.join(', '),
+    keywords: normalized.keywords.join(', '),
+    include_attachments: normalized.include_attachments,
+  };
+}
+
 export default function EvidenceLocker() {
   const { caseId } = useParams();
   const [access, setAccess] = useState(null);
@@ -551,12 +631,7 @@ export default function EvidenceLocker() {
           setGmailStatus(status);
           const rule = status.connections?.[0]?.rule;
           if (rule) {
-            setGmailRule({
-              domains: (rule.domains || []).join(', '),
-              email_addresses: (rule.email_addresses || []).join(', '),
-              keywords: (rule.keywords || []).join(', '),
-              include_attachments: rule.include_attachments ?? true,
-            });
+            setGmailRule(gmailRuleToForm(rule));
           }
         }
       })
@@ -607,6 +682,8 @@ export default function EvidenceLocker() {
 
   const gmailConnection = gmailStatus?.connections?.[0] || null;
   const gmailConnected = gmailConnection?.status === 'connected';
+  const gmailSavedRule = useMemo(() => normalizeGmailRule(gmailConnection?.rule || {}), [gmailConnection?.rule]);
+  const gmailHasSavedRule = Boolean(gmailConnection?.has_rule || gmailRuleHasCriteria(gmailSavedRule));
   const documentLimit = workspaceSummary?.entitlements?.max_documents_per_case;
   const hasDocumentLimit = Number.isFinite(documentLimit);
   const remainingDocuments = hasDocumentLimit ? Math.max(documentLimit - documentTotal, 0) : null;
@@ -740,21 +817,63 @@ export default function EvidenceLocker() {
       showNotice('warning', 'Add at least one domain, email, or keyword before saving a Gmail rule.');
       return;
     }
+    const normalizedRule = normalizeGmailRule(gmailRule);
     setBusy(true);
     showNotice(null, '');
     try {
-      const run = await saveGmailImportRule({
+      await saveGmailImportRule({
         case_id: caseId,
-        domains: parseGmailRuleInput(gmailRule.domains),
-        email_addresses: parseGmailRuleInput(gmailRule.email_addresses),
-        keywords: parseGmailKeywordInput(gmailRule.keywords),
-        include_attachments: gmailRule.include_attachments,
+        ...normalizedRule,
       });
       const status = await fetchGmailStatus(caseId);
       setGmailStatus(status);
-      showNotice(run.error ? 'warning' : 'success', run.error || (status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved.' : 'Gmail rule saved. Grant Gmail access, then check the connection.'));
+      const savedRule = status.connections?.[0]?.rule || normalizedRule;
+      setGmailRule(gmailRuleToForm(savedRule));
+      showNotice('success', status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved. Search it to review matching messages.' : 'Gmail rule saved. Grant Gmail access, then refresh Gmail status.');
     } catch (err) {
       showNotice('error', err.message === 'Failed to fetch' ? 'Could not reach the Gmail import service. Refresh and try again.' : err.message || 'Gmail rule failed');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemoveGmailRuleValue = async (field, value) => {
+    if (!gmailConnection?.rule) return;
+    const nextRule = removeGmailRuleValue(gmailConnection.rule, field, value);
+    setBusy(true);
+    showNotice(null, '');
+    try {
+      if (gmailRuleHasCriteria(nextRule)) {
+        await saveGmailImportRule({ case_id: caseId, ...nextRule });
+      } else {
+        await deleteGmailImportRule(caseId);
+      }
+      const status = await fetchGmailStatus(caseId);
+      setGmailStatus(status);
+      setGmailRule(gmailRuleToForm(status.connections?.[0]?.rule || nextRule));
+      setGmailMessages([]);
+      setSelectedGmailMessages([]);
+      showNotice('success', 'Gmail rule updated.');
+    } catch (err) {
+      showNotice('error', err.message || 'Could not update the Gmail rule.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleClearGmailRule = async () => {
+    setBusy(true);
+    showNotice(null, '');
+    try {
+      const result = await deleteGmailImportRule(caseId);
+      const status = await fetchGmailStatus(caseId);
+      setGmailStatus(status);
+      setGmailRule(gmailRuleToForm(result.connection?.rule || status.connections?.[0]?.rule || {}));
+      setGmailMessages([]);
+      setSelectedGmailMessages([]);
+      showNotice('success', 'Gmail search rule cleared. Gmail access stays connected.');
+    } catch (err) {
+      showNotice('error', err.message || 'Could not clear the Gmail rule.');
     } finally {
       setBusy(false);
     }
@@ -910,7 +1029,7 @@ export default function EvidenceLocker() {
                   Import from Gmail
                 </h3>
                 <p className="mt-1 text-xs leading-relaxed text-text-dim">
-                  Search Gmail with a rule, review matches, then import selected messages as evidence.
+                  Build a saved search, review matches, then import selected messages as evidence.
                 </p>
               </div>
               <span className="rounded-md border border-border px-2 py-1 text-xs font-medium text-text-dim">Beta</span>
@@ -922,27 +1041,33 @@ export default function EvidenceLocker() {
                 </p>
               )}
               {gmailConnection?.google_email && <p className="rounded-md border border-success/30 bg-success/8 px-3 py-2 text-xs text-success">Connected to {gmailConnection.google_email}</p>}
+              <SavedGmailRule
+                connection={gmailConnection}
+                disabled={busy || !canManageGmail}
+                onRemoveValue={handleRemoveGmailRuleValue}
+                onClear={handleClearGmailRule}
+              />
               <div className="grid gap-2 sm:grid-cols-3">
                 <GmailField
                   id="gmail-domains"
                   label="Domains"
-                  help="Use a school or agency domain like usd232.org. USDWatch searches messages from or to that domain."
+                  help="Use school or agency domains like usd232.org. Separate multiple domains with commas. USDWatch searches messages from or to any saved domain."
                   value={gmailRule.domains}
                   onChange={(event) => setGmailRule((current) => ({ ...current, domains: event.target.value }))}
-                  placeholder="usd232.org"
+                  placeholder="usd232.org, jcocogov.org"
                 />
                 <GmailField
                   id="gmail-emails"
                   label="Emails"
-                  help="Use a specific person or inbox. Messages from or to that email will be included in the Gmail search results."
+                  help="Use specific people or inboxes. Separate multiple emails with commas. Messages from or to any saved email will be included."
                   value={gmailRule.email_addresses}
                   onChange={(event) => setGmailRule((current) => ({ ...current, email_addresses: event.target.value }))}
-                  placeholder="principal@usd232.org"
+                  placeholder="principal@usd232.org, records@usd232.org"
                 />
                 <GmailField
                   id="gmail-keywords"
                   label="Keywords"
-                  help="Use case-specific words like incident, supervision, records, the school name, or a child name to reduce noise."
+                  help="Use case-specific words like incident, supervision, records, the school name, or a child name. Keywords narrow broad domain results."
                   value={gmailRule.keywords}
                   onChange={(event) => setGmailRule((current) => ({ ...current, keywords: event.target.value }))}
                   placeholder="incident, supervision"
@@ -955,7 +1080,7 @@ export default function EvidenceLocker() {
                 </label>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button disabled={busy || !canManageGmail || !gmailRuleHasCriteria(gmailRule)} onClick={handleSaveGmailRule} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Save search rule</button>
+                <button disabled={busy || !canManageGmail || !gmailRuleHasCriteria(gmailRule)} onClick={handleSaveGmailRule} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Save rule</button>
                 {clerkEnabled ? (
                   <ClerkGmailAccessButton
                     busy={busy}
@@ -975,8 +1100,14 @@ export default function EvidenceLocker() {
               </div>
               {gmailConnected && (
                 <div className="space-y-3 rounded-md border border-border bg-surface p-3">
-                  <input aria-label="Gmail search" className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailQuery} onChange={(event) => setGmailQuery(event.target.value)} placeholder="Optional Gmail search override" />
-                  <button disabled={busy} onClick={handleSearchGmail} className="min-h-11 w-full rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Search Gmail</button>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-text">Review matching messages</p>
+                    <p className="mt-1 text-xs leading-relaxed text-text-dim">
+                      Search the saved rule first. Use the override only for one-off Gmail searches.
+                    </p>
+                  </div>
+                  <input aria-label="Optional Gmail search override" className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailQuery} onChange={(event) => setGmailQuery(event.target.value)} placeholder="Optional one-time Gmail search override" />
+                  <button disabled={busy || (!gmailHasSavedRule && !gmailQuery.trim())} onClick={handleSearchGmail} className="min-h-11 w-full rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Search Gmail</button>
                   {gmailMessages.length > 0 && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-2 text-xs text-text-dim">

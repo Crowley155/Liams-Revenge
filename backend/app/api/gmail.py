@@ -7,7 +7,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.api._store import cases, gmail_connections, gmail_import_runs
+from app.api._store import cases, gmail_connections
 from app.api.deps import get_current_user
 from app.models import GmailConnection, GmailImportRule, GmailImportRun
 from app.services.case_access import require_case_access
@@ -20,6 +20,7 @@ from app.services.clerk_oauth import (
 from app.services.gmail_importer import (
     GMAIL_READONLY_SCOPE,
     GmailImportError,
+    build_gmail_query,
     gmail_user_profile,
     import_matching_messages,
     list_matching_messages,
@@ -90,8 +91,16 @@ def _connection_for_case(case_id: str, user: dict, connection_id: str = "") -> G
 
 def _public_connection(connection: GmailConnection) -> dict:
     data = connection.model_dump(mode="json")
+    query = build_gmail_query(connection.rule)
     data["connected"] = connection.status == "connected"
     data["token_stored"] = False
+    data["query"] = query
+    data["has_rule"] = bool(query)
+    data["rule_counts"] = {
+        "domains": len(connection.rule.domains),
+        "email_addresses": len(connection.rule.email_addresses),
+        "keywords": len(connection.rule.keywords),
+    }
     return data
 
 
@@ -184,7 +193,7 @@ async def gmail_status(case_id: str = "", user: dict = Depends(get_current_user)
     }
 
 
-@router.post("/gmail/import-rules", response_model=GmailImportRun)
+@router.put("/gmail/rule")
 async def save_gmail_import_rule(body: GmailRuleRequest, user: dict = Depends(get_current_user)):
     case = _get_case(body.case_id, user)
     rule = GmailImportRule(
@@ -203,17 +212,20 @@ async def save_gmail_import_rule(body: GmailRuleRequest, user: dict = Depends(ge
     else:
         connection = _new_connection(case, rule)
     gmail_connections[connection.id] = connection
-    run = GmailImportRun(
-        id=str(uuid.uuid4())[:8],
-        workspace_id=case.workspace_id,
-        case_id=case.id,
-        connection_id=connection.id,
-        status="queued" if connection.status == "connected" else "needs_consent",
-        rule=rule,
-        error="" if clerk_oauth_configured() else "Gmail import needs CLERK_SECRET_KEY on the backend.",
-    )
-    gmail_import_runs[run.id] = run
-    return run
+    return {"connection": _public_connection(connection)}
+
+
+@router.delete("/gmail/rule")
+async def clear_gmail_import_rule(case_id: str, user: dict = Depends(get_current_user)):
+    case = _get_case(case_id, user)
+    existing = _connections_for(user, case.id)
+    connection = existing[0] if existing else _new_connection(case, GmailImportRule())
+    connection.rule = GmailImportRule()
+    if connection.status == "setup_required" and clerk_oauth_configured():
+        connection.status = "needs_consent"
+    connection.updated_at = utc_now()
+    gmail_connections[connection.id] = connection
+    return {"connection": _public_connection(connection)}
 
 
 @router.post("/gmail/connect")

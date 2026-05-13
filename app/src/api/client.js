@@ -738,12 +738,20 @@ export async function fetchGmailStatus(caseId = '') {
 }
 
 export async function saveGmailImportRule(data) {
-  const res = await authFetch(`${API_BASE}/api/gmail/import-rules`, {
-    method: 'POST',
+  const res = await authFetch(`${API_BASE}/api/gmail/rule`, {
+    method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to save Gmail import rule: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteGmailImportRule(caseId) {
+  const res = await authFetch(`${API_BASE}/api/gmail/rule?case_id=${encodeURIComponent(caseId)}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Failed to clear Gmail import rule: ${res.status}`);
   return res.json();
 }
 
