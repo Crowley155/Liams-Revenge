@@ -20,6 +20,19 @@ export function gmailRuleHasCriteria(rule) {
   );
 }
 
+export function friendlyGmailError(value) {
+  const message = String(value || '').trim();
+  const lowered = message.toLowerCase();
+  if (
+    lowered.includes('gmail api')
+    && (lowered.includes('not been used') || lowered.includes('disabled'))
+  ) {
+    return 'Gmail access is approved, but Gmail API is not enabled for this Google Cloud project. Enable Gmail API in Google Cloud, then check Gmail access again.';
+  }
+  if (message) return message;
+  return 'Gmail could not be reached. Check Gmail access, then try again.';
+}
+
 function arrayFromRuleValue(value, keyword = false) {
   if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean);
   return keyword ? parseGmailKeywordInput(value) : parseGmailRuleInput(value);

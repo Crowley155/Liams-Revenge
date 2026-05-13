@@ -11,7 +11,7 @@ from app.config import Settings
 from app.db import _connect, init_db
 from app.main import app
 from app.models import CaseDocument, CaseIntake, CaseRecord, CaseStatus, GmailConnection, GmailImportRule
-from app.services.gmail_importer import import_matching_messages
+from app.services.gmail_importer import GmailImportError, import_matching_messages
 
 client = TestClient(app)
 
@@ -1640,6 +1640,51 @@ def test_gmail_status_uses_clerk_google_token_when_scope_granted(monkeypatch):
     assert body["connections"][0]["status"] == "connected"
     assert body["connections"][0]["google_email"] == "parent@gmail.com"
     assert body["connections"][0]["token_stored"] is False
+
+
+def test_gmail_connect_returns_parent_safe_google_api_error(monkeypatch):
+    monkeypatch.setenv("CLERK_SECRET_KEY", "sk_test_clerk")
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Clerk Gmail disabled API case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    saved = client.put("/api/gmail/rule", json={
+        "case_id": case_id,
+        "domains": ["usd232.org"],
+        "email_addresses": [],
+        "keywords": [],
+        "include_attachments": True,
+    })
+    assert saved.status_code == 200
+
+    def fake_token(_clerk_user_id: str, required_scope: str = ""):
+        return {
+            "token": "clerk-google-token",
+            "scopes": ["openid", "email", "profile", required_scope],
+        }
+
+    def fake_profile(_access_token: str):
+        raise GmailImportError(
+            "Gmail access is approved, but Gmail API is not enabled for Google Cloud project 649676222654. "
+            "Enable Gmail API in Google Cloud, then check Gmail access again."
+        )
+
+    monkeypatch.setattr("app.api.gmail.fetch_clerk_google_oauth_token", fake_token)
+    monkeypatch.setattr("app.api.gmail.gmail_user_profile", fake_profile)
+
+    result = client.post("/api/gmail/connect", json={"case_id": case_id})
+
+    assert result.status_code == 400
+    detail = result.json()["detail"]
+    assert detail == (
+        "Gmail access is approved, but Gmail API is not enabled for Google Cloud project 649676222654. "
+        "Enable Gmail API in Google Cloud, then check Gmail access again."
+    )
+    assert "{" not in detail
+    assert "console.developers.google.com" not in detail
 
 
 def test_gmail_search_uses_clerk_token_only(monkeypatch):

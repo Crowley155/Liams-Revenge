@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  friendlyGmailError,
   formatGmailRuleSummary,
   gmailRuleHasCriteria,
   removeGmailRuleValue,
@@ -54,4 +55,17 @@ test('shouldAutoSelectGmailMessage only preselects likely relevant messages', ()
   assert.equal(shouldAutoSelectGmailMessage({ case_relevance_label: 'likely_relevant', case_relevance_score: 0.74 }), true);
   assert.equal(shouldAutoSelectGmailMessage({ case_relevance_label: 'possible_match', case_relevance_score: 0.58 }), false);
   assert.equal(shouldAutoSelectGmailMessage({ case_relevance_label: 'review_first', case_relevance_score: 0.22 }), false);
+});
+
+test('friendlyGmailError explains disabled Gmail API setup without raw Google JSON', () => {
+  const message = friendlyGmailError(
+    'Gmail API request failed: 403 { "error": { "code": 403, "message": "Gmail API has not been used in project 649676222654 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/gmail.googleapis.com/overview?project=649676222654 then retry." } }',
+  );
+
+  assert.equal(
+    message,
+    'Gmail access is approved, but Gmail API is not enabled for this Google Cloud project. Enable Gmail API in Google Cloud, then check Gmail access again.',
+  );
+  assert.equal(message.includes('{'), false);
+  assert.equal(message.includes('console.developers.google.com'), false);
 });

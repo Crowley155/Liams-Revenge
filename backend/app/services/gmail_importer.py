@@ -63,12 +63,50 @@ class GmailImportError(RuntimeError):
     pass
 
 
+def _gmail_api_error_message(response: httpx.Response) -> str:
+    try:
+        payload = response.json()
+    except ValueError:
+        return response.text
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict) and error.get("message"):
+            return str(error["message"])
+        if payload.get("message"):
+            return str(payload["message"])
+    return response.text
+
+
+def _project_id_from_google_error(message: str) -> str:
+    match = re.search(r"(?:project\s+|project=)([A-Za-z0-9-]+)", message)
+    return match.group(1) if match else ""
+
+
+def _friendly_gmail_api_error(response: httpx.Response) -> str:
+    message = _gmail_api_error_message(response)
+    lowered = message.lower()
+    if (
+        response.status_code == 403
+        and "gmail api" in lowered
+        and ("not been used" in lowered or "disabled" in lowered)
+    ):
+        project_id = _project_id_from_google_error(message)
+        project_text = f" for Google Cloud project {project_id}" if project_id else " for this Google Cloud project"
+        return (
+            f"Gmail access is approved, but Gmail API is not enabled{project_text}. "
+            "Enable Gmail API in Google Cloud, then check Gmail access again."
+        )
+    if response.status_code in {401, 403}:
+        return "Google did not allow Gmail access. Grant read-only Gmail access again, then check Gmail access."
+    return f"Gmail API request failed ({response.status_code}). Try again in a moment."
+
+
 def gmail_get_json(path: str, access_token: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     url = f"{GMAIL_API_BASE}/{path.lstrip('/')}"
     with httpx.Client(timeout=30) as client:
         response = client.get(url, params=params or {}, headers={"Authorization": f"Bearer {access_token}"})
     if response.status_code >= 400:
-        raise GmailImportError(f"Gmail API request failed: {response.status_code} {response.text[:300]}")
+        raise GmailImportError(_friendly_gmail_api_error(response))
     return response.json()
 
 

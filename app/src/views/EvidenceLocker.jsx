@@ -36,6 +36,7 @@ import { clerkEnabled } from '../auth/AuthContext';
 import { GMAIL_READONLY_SCOPE } from '../auth/gmailAccess';
 import { casePermissions, caseRoleLabel } from '../utils/caseAccess';
 import {
+  friendlyGmailError,
   formatGmailRuleSummary,
   gmailRelevanceLabel,
   gmailRuleHasCriteria,
@@ -829,9 +830,9 @@ export default function EvidenceLocker() {
       setGmailStatus(status);
       const savedRule = status.connections?.[0]?.rule || normalizedRule;
       setGmailRule(gmailRuleToForm(savedRule));
-      showNotice('success', status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved. Search it to review matching messages.' : 'Gmail rule saved. Grant Gmail access, then refresh Gmail status.');
+      showNotice('success', status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved. Search it to review matching messages.' : 'Gmail rule saved. Grant Gmail access, then check Gmail access.');
     } catch (err) {
-      showNotice('error', err.message === 'Failed to fetch' ? 'Could not reach the Gmail import service. Refresh and try again.' : err.message || 'Gmail rule failed');
+      showNotice('error', err.message === 'Failed to fetch' ? 'Could not reach the Gmail import service. Refresh and try again.' : friendlyGmailError(err.message || 'Gmail rule failed'));
     } finally {
       setBusy(false);
     }
@@ -879,7 +880,7 @@ export default function EvidenceLocker() {
     }
   };
 
-  const handleRefreshGmailConnection = async () => {
+  const handleCheckGmailAccess = async () => {
     setBusy(true);
     showNotice(null, '');
     try {
@@ -889,7 +890,7 @@ export default function EvidenceLocker() {
       const email = result.connection?.google_email || status.connections?.[0]?.google_email;
       showNotice('success', email ? `Gmail connected for ${email}.` : 'Gmail connected.');
     } catch (err) {
-      showNotice('warning', err.message || 'Grant Gmail access, then refresh the Gmail status.');
+      showNotice('warning', friendlyGmailError(err.message || 'Grant Gmail access, then check Gmail access.'));
     } finally {
       setBusy(false);
     }
@@ -910,7 +911,7 @@ export default function EvidenceLocker() {
       setSelectedGmailMessages(likelyRelevant.map((item) => item.id));
       showNotice('info', `Found ${result.messages?.length || 0} matching Gmail message${result.messages?.length === 1 ? '' : 's'}. ${likelyRelevant.length} likely relevant message${likelyRelevant.length === 1 ? '' : 's'} selected.`);
     } catch (err) {
-      showNotice('error', err.message || 'Gmail search failed');
+      showNotice('error', friendlyGmailError(err.message || 'Gmail search failed'));
     } finally {
       setBusy(false);
     }
@@ -936,7 +937,7 @@ export default function EvidenceLocker() {
       await loadDocuments();
       showNotice('success', `Imported ${run.imported_messages} message${run.imported_messages === 1 ? '' : 's'} and ${run.imported_attachments} attachment${run.imported_attachments === 1 ? '' : 's'}.`);
     } catch (err) {
-      showNotice('error', err.message || 'Gmail import failed');
+      showNotice('error', friendlyGmailError(err.message || 'Gmail import failed'));
     } finally {
       setBusy(false);
     }
@@ -1095,7 +1096,7 @@ export default function EvidenceLocker() {
                     Grant Gmail access
                   </button>
                 )}
-                <button disabled={busy || !canManageGmail || !gmailStatus?.configured} onClick={handleRefreshGmailConnection} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Refresh Gmail status</button>
+                <button disabled={busy || !canManageGmail || !gmailStatus?.configured} onClick={handleCheckGmailAccess} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Check Gmail access</button>
                 {gmailConnected && <button disabled={busy} onClick={handleDisconnectGmail} className="min-h-11 rounded-md border border-danger/40 px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60">Disconnect</button>}
               </div>
               {gmailConnected && (
