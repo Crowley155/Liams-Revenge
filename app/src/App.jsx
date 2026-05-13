@@ -62,7 +62,7 @@ function EvaluateRedirect() {
     let cancelled = false;
     openOrCreateDraftCase()
       .then((caseRecord) => {
-        if (!cancelled) navigate(`/cases/${caseRecord.id}?advocate=open`, { replace: true });
+        if (!cancelled) navigate(`/cases/${caseRecord.id}?chat=open`, { replace: true });
       })
       .catch((err) => {
         if (!cancelled) setError(err.message || 'Could not open your draft case');

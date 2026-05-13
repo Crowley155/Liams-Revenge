@@ -30,7 +30,7 @@ export default function Cases() {
     setError(null);
     try {
       const caseRecord = await openOrCreateDraftCase();
-      navigate(`/cases/${caseRecord.id}?advocate=open`);
+      navigate(`/cases/${caseRecord.id}?chat=open`);
     } catch (err) {
       setError(casesErrorCopy(err));
     } finally {

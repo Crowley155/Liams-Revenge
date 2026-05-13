@@ -1,4 +1,5 @@
 import uuid
+import time
 from datetime import datetime
 from urllib.parse import parse_qs, urlparse
 
@@ -570,6 +571,74 @@ def test_case_advocate_stream_emits_case_scoped_sources_actions_and_completion(m
     assert structured["sources"][0]["document_id"] == source_doc.id
     assert structured["action_proposals"][0]["id"] == actions[0]["id"]
     assert structured["model_route"]["fallback"] is True
+
+
+def test_case_chat_clear_resets_transcript_without_erasing_case_file(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai_runtime.intake._run_agno_analysis",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mock fallback")),
+    )
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Clear chat case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    message = client.post(
+        f"/api/cases/{case_id}/advocate/messages",
+        json={"content": "My daughter was injured at recess and I need help organizing the records."},
+    )
+    assert message.status_code == 200
+    assert len(message.json()["messages"]) >= 3
+
+    cleared = client.post(f"/api/cases/{case_id}/advocate/session/clear")
+    assert cleared.status_code == 200
+    body = cleared.json()
+
+    assert body["case_id"] == case_id
+    assert len(body["messages"]) == 1
+    assert body["messages"][0]["role"] == "assistant"
+    assert "Chat" in body["messages"][0]["content"]
+    assert all("daughter was injured" not in item["content"] for item in body["messages"])
+
+    updated = client.get(f"/api/cases/{case_id}")
+    assert updated.status_code == 200
+    case_body = updated.json()
+    assert case_body["family_narrative"]
+    assert case_body["advocate_state"]["active_session_id"] == body["id"]
+    assert case_body["advocate_state"]["chat_cleared_at"]
+
+
+def test_case_chat_stream_falls_back_when_manager_times_out(monkeypatch):
+    import app.ai_runtime.intake as intake_runtime
+
+    monkeypatch.setattr(intake_runtime, "AGNO_RUN_TIMEOUT_SECONDS", 0.01)
+
+    def slow_manager(*args, **kwargs):
+        time.sleep(0.08)
+        return intake_runtime._heuristic_analysis(args[0], args[2] if len(args) > 2 else kwargs.get("context"))
+
+    monkeypatch.setattr(intake_runtime, "_run_agno_analysis", slow_manager)
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Timeout chat case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    with client.stream(
+        "POST",
+        f"/api/cases/{case_id}/advocate/messages/stream",
+        json={"content": "Tell me what records are missing."},
+    ) as response:
+        assert response.status_code == 200
+        events = _sse_events(response)
+
+    assert [name for name, _payload in events][-1] == "complete"
+    structured = events[-1][1]["session"]["messages"][-1]["structured"]
+    assert structured["model_route"]["fallback"] is True
+    assert "timed out" in structured["model_route"]["error"].lower()
 
 
 def test_case_advocate_actions_require_case_access_and_record_decisions(monkeypatch):

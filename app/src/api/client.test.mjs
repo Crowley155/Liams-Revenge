@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { setAuthTokenGetter, streamCaseAdvocateMessage } from './client.js';
+import { clearCaseChat, setAuthTokenGetter, streamCaseAdvocateMessage } from './client.js';
 
 function streamFromText(chunks) {
   return new ReadableStream({
@@ -38,4 +38,41 @@ test('streamCaseAdvocateMessage emits SSE events and returns the completed sessi
   assert.equal(session.id, 'session-1');
   assert.deepEqual(events.map((event) => event.type), ['status', 'message', 'source', 'action', 'complete']);
   assert.equal(events[2].data.label, 'incident.pdf');
+});
+
+test('streamCaseAdvocateMessage times out stalled streams', async () => {
+  setAuthTokenGetter(async () => 'test-token');
+  globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
+  let aborted = false;
+  globalThis.fetch = async (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener('abort', () => {
+      aborted = true;
+      const err = new Error('aborted');
+      err.name = 'AbortError';
+      reject(err);
+    });
+  });
+
+  await assert.rejects(
+    streamCaseAdvocateMessage('case-1', 'Are you there?', { timeoutMs: 1 }),
+    /timed out/i,
+  );
+  assert.equal(aborted, true);
+});
+
+test('clearCaseChat posts to the case chat clear endpoint', async () => {
+  setAuthTokenGetter(async () => 'test-token');
+  globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, 'http://localhost:8000/api/cases/case-1/advocate/session/clear');
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers.Authorization, 'Bearer test-token');
+    return new Response(JSON.stringify({ id: 'session-1', messages: [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const session = await clearCaseChat('case-1');
+  assert.equal(session.id, 'session-1');
 });

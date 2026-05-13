@@ -259,7 +259,7 @@ def _apply_session_to_case(case: CaseRecord, session: CaseIntakeSession) -> Case
         "safety_flags": structured.get("safety_flags", []),
         "model_route": structured.get("model_route", {}),
         "trace_id": structured.get("trace_id", ""),
-        "updated_by": "case_advocate",
+        "updated_by": "case_chat",
     }
     case.updated_at = utc_now()
     cases[case.id] = case
@@ -288,11 +288,42 @@ def _create_draft_case(user: dict) -> CaseRecord:
         intake=CaseIntake(state="", issue_type="other", issue_categories=["other"]),
         summary="",
         family_narrative="",
-        advocate_state={"created_by": "case_advocate"},
+        advocate_state={"created_by": "case_chat"},
         created_by=user["id"],
     )
     cases[case.id] = case
     return case
+
+
+CASE_CHAT_OPENING_QUESTION = "What happened, and what are you most worried about right now?"
+
+
+def _initial_case_chat_message() -> CaseIntakeMessage:
+    return CaseIntakeMessage(
+        role="assistant",
+        content=(
+            "Chat is ready for this case. Tell me what feels most important, and I will organize "
+            "the facts, evidence gaps, and next useful step."
+        ),
+        structured={
+            "next_question": CASE_CHAT_OPENING_QUESTION,
+            "question_cards": [{
+                "id": "start-story",
+                "field": "family_narrative",
+                "label": "Start with what happened",
+                "question": CASE_CHAT_OPENING_QUESTION,
+                "why": "This gives USDWatch enough context to begin organizing the case file.",
+                "input_type": "free_text",
+                "options": [],
+                "priority": 1,
+            }],
+            "suggested_actions": [
+                "Start with what happened in plain English.",
+                "Add emails, records, screenshots, or notes to the Evidence Locker.",
+            ],
+            "route_suggestion": "",
+        },
+    )
 
 
 def _case_advocate_session(case: CaseRecord, user: dict) -> CaseIntakeSession:
@@ -313,38 +344,47 @@ def _case_advocate_session(case: CaseRecord, user: dict) -> CaseIntakeSession:
         created_by=user["id"],
         draft_case_id=case.id,
         facts=_case_to_intake_facts(case),
-        messages=[
-            CaseIntakeMessage(
-                role="assistant",
-                content=(
-                    "I am here with you while we build this case file. Tell me what feels most important, "
-                    "and I will organize the facts and suggest the next useful step."
-                ),
-                structured={
-                    "next_question": "What happened, and what are you most worried about right now?",
-                    "question_cards": [{
-                        "id": "start-story",
-                        "field": "family_narrative",
-                        "label": "Start with what happened",
-                        "question": "What happened, and what are you most worried about right now?",
-                        "why": "This gives USDWatch enough context to begin organizing the case file.",
-                        "input_type": "free_text",
-                        "options": [],
-                        "priority": 1,
-                    }],
-                    "suggested_actions": [
-                        "Tell the Case Advocate what happened in plain English.",
-                        "Add any emails, records, screenshots, or notes to the Evidence Locker.",
-                    ],
-                    "route_suggestion": "",
-                },
-            )
-        ],
-        next_question="What happened, and what are you most worried about right now?",
+        messages=[_initial_case_chat_message()],
+        next_question=CASE_CHAT_OPENING_QUESTION,
     )
     case_intake_sessions[session.id] = session
     case.advocate_state = {**case.advocate_state, "active_session_id": session.id}
     case.updated_at = utc_now()
+    cases[case.id] = case
+    return session
+
+
+def _clear_case_chat_session(case: CaseRecord, user: dict) -> CaseIntakeSession:
+    session = _case_advocate_session(case, user)
+    now = utc_now()
+    session.messages = [_initial_case_chat_message()]
+    session.facts = _case_to_intake_facts(case)
+    session.confidence = {}
+    session.missing_fields = []
+    session.issue_tags = case.intake.issue_categories or ([case.intake.issue_type] if case.intake.issue_type else [])
+    session.next_question = CASE_CHAT_OPENING_QUESTION
+    session.updated_at = now
+    case_intake_sessions[session.id] = session
+    opening = session.messages[0].structured
+    case.advocate_state = {
+        **case.advocate_state,
+        "active_session_id": session.id,
+        "confidence": {},
+        "missing_facts": [],
+        "issue_tags": session.issue_tags,
+        "next_question": session.next_question,
+        "suggested_actions": opening.get("suggested_actions", []),
+        "route_suggestion": "",
+        "agent_run_ids": [],
+        "sources": [],
+        "action_proposals": [],
+        "safety_flags": [],
+        "model_route": {},
+        "trace_id": "",
+        "chat_cleared_at": now.isoformat(),
+        "updated_by": "case_chat_clear",
+    }
+    case.updated_at = now
     cases[case.id] = case
     return session
 
@@ -470,14 +510,14 @@ def _find_advocate_action(session: CaseIntakeSession, action_id: str) -> tuple[C
         for index, action in enumerate(actions):
             if action.get("id") == action_id:
                 return message, index, action
-    raise HTTPException(status_code=404, detail="Advocate action not found")
+    raise HTTPException(status_code=404, detail="Chat action not found")
 
 
 def _resolve_advocate_action(case: CaseRecord, user: dict, action_id: str, status: str) -> dict:
     session = _case_advocate_session(case, user)
     message, index, action = _find_advocate_action(session, action_id)
     if action.get("status") != "pending":
-        raise HTTPException(status_code=409, detail="Advocate action is no longer pending")
+        raise HTTPException(status_code=409, detail="Chat action is no longer pending")
 
     action = {**action, "status": status, "resolved_at": utc_now().isoformat()}
     executed = False
@@ -903,6 +943,12 @@ async def get_case_advocate_session(case_id: str, user: dict = Depends(get_curre
     return _case_advocate_session(case, user)
 
 
+@router.post("/cases/{case_id}/advocate/session/clear", response_model=CaseIntakeSession)
+async def clear_case_advocate_session(case_id: str, user: dict = Depends(get_current_user)):
+    case = require_case_access(user, cases.get(case_id), "edit")
+    return _clear_case_chat_session(case, user)
+
+
 @router.post("/cases/{case_id}/advocate/messages", response_model=CaseIntakeSession)
 async def append_case_advocate_message(
     case_id: str,
@@ -928,7 +974,7 @@ async def append_case_advocate_message_stream(
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
     def generate():
-        yield _sse("status", {"status": "working", "label": "Organizing the case file"})
+        yield _sse("status", {"status": "working", "label": "Reading the case file"})
         try:
             session = _append_advocate_turn(case, user, content)
             structured = _latest_advocate_structured(session)
@@ -947,8 +993,8 @@ async def append_case_advocate_message_stream(
                 yield _sse("safety", flag)
             yield _sse("complete", {"session": session.model_dump(mode="json")})
         except Exception as exc:
-            logger.exception("Case Advocate stream failed for case %s", case.id)
-            yield _sse("error", {"detail": str(exc) or "Case Advocate failed"})
+            logger.exception("Case chat stream failed for case %s", case.id)
+            yield _sse("error", {"detail": str(exc) or "Case chat failed"})
 
     return StreamingResponse(generate(), media_type="text/event-stream")
 

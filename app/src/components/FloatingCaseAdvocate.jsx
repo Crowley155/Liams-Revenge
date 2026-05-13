@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   BookOpenCheck,
   Check,
-  CheckCircle2,
   ClipboardList,
   FileText,
   FileUp,
@@ -12,16 +11,17 @@ import {
   Home,
   Loader2,
   MessageCircle,
-  PanelRightClose,
   Search,
   Send,
-  ShieldCheck,
   StopCircle,
+  Trash2,
   Users,
+  X,
   XCircle,
 } from 'lucide-react';
 import {
   approveCaseAdvocateAction,
+  clearCaseChat,
   fetchCaseAdvocateSession,
   openOrCreateDraftCase,
   rejectCaseAdvocateAction,
@@ -289,8 +289,9 @@ export default function FloatingCaseAdvocate() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
-    if (params.get('advocate') !== 'open') return;
+    if (params.get('chat') !== 'open' && params.get('advocate') !== 'open') return;
     setOpen(true);
+    params.delete('chat');
     params.delete('advocate');
     const nextSearch = params.toString();
     navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true });
@@ -312,7 +313,7 @@ export default function FloatingCaseAdvocate() {
     try {
       setSession(await fetchCaseAdvocateSession(caseId));
     } catch (err) {
-      setError(err.message || 'Case Advocate could not load');
+      setError(err.message || 'Chat could not load');
     }
   }, [caseId, open]);
 
@@ -322,7 +323,7 @@ export default function FloatingCaseAdvocate() {
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const openAdvocate = async () => {
+  const openChat = async () => {
     if (!isAuthenticated || loading) return;
     setError('');
     if (caseId) {
@@ -333,7 +334,7 @@ export default function FloatingCaseAdvocate() {
     try {
       const draft = await openOrCreateDraftCase();
       setOpen(true);
-      navigate(`/cases/${draft.id}?advocate=open`);
+      navigate(`/cases/${draft.id}?chat=open`);
     } catch (err) {
       setError(err.message || 'Could not open your case workspace');
     } finally {
@@ -346,7 +347,7 @@ export default function FloatingCaseAdvocate() {
       setOpen(false);
       return;
     }
-    await openAdvocate();
+    await openChat();
   };
 
   const cancelStream = () => {
@@ -416,13 +417,36 @@ export default function FloatingCaseAdvocate() {
       window.dispatchEvent(new CustomEvent('usdwatch:case-updated', { detail: { caseId } }));
     } catch (err) {
       if (err.name !== 'AbortError') {
-        setError(err.message || 'Case Advocate could not respond');
+        setError(err.message || 'Chat could not respond');
       }
     } finally {
       abortRef.current = null;
       setBusy(false);
       setStreamStatus('');
       setStreamMessage(null);
+    }
+  };
+
+  const clearChat = async () => {
+    if (!caseId || busy || busyActionId) return;
+    const confirmed = window.confirm('Clear this chat? Your case file, evidence, and saved narrative will stay.');
+    if (!confirmed) return;
+    abortRef.current?.abort();
+    setBusy(false);
+    setStreamStatus('');
+    setStreamMessage(null);
+    setBusyActionId('clear-chat');
+    setError('');
+    try {
+      const updated = await clearCaseChat(caseId);
+      setSession(updated);
+      setMessage('');
+      setActiveQuestion(null);
+    } catch (err) {
+      setError(err.message || 'Could not clear chat');
+    } finally {
+      setBusyActionId('');
+      abortRef.current = null;
     }
   };
 
@@ -471,36 +495,41 @@ export default function FloatingCaseAdvocate() {
   return (
     <div className={`case-advocate-widget ${open ? 'is-open' : ''} ${inCaseWorkspace ? 'is-case-sidecar' : ''}`}>
       {open && (
-        <section className="case-advocate-panel" aria-label="Case Advocate">
+        <section className="case-advocate-panel" aria-label="Case chat">
           <header className="case-advocate-header">
             <div className="case-advocate-header-main">
-              <span className="case-advocate-mark"><ShieldCheck className="h-4 w-4" aria-hidden="true" /></span>
+              <span className="case-advocate-mark"><MessageCircle className="h-4 w-4" aria-hidden="true" /></span>
               <div className="min-w-0">
-                <p className="case-advocate-kicker">Case Advocate</p>
-                <h2 className="truncate text-base font-bold">Case sidecar</h2>
+                <p className="case-advocate-kicker">Case chat</p>
+                <h2 className="truncate text-base font-bold">Chat</h2>
                 <p className="truncate text-xs text-text-dim">{context.mode}</p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="case-advocate-icon-button"
-              aria-label="Close Case Advocate"
-              title="Close Case Advocate"
-            >
-              <PanelRightClose className="h-4 w-4" aria-hidden="true" />
-            </button>
+            <div className="case-advocate-header-actions">
+              <button
+                type="button"
+                onClick={clearChat}
+                className="case-advocate-icon-button case-advocate-clear-button"
+                aria-label="Clear chat"
+                title="Clear chat"
+                disabled={!caseId || busy || Boolean(busyActionId)}
+              >
+                {busyActionId === 'clear-chat'
+                  ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+                <span>Clear</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="case-advocate-icon-button"
+                aria-label="Close chat"
+                title="Close chat"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
           </header>
-
-          <div className="case-advocate-status-row">
-            <span className="case-advocate-status-pill">
-              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-              Confirm-first actions
-            </span>
-            {structured?.model_route?.model && (
-              <span className="case-advocate-model-pill">{structured.model_route.fallback ? 'Fallback' : 'Hosted'} model</span>
-            )}
-          </div>
 
           <div className="case-advocate-messages">
             {messages.map((item) => (
@@ -523,14 +552,14 @@ export default function FloatingCaseAdvocate() {
             {!session && !caseId && (
               <div className="case-advocate-message from-advocate">
                 <p className="case-advocate-message-copy">
-                  I can start a Draft Case workspace and stay with you while you build the story, evidence, records plan, and packet.
+                  Open a Draft Case workspace to organize the story, evidence, records plan, and packet in one place.
                 </p>
               </div>
             )}
             {busy && (
               <div className="case-advocate-thinking" role="status" aria-live="polite">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                {streamStatus || 'Organizing the case file...'}
+                {streamStatus || 'Reading the case file...'}
                 <button type="button" onClick={cancelStream}>
                   <StopCircle className="h-3.5 w-3.5" aria-hidden="true" />
                   Stop
@@ -566,10 +595,10 @@ export default function FloatingCaseAdvocate() {
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               onKeyDown={handleComposerKeyDown}
-              placeholder={activeQuestion?.question || (caseId ? 'Ask about evidence, gaps, records, or next steps...' : 'Open a draft case to start...')}
+              placeholder={activeQuestion?.question || (caseId ? 'Ask about this case...' : 'Open a draft case to start...')}
               disabled={busy || (!caseId && open)}
             />
-            <button type="submit" disabled={busy || !message.trim() || !caseId} aria-label="Send to Case Advocate">
+            <button type="submit" disabled={busy || !message.trim() || !caseId} aria-label="Send message">
               <Send className="h-4 w-4" aria-hidden="true" />
             </button>
           </form>
@@ -580,18 +609,18 @@ export default function FloatingCaseAdvocate() {
         type="button"
         className="case-advocate-launcher"
         onClick={handleLauncherClick}
-        aria-label={open ? 'Close Case Advocate' : 'Open Case Advocate'}
+        aria-label={open ? 'Close Chat' : 'Open Chat'}
         aria-expanded={open}
         disabled={busy && !open}
       >
         <span className="case-advocate-launcher-icon">
           {busy && !open ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <MessageCircle className="h-5 w-5" aria-hidden="true" />}
         </span>
-        <span className="case-advocate-launcher-label">Advocate</span>
+        <span className="case-advocate-launcher-label">Chat</span>
       </button>
 
       {!open && location.pathname === '/cases' && (
-        <button type="button" className="case-advocate-nudge" onClick={openAdvocate}>
+        <button type="button" className="case-advocate-nudge" onClick={openChat}>
           <FileUp className="h-4 w-4" aria-hidden="true" />
           Start with a Draft Case
         </button>

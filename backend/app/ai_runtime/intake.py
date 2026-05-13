@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.time import utc_now
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 import json
 import re
 
@@ -22,6 +23,7 @@ from app.models import (
 
 REASONING_MODEL = settings.deepinfra_reasoning_model
 FALLBACK_MODEL = settings.deepinfra_fallback_model
+AGNO_RUN_TIMEOUT_SECONDS = 30.0
 
 
 ISSUE_KEYWORDS = {
@@ -239,7 +241,7 @@ def _safety_flags_for_message(message: str, facts: CaseIntakeFacts, sources: lis
         flags.append(AdvocateSafetyFlag(
             type="legal_boundary",
             label="Information only",
-            detail="The Advocate can organize facts and prepare questions, but it should not be treated as legal advice.",
+            detail="Chat can organize facts and prepare questions, but it should not be treated as legal advice.",
             severity="warning",
         ))
     if facts.safety_risk or facts.urgent or facts.urgency_level in {"urgent", "immediate"}:
@@ -398,7 +400,7 @@ def _heuristic_analysis(session: CaseIntakeSession, context: dict | None = None)
     next_question = _next_question(facts, missing)
     suggested_actions = []
     if not facts.narrative:
-        suggested_actions.append("Tell the Case Advocate what happened in your own words.")
+        suggested_actions.append("Start with what happened in your own words.")
     if missing:
         suggested_actions.append(f"Fill the next case-file gap: {missing[0]}.")
     if not facts.prior_actions:
@@ -514,11 +516,11 @@ def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MOD
     from agno.models.deepinfra import DeepInfra
 
     agent = Agent(
-        name="USDWatch Case Advocate Manager",
-        model=DeepInfra(id=model_id, temperature=0.1, max_tokens=2500),
+        name="USDWatch Case Chat Manager",
+        model=DeepInfra(id=model_id, temperature=0.1, max_tokens=2500, timeout=AGNO_RUN_TIMEOUT_SECONDS),
         output_schema=CaseIntakeAnalysis,
         instructions=[
-            "You are a careful parent-facing case advocate manager for a private school case file.",
+            "You are a careful parent-facing case chat manager for a private school case file.",
             "Extract only facts supported by the parent messages; leave uncertain fields blank.",
             "Ask one practical follow-up question at a time.",
             "Put the follow-up question in next_question and question_cards, not buried inside assistant_message.",
@@ -536,7 +538,7 @@ def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MOD
         markdown=False,
     )
     prompt = "\n\n".join([
-        "Analyze this case conversation and return structured JSON for the Case Advocate sidecar.",
+        "Analyze this case conversation and return structured JSON for the case chat.",
         f"Current facts:\n{session.facts.model_dump_json()}",
         f"User overrides:\n{json.dumps(session.user_overrides)}",
         f"Case context:\n{json.dumps(context or {}, default=str)}",
@@ -549,6 +551,23 @@ def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MOD
     if isinstance(content, dict):
         return CaseIntakeAnalysis(**content)
     return CaseIntakeAnalysis.model_validate_json(str(content))
+
+
+def _run_agno_analysis_with_timeout(
+    session: CaseIntakeSession,
+    model_id: str = REASONING_MODEL,
+    context: dict | None = None,
+) -> CaseIntakeAnalysis:
+    timeout = max(float(AGNO_RUN_TIMEOUT_SECONDS), 0.01)
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="case-chat-agno")
+    future = executor.submit(_run_agno_analysis, session, model_id, context)
+    try:
+        return future.result(timeout=timeout)
+    except FutureTimeoutError as exc:
+        future.cancel()
+        raise RuntimeError(f"Case chat model timed out after {timeout:g}s") from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def analyze_intake_session(session: CaseIntakeSession, context: dict | None = None) -> CaseIntakeSession:
@@ -564,14 +583,14 @@ def analyze_intake_session(session: CaseIntakeSession, context: dict | None = No
     try:
         try:
             try:
-                analysis = _run_agno_analysis(session, REASONING_MODEL, context)
+                analysis = _run_agno_analysis_with_timeout(session, REASONING_MODEL, context)
             except Exception as primary_exc:
                 if REASONING_MODEL == FALLBACK_MODEL or not settings.has_deepinfra:
                     raise
                 run.model_id = FALLBACK_MODEL
                 run.status = "fallback_model"
                 run.error = f"Primary model {REASONING_MODEL} failed: {primary_exc}"
-                analysis = _run_agno_analysis(session, FALLBACK_MODEL, context)
+                analysis = _run_agno_analysis_with_timeout(session, FALLBACK_MODEL, context)
             if run.status != "fallback_model":
                 run.status = "complete"
             analysis = _normalize_manager_output(

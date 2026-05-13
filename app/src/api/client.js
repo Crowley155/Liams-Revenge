@@ -3,6 +3,7 @@ const API_BASE =
   import.meta.env?.VITE_API_URL ||
   'http://localhost:8000';
 const TOKEN_KEY = 'usdwatch_token';
+const DEFAULT_CHAT_STREAM_TIMEOUT_MS = 45000;
 
 let authTokenGetter = async () => localStorage.getItem(TOKEN_KEY);
 
@@ -334,7 +335,7 @@ export async function openOrCreateDraftCase() {
 
 export async function createIntakeSession() {
   const res = await authFetch(`${API_BASE}/api/intake/sessions`, { method: 'POST' });
-  if (!res.ok) throw new Error(`Failed to start case advocate: ${res.status}`);
+  if (!res.ok) throw new Error(`Failed to start chat: ${res.status}`);
   return res.json();
 }
 
@@ -346,7 +347,7 @@ export async function sendIntakeMessage(sessionId, content) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Case advocate failed: ${res.status}`);
+    throw new Error(err.detail || `Chat failed: ${res.status}`);
   }
   return res.json();
 }
@@ -354,7 +355,7 @@ export async function sendIntakeMessage(sessionId, content) {
 export async function fetchCaseAdvocateSession(caseId) {
   requireCaseId(caseId);
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/session`);
-  if (!res.ok) throw new Error(`Failed to load Case Advocate: ${res.status}`);
+  if (!res.ok) throw new Error(`Failed to load chat: ${res.status}`);
   return res.json();
 }
 
@@ -367,7 +368,19 @@ export async function sendCaseAdvocateMessage(caseId, content) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Case Advocate failed: ${res.status}`);
+    throw new Error(err.detail || `Chat failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function clearCaseChat(caseId) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/session/clear`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Clear chat failed: ${res.status}`);
   }
   return res.json();
 }
@@ -395,43 +408,85 @@ function parseSseChunk(buffer, onEvent) {
   return rest;
 }
 
-export async function streamCaseAdvocateMessage(caseId, content, { onEvent, signal } = {}) {
-  requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/messages/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-    signal,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Case Advocate failed: ${res.status}`);
-  }
-  if (!res.body) {
-    const data = await res.json();
-    onEvent?.({ type: 'complete', data });
-    return data.session || data;
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let finalSession = null;
-  let streamError = null;
-  const emit = (event) => {
-    if (event.type === 'complete') finalSession = event.data.session;
-    if (event.type === 'error') streamError = new Error(event.data.detail || 'Case Advocate failed');
-    onEvent?.(event);
+function streamAbortContext(signal, timeoutMs) {
+  const controller = new AbortController();
+  let timedOut = false;
+  let timeoutId = null;
+  const abortFromCaller = () => {
+    if (!controller.signal.aborted) controller.abort(signal?.reason);
   };
-
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer = parseSseChunk(buffer + decoder.decode(value, { stream: true }), emit);
+  if (signal?.aborted) {
+    abortFromCaller();
+  } else if (signal) {
+    signal.addEventListener('abort', abortFromCaller, { once: true });
   }
-  buffer = parseSseChunk(buffer + decoder.decode(), emit);
-  if (streamError) throw streamError;
-  return finalSession;
+  if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+    timeoutId = globalThis.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+  }
+  return {
+    signal: controller.signal,
+    timedOut: () => timedOut,
+    cleanup: () => {
+      if (timeoutId) globalThis.clearTimeout(timeoutId);
+      signal?.removeEventListener?.('abort', abortFromCaller);
+    },
+  };
+}
+
+export async function streamCaseAdvocateMessage(caseId, content, {
+  onEvent,
+  signal,
+  timeoutMs = DEFAULT_CHAT_STREAM_TIMEOUT_MS,
+} = {}) {
+  requireCaseId(caseId);
+  const abortContext = streamAbortContext(signal, timeoutMs);
+  try {
+    const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/messages/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+      signal: abortContext.signal,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `Chat failed: ${res.status}`);
+    }
+    if (!res.body) {
+      const data = await res.json();
+      onEvent?.({ type: 'complete', data });
+      return data.session || data;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalSession = null;
+    let streamError = null;
+    const emit = (event) => {
+      if (event.type === 'complete') finalSession = event.data.session;
+      if (event.type === 'error') streamError = new Error(event.data.detail || 'Chat failed');
+      onEvent?.(event);
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer = parseSseChunk(buffer + decoder.decode(value, { stream: true }), emit);
+    }
+    buffer = parseSseChunk(buffer + decoder.decode(), emit);
+    if (streamError) throw streamError;
+    return finalSession;
+  } catch (err) {
+    if (abortContext.timedOut()) {
+      throw new Error('Chat response timed out. Please try again.');
+    }
+    throw err;
+  } finally {
+    abortContext.cleanup();
+  }
 }
 
 export async function approveCaseAdvocateAction(caseId, actionId) {
@@ -441,7 +496,7 @@ export async function approveCaseAdvocateAction(caseId, actionId) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Case Advocate action failed: ${res.status}`);
+    throw new Error(err.detail || `Chat action failed: ${res.status}`);
   }
   return res.json();
 }
@@ -453,7 +508,7 @@ export async function rejectCaseAdvocateAction(caseId, actionId) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Case Advocate action failed: ${res.status}`);
+    throw new Error(err.detail || `Chat action failed: ${res.status}`);
   }
   return res.json();
 }

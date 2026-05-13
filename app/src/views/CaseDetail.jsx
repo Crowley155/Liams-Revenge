@@ -102,7 +102,7 @@ function CaseSharingPanel({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
         <div className="min-w-0">
           <p className="text-sm leading-relaxed text-text-dim">
-            Invite a spouse, advocate, attorney, or trusted helper to this case only. They will need a USDWatch account with the same email address.
+            Invite a spouse, attorney, or trusted helper to this case only. They will need a USDWatch account with the same email address.
           </p>
           <form onSubmit={onInvite} className="mt-4 grid gap-3">
             <label className="block space-y-2">
@@ -363,7 +363,7 @@ export default function CaseDetail() {
 
   const nextActions = useMemo(() => {
     const actions = [];
-    if (!(caseRecord?.family_narrative || caseRecord?.intake?.narrative)) actions.push('Tell the Case Advocate what happened so USDWatch can start a Family Narrative.');
+    if (!(caseRecord?.family_narrative || caseRecord?.intake?.narrative)) actions.push('Open Chat and start with what happened so USDWatch can build a Family Narrative.');
     if (!hasDesiredOutcome) actions.push('Summarize what a good outcome would look like, including any safety changes, records, supports, or policy fixes you want.');
     if (!documents.length) actions.push('Add the strongest document, email, screenshot, or incident note to the Evidence Locker.');
     if (!evaluation) actions.push('Run the first Case Read so USDWatch can organize what it sees from the story and evidence.');
@@ -630,7 +630,7 @@ export default function CaseDetail() {
 
       <Panel
         title="Family Narrative"
-        eyebrow={caseRecord.advocate_state?.family_narrative_manual ? 'Parent-edited' : 'Case Advocate draft'}
+        eyebrow={caseRecord.advocate_state?.family_narrative_manual ? 'Parent-edited' : 'Chat draft'}
         action={canEditCase ? (
           <ActionButton
             disabled={savingNarrative || familyNarrative === (caseRecord.family_narrative || caseRecord.intake?.narrative || '')}
@@ -642,14 +642,14 @@ export default function CaseDetail() {
         ) : null}
       >
         <p className="mb-3 max-w-3xl text-sm leading-relaxed text-text-dim">
-          This is the parent-centered story the Case Advocate helps assemble. Edits you save here stay in control unless you later accept a suggested revision.
+          This is the parent-centered story Chat helps assemble. Edits you save here stay in control unless you later accept a suggested revision.
         </p>
         <textarea
           value={familyNarrative}
           readOnly={!canEditCase}
           onChange={(event) => setFamilyNarrative(event.target.value)}
           className="min-h-[150px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-relaxed text-text outline-none transition-colors focus:border-accent read-only:text-text-dim"
-          placeholder="Tell the story the way you would tell a trusted advocate: what happened, who was affected, what worries you now, and what you need next."
+          placeholder="Tell the story the way you would tell a trusted advisor: what happened, who was affected, what worries you now, and what you need next."
         />
       </Panel>
 
@@ -825,7 +825,7 @@ export default function CaseDetail() {
           ) : (
           <Panel title="Support Options" eyebrow="Owner-only">
             <p className="text-sm leading-relaxed text-text-dim">
-              The case owner controls attorney, advocate, media, and support-consent preferences. Your {caseRoleLabel(access?.role).toLowerCase()} access does not include those settings.
+              The case owner controls attorney, support, media, and consent preferences. Your {caseRoleLabel(access?.role).toLowerCase()} access does not include those settings.
             </p>
           </Panel>
           )}

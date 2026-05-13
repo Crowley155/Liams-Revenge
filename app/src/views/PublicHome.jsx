@@ -22,7 +22,7 @@ export default function PublicHome() {
                 USDWatch
               </h1>
               <p className="max-w-2xl text-base leading-7 text-text/82 sm:text-lg">
-                Start with the Case Advocate, organize school records and evidence, and build a private case file before you decide what to do next.
+                Start with Chat, organize school records and evidence, and build a private case file before you decide what to do next.
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
