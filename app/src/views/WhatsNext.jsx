@@ -15,9 +15,9 @@ export default function WhatsNext() {
           <Link to="/login" className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 py-2 text-sm font-semibold text-background hover:bg-accent-hover">
             Start a Case
           </Link>
-          <a href="/trust" className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-text hover:bg-surface-alt">
+          <Link to="/trust" className="inline-flex min-h-11 items-center rounded-md border border-border px-4 py-2 text-sm font-semibold text-text hover:bg-surface-alt">
             Trust Center
-          </a>
+          </Link>
         </div>
       </section>
 

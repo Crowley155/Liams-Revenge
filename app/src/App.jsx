@@ -9,6 +9,7 @@ import Layout from './components/Layout';
 const CaseFileLayout = lazy(() => import('./components/CaseFileLayout'));
 const Login = lazy(() => import('./views/Login'));
 const PublicHome = lazy(() => import('./views/PublicHome'));
+const StaticEditorialPage = lazy(() => import('./views/StaticEditorialPage'));
 const Overview = lazy(() => import('./views/Overview'));
 const People = lazy(() => import('./views/People'));
 const NonCompliance = lazy(() => import('./views/NonCompliance'));
@@ -124,6 +125,9 @@ export default function App() {
                 {/* Public routes */}
                 <Route index element={<PublicHome />} />
                 <Route path="whats-next" element={<WhatsNext />} />
+                <Route path="trust" element={<StaticEditorialPage pagePath="/trust" />} />
+                <Route path="ai-disclosure" element={<StaticEditorialPage pagePath="/ai-disclosure" />} />
+                <Route path="privacy" element={<StaticEditorialPage pagePath="/privacy" />} />
                 <Route path="login" element={<Login />} />
 
                 {/* Protected routes */}

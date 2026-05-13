@@ -20,6 +20,14 @@ export function navItemsForAuth(isAuthenticated = false) {
   return isAuthenticated ? AUTHENTICATED_NAV : PUBLIC_NAV;
 }
 
+export function appRouteForNavItem(item) {
+  const route = item.to || item.href || '';
+  if (!route || route.startsWith('http://') || route.startsWith('https://') || route.startsWith('mailto:')) {
+    return '';
+  }
+  return route.startsWith('/') ? route : '';
+}
+
 export function isNavItemActive(pathname, item) {
   const target = (item.to || item.href || '/').replace(/\/$/, '') || '/';
   const current = (pathname || '/').replace(/\/$/, '') || '/';

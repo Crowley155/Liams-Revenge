@@ -32,12 +32,12 @@ export default function PublicHome() {
               >
                 Start a Case
               </Link>
-              <a
-                href="/trust"
+              <Link
+                to="/trust"
                 className="inline-flex min-h-11 items-center justify-center rounded-md border border-border bg-background/70 px-5 py-3 text-sm font-semibold text-text transition-colors hover:bg-surface-alt"
               >
                 Trust Center
-              </a>
+              </Link>
             </div>
           </div>
         </div>

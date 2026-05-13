@@ -1,9 +1,9 @@
 import { lazy, Suspense, useState } from 'react';
 import { OrganizationSwitcher, UserButton } from '@clerk/clerk-react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { clerkEnabled, useAuth } from '../auth/AuthContext';
 import { clerkAppearance } from '../auth/clerkAppearance';
-import { isNavItemActive, navItemsForAuth } from '../navigation';
+import { appRouteForNavItem, isNavItemActive, navItemsForAuth } from '../navigation';
 
 const FloatingCaseAdvocate = lazy(() => import('./FloatingCaseAdvocate'));
 
@@ -33,7 +33,7 @@ export default function Layout() {
 
             <nav className="hidden lg:flex items-center gap-1">
               {navItems.map(({ to, href, label }) => {
-                const internalTo = to || (href === '/whats-next' ? '/whats-next' : '');
+                const internalTo = appRouteForNavItem({ to, href, label });
                 return internalTo ? (
                   <NavLink
                     key={href || internalTo}
@@ -106,6 +106,8 @@ export default function Layout() {
               onClick={() => setMenuOpen(!menuOpen)}
               className="grid min-h-11 min-w-11 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text lg:hidden"
               aria-label="Toggle menu"
+              aria-controls="primary-mobile-menu"
+              aria-expanded={menuOpen}
             >
               {menuOpen ? (
                 <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2">
@@ -121,10 +123,10 @@ export default function Layout() {
         </div>
 
         {menuOpen && (
-          <div className="border-t border-border bg-surface-alt lg:hidden">
+          <div id="primary-mobile-menu" className="border-t border-border bg-surface-alt lg:hidden">
             <div className="px-4 py-2 space-y-1">
               {navItems.map(({ to, href, label }) => {
-                const internalTo = to || (href === '/whats-next' ? '/whats-next' : '');
+                const internalTo = appRouteForNavItem({ to, href, label });
                 if (internalTo) {
                   const isActive = isNavItemActive(location.pathname, { to: internalTo });
                   return (
@@ -231,9 +233,9 @@ export default function Layout() {
           {workspace?.name || 'Free draft case workspace'} - Public Advocacy Resource
         </p>
         <p className="text-[11px] text-text-dim/60 flex flex-wrap items-center justify-center gap-2 px-4">
-          <a href="/trust" className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 transition-colors hover:text-text">Trust</a>
-          <a href="/ai-disclosure" className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 transition-colors hover:text-text">AI Disclosure</a>
-          <a href="/privacy" className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 transition-colors hover:text-text">Privacy & Disclosures</a>
+          <Link to="/trust" className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 transition-colors hover:text-text">Trust</Link>
+          <Link to="/ai-disclosure" className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 transition-colors hover:text-text">AI Disclosure</Link>
+          <Link to="/privacy" className="inline-flex min-h-11 min-w-11 items-center justify-center px-3 transition-colors hover:text-text">Privacy & Disclosures</Link>
         </p>
       </footer>
     </div>
