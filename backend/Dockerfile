@@ -5,7 +5,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv
 
 COPY . .
-RUN uv pip install --system --no-build-isolation .
+RUN uv pip install --system .
 
 EXPOSE 8000
 
