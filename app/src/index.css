@@ -121,6 +121,93 @@ h1, h2, h3 {
   border-color: var(--color-border) !important;
 }
 
+:where(
+  .cl-modalContent,
+  .cl-cardBox,
+  .cl-card,
+  .cl-createOrganization,
+  .cl-organizationProfile
+) {
+  color: var(--color-text) !important;
+}
+
+:where(
+  .cl-avatarUploaderBox,
+  .cl-avatarUploaderTrigger,
+  .cl-fileDropArea,
+  .cl-fileDropAreaBox
+) {
+  background: var(--color-bg) !important;
+  border: 1px dashed var(--color-border) !important;
+  box-shadow: none !important;
+  color: var(--color-text-dim) !important;
+}
+
+:where(
+  .cl-avatarUploaderBox:hover,
+  .cl-avatarUploaderTrigger:hover,
+  .cl-fileDropArea:hover,
+  .cl-fileDropAreaBox:hover
+) {
+  border-color: color-mix(in oklch, var(--color-accent) 52%, var(--color-border) 48%) !important;
+  color: var(--color-text) !important;
+}
+
+:where(
+  .cl-avatarUploaderUploadButton,
+  .cl-fileDropAreaButton,
+  .cl-organizationProfileUploadButton,
+  .cl-createOrganizationUploadButton
+) {
+  background: var(--color-surface-alt) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: none !important;
+  color: var(--color-text) !important;
+  font-weight: 800 !important;
+  min-height: 2.5rem;
+}
+
+:where(
+  .cl-avatarUploaderUploadButton:hover,
+  .cl-avatarUploaderUploadButton:focus,
+  .cl-fileDropAreaButton:hover,
+  .cl-fileDropAreaButton:focus,
+  .cl-organizationProfileUploadButton:hover,
+  .cl-organizationProfileUploadButton:focus,
+  .cl-createOrganizationUploadButton:hover,
+  .cl-createOrganizationUploadButton:focus
+) {
+  border-color: var(--color-accent) !important;
+  color: var(--color-text) !important;
+}
+
+:where(
+  .cl-avatarUploaderUploadButton:disabled,
+  .cl-avatarUploaderUploadButton[aria-disabled="true"],
+  .cl-avatarUploaderUploadButton[data-disabled],
+  .cl-fileDropAreaButton:disabled,
+  .cl-fileDropAreaButton[aria-disabled="true"],
+  .cl-fileDropAreaButton[data-disabled],
+  .cl-organizationProfileUploadButton:disabled,
+  .cl-organizationProfileUploadButton[aria-disabled="true"],
+  .cl-createOrganizationUploadButton:disabled,
+  .cl-createOrganizationUploadButton[aria-disabled="true"]
+) {
+  color: var(--color-text-dim) !important;
+  cursor: not-allowed;
+  opacity: 0.72 !important;
+}
+
+:where(
+  .cl-avatarUploaderUploadButtonText,
+  .cl-fileDropAreaButtonText,
+  .cl-avatarUploaderHint,
+  .cl-avatarUploaderIcon,
+  .cl-fileDropAreaIcon
+) {
+  color: inherit !important;
+}
+
 :where(a, button, input, textarea, select, summary):focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;

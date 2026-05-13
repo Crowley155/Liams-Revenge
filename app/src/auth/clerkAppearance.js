@@ -78,6 +78,39 @@ const popoverActionIcon = {
   opacity: 0.9,
 };
 
+const uploadSurface = {
+  backgroundColor: colors.background,
+  border: `1px dashed ${colors.border}`,
+  color: colors.textDim,
+  boxShadow: 'none',
+  '&:hover': {
+    backgroundColor: colors.background,
+    borderColor: '#3f4866',
+    color: colors.text,
+  },
+};
+
+const uploadAction = {
+  minHeight: '2.5rem',
+  backgroundColor: colors.surfaceAlt,
+  border: `1px solid ${colors.border}`,
+  boxShadow: 'none',
+  color: colors.text,
+  fontWeight: 800,
+  '&:hover, &:focus': {
+    backgroundColor: colors.surfaceAlt,
+    borderColor: colors.accent,
+    color: colors.text,
+  },
+  '&:focus': {
+    boxShadow: '0 0 0 3px rgba(108, 138, 255, 0.24)',
+  },
+  '&:disabled, &[aria-disabled="true"], &[data-disabled]': {
+    color: colors.textDim,
+    opacity: 0.72,
+  },
+};
+
 export const clerkAppearance = {
   theme: 'simple',
   variables: {
@@ -247,6 +280,32 @@ export const clerkAppearance = {
     },
     alertText: {
       color: colors.text,
+    },
+    avatarUploaderBox: uploadSurface,
+    avatarUploaderImage: {
+      backgroundColor: colors.background,
+      color: colors.textDim,
+    },
+    avatarUploaderIcon: {
+      color: 'currentColor',
+    },
+    avatarUploaderUploadButton: uploadAction,
+    avatarUploaderUploadButtonText: {
+      color: 'inherit',
+      fontWeight: 800,
+    },
+    avatarUploaderHint: {
+      color: colors.textDim,
+      lineHeight: 1.45,
+    },
+    fileDropAreaBox: uploadSurface,
+    fileDropAreaButton: uploadAction,
+    fileDropAreaButtonText: {
+      color: 'inherit',
+      fontWeight: 800,
+    },
+    fileDropAreaIcon: {
+      color: 'currentColor',
     },
     userButtonPopoverCard: popoverCard,
     userButtonPopoverActions: {
