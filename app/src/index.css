@@ -213,6 +213,26 @@ h1, h2, h3 {
   outline-offset: 3px;
 }
 
+:where(select) {
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  color-scheme: dark;
+}
+
+:where(select option, select optgroup) {
+  background-color: var(--color-bg) !important;
+  color: var(--color-text) !important;
+}
+
+:where(select option:checked) {
+  background-color: var(--color-surface-alt) !important;
+  color: var(--color-text) !important;
+}
+
+:where(select option:disabled) {
+  color: var(--color-text-dim) !important;
+}
+
 :where(button, summary) {
   touch-action: manipulation;
 }
