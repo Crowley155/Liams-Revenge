@@ -127,6 +127,23 @@ def test_free_user_draft_counts_against_case_limit():
     assert reopened.json()["id"] == draft.json()["id"]
 
 
+def test_empty_case_does_not_emit_starter_record_drafts_as_tracked_requests():
+    user = _user(plan="admin")
+    _override_user(user)
+
+    created = client.post("/api/cases", json={"title": "Empty case"})
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    records = client.get(f"/api/cases/{case_id}/artifacts/records-request-drafts")
+    assert records.status_code == 200
+    assert records.json()["records"] == []
+
+    packet = client.get(f"/api/cases/{case_id}/artifacts/self-advocacy-packet")
+    assert packet.status_code == 200
+    assert packet.json()["records_request_drafts"] == []
+
+
 def test_cases_are_workspace_scoped():
     owner = _user()
     outsider = _user()
@@ -452,6 +469,10 @@ def test_case_evaluation_fallback_completes_without_model_key(monkeypatch):
     body = fetched.json()
     assert body["status"] == "complete"
     assert body["result"]["recommended_records"]
+
+    records = client.get(f"/api/cases/{case_id}/artifacts/records-request-drafts")
+    assert records.status_code == 200
+    assert len(records.json()["records"]) == len(body["result"]["recommended_records"])
 
 
 def test_case_draft_assist_generates_text_without_saving(monkeypatch):
@@ -1201,7 +1222,7 @@ def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypat
 
     records = client.get(f"/api/cases/{case_id}/artifacts/records-request-drafts")
     assert records.status_code == 200
-    assert records.json()["records"]
+    assert records.json()["records"] == []
 
     _override_user(outsider)
     hidden_packet = client.get(f"/api/cases/{case_id}/artifacts/self-advocacy-packet")

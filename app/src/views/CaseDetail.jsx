@@ -17,6 +17,7 @@ import {
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
 import { casePermissions } from '../utils/caseAccess';
+import { caseGapMetric, recordsRequestMetric } from '../utils/caseMetrics';
 import { CASE_PLAN_HELP } from '../utils/casePlanHelp';
 import { getCasePolicyReforms, policyReformCount } from '../utils/casePolicyReforms';
 import {
@@ -26,7 +27,6 @@ import {
   StatusPill,
   actionButtonClasses,
   buildPacketText,
-  checklistStatusCount,
   formatLabel,
 } from './caseShared';
 
@@ -160,8 +160,8 @@ export default function CaseDetail() {
   })();
   const indexedCount = documents.filter((doc) => ['indexed', 'complete'].includes(doc.processing_status || doc.status)).length;
   const reviewCount = documents.filter((doc) => (doc.processing_status || doc.status) === 'needs_review').length;
-  const missingCount = checklistStatusCount(checklist, 'missing') + checklistStatusCount(checklist, 'recommended');
-  const activeRecordCount = recordsDrafts.length;
+  const gapMetric = caseGapMetric({ caseRecord, documents, evaluation, checklist });
+  const recordsMetric = recordsRequestMetric({ evaluation, recordsDrafts });
   const savedDesiredOutcome = outcomeTextFromCase(caseRecord);
   const hasDesiredOutcome = Boolean(savedDesiredOutcome.trim());
   const policyReformSections = useMemo(() => getCasePolicyReforms(caseRecord), [caseRecord]);
@@ -177,10 +177,10 @@ export default function CaseDetail() {
     if (!hasDesiredOutcome) actions.push('Add the desired outcome: what needs to change next.');
     if (!documents.length) actions.push('Add the strongest document, email, screenshot, or incident note to the Evidence Locker.');
     if (!evaluation) actions.push('Run a Case Read after the story and evidence are in place.');
-    if (missingCount > 0) actions.push('Review missing evidence and decide which records requests should be sent first.');
+    if (gapMetric.value > 0) actions.push('Review missing evidence and decide which records requests should be sent first.');
     if (!packet && evaluation) actions.push('Open the packet tab after the Case Read is complete.');
     return actions.length ? actions.slice(0, 4) : ['Keep evidence current, track records responses, and refresh the Case Read when something important changes.'];
-  }, [caseRecord?.family_narrative, caseRecord?.intake?.narrative, documents.length, evaluation, hasDesiredOutcome, missingCount, packet]);
+  }, [caseRecord?.family_narrative, caseRecord?.intake?.narrative, documents.length, evaluation, gapMetric.value, hasDesiredOutcome, packet]);
 
   const handleRunEvaluation = async () => {
     if (!canRunCaseRead) return;
@@ -325,8 +325,8 @@ export default function CaseDetail() {
       <div className="grid gap-3 md:grid-cols-4">
         <Metric label="Evidence Strength" value={formatLabel(result?.evidence_strength || packet?.evidence_strength || 'unknown')} detail="Current support from story and files." />
         <Metric label="Evidence Files" value={documents.length} detail={`${indexedCount} ready${reviewCount ? `, ${reviewCount} need review` : ''}`} />
-        <Metric label="Gaps to Close" value={missingCount} detail="Missing or recommended evidence." />
-        <Metric label="Records Requests" value={activeRecordCount} detail="Drafts and tracked requests." />
+        <Metric label="Gaps to Close" value={gapMetric.value} detail={gapMetric.detail} />
+        <Metric label="Records Requests" value={recordsMetric.value} detail={recordsMetric.detail} />
       </div>
 
       <Panel

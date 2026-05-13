@@ -703,25 +703,7 @@ def _records_request_drafts(case: CaseRecord, evaluation: CaseEvaluation | None)
             for record in evaluation.result.recommended_records
         ]
 
-    district = case.intake.district or "the district"
-    return [
-        {
-            "title": "Complete communication and incident record",
-            "custodian": f"{district} records custodian",
-            "record_type": "communications",
-            "priority": "high",
-            "reason": "Establish the official timeline, notice, and response.",
-            "request_language": "Please provide all emails, messages, notes, incident reports, meeting notes, and internal communications related to the events described in this request.",
-        },
-        {
-            "title": "Applicable policies and procedures",
-            "custodian": f"{district} records custodian",
-            "record_type": "policy",
-            "priority": "medium",
-            "reason": "Compare what happened against the written standards in effect at the time.",
-            "request_language": "Please provide policies, procedures, handbooks, training materials, and staff guidance applicable to the issue described in this request.",
-        },
-    ]
+    return []
 
 
 def _process_case_document_background(doc: CaseDocument, content: bytes) -> None:
