@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { clearCaseChat, setAuthTokenGetter, streamCaseChatMessage } from './client.js';
+import { clearCaseChat, fetchCaseChatSession, setAuthTokenGetter, streamCaseChatMessage } from './client.js';
 
 function streamFromText(chunks) {
   return new ReadableStream({
@@ -58,6 +58,69 @@ test('streamCaseChatMessage times out stalled streams', async () => {
     /timed out/i,
   );
   assert.equal(aborted, true);
+});
+
+test('fetchCaseChatSession falls back to legacy advocate route when production chat route is missing', async () => {
+  const urls = [];
+  setAuthTokenGetter(async () => 'test-token');
+  globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
+  globalThis.fetch = async (url, options) => {
+    urls.push(url);
+    assert.equal(options.headers.Authorization, 'Bearer test-token');
+    if (url.endsWith('/chat/session')) {
+      return new Response(JSON.stringify({ detail: 'Not Found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    assert.equal(url, 'http://localhost:8000/api/cases/case-1/advocate/session');
+    return new Response(JSON.stringify({ id: 'legacy-session', messages: [] }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const session = await fetchCaseChatSession('case-1');
+
+  assert.equal(session.id, 'legacy-session');
+  assert.deepEqual(urls, [
+    'http://localhost:8000/api/cases/case-1/chat/session',
+    'http://localhost:8000/api/cases/case-1/advocate/session',
+  ]);
+});
+
+test('streamCaseChatMessage falls back to legacy advocate stream when production chat route is missing', async () => {
+  const urls = [];
+  const events = [];
+  setAuthTokenGetter(async () => 'test-token');
+  globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
+  globalThis.fetch = async (url, options) => {
+    urls.push(url);
+    assert.equal(options.method, 'POST');
+    assert.equal(JSON.parse(options.body).content, 'Can you summarize my case?');
+    if (url.endsWith('/chat/messages/stream')) {
+      return new Response(JSON.stringify({ detail: 'Not Found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    assert.equal(url, 'http://localhost:8000/api/cases/case-1/advocate/messages/stream');
+    return new Response(streamFromText([
+      'event: message\ndata: {"content":"Legacy stream answer."}\n\n',
+      'event: complete\ndata: {"session":{"id":"legacy-session","messages":[]}}\n\n',
+    ]), { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+  };
+
+  const session = await streamCaseChatMessage('case-1', 'Can you summarize my case?', {
+    onEvent: (event) => events.push(event),
+  });
+
+  assert.equal(session.id, 'legacy-session');
+  assert.deepEqual(urls, [
+    'http://localhost:8000/api/cases/case-1/chat/messages/stream',
+    'http://localhost:8000/api/cases/case-1/advocate/messages/stream',
+  ]);
+  assert.deepEqual(events.map((event) => event.type), ['message', 'complete']);
 });
 
 test('clearCaseChat posts to the case chat clear endpoint', async () => {

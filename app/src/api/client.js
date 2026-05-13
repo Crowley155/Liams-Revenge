@@ -28,6 +28,13 @@ function requireCaseId(caseId) {
   return caseId;
 }
 
+async function caseChatFetch(caseId, chatPath, advocatePath, options = {}) {
+  requireCaseId(caseId);
+  const chatRes = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/${chatPath}`, options);
+  if (chatRes.status !== 404) return chatRes;
+  return authFetch(`${API_BASE}/api/cases/${caseId}/advocate/${advocatePath}`, options);
+}
+
 // --- Protected endpoints ---
 
 export async function fetchProfiles(caseId = '') {
@@ -353,8 +360,7 @@ export async function sendIntakeMessage(sessionId, content) {
 }
 
 export async function fetchCaseChatSession(caseId) {
-  requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/session`);
+  const res = await caseChatFetch(caseId, 'session', 'session');
   if (!res.ok) throw new Error(`Failed to load chat: ${res.status}`);
   return res.json();
 }
@@ -364,8 +370,7 @@ export async function fetchCaseAdvocateSession(caseId) {
 }
 
 export async function sendCaseChatMessage(caseId, content, { intentHint = '' } = {}) {
-  requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/messages`, {
+  const res = await caseChatFetch(caseId, 'messages', 'messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content, intent_hint: intentHint }),
@@ -382,8 +387,7 @@ export async function sendCaseAdvocateMessage(caseId, content) {
 }
 
 export async function clearCaseChat(caseId) {
-  requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/session/clear`, {
+  const res = await caseChatFetch(caseId, 'session/clear', 'session/clear', {
     method: 'POST',
   });
   if (!res.ok) {
@@ -453,7 +457,7 @@ export async function streamCaseChatMessage(caseId, content, {
   requireCaseId(caseId);
   const abortContext = streamAbortContext(signal, timeoutMs);
   try {
-    const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/messages/stream`, {
+    const res = await caseChatFetch(caseId, 'messages/stream', 'messages/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content, intent_hint: intentHint }),
@@ -503,8 +507,7 @@ export async function streamCaseAdvocateMessage(caseId, content, options = {}) {
 }
 
 export async function approveCaseChatAction(caseId, actionId) {
-  requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/actions/${actionId}/approve`, {
+  const res = await caseChatFetch(caseId, `actions/${actionId}/approve`, `actions/${actionId}/approve`, {
     method: 'POST',
   });
   if (!res.ok) {
@@ -519,8 +522,7 @@ export async function approveCaseAdvocateAction(caseId, actionId) {
 }
 
 export async function rejectCaseChatAction(caseId, actionId) {
-  requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/actions/${actionId}/reject`, {
+  const res = await caseChatFetch(caseId, `actions/${actionId}/reject`, `actions/${actionId}/reject`, {
     method: 'POST',
   });
   if (!res.ok) {
