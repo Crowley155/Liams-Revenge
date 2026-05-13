@@ -17,3 +17,11 @@ test('casesErrorCopy keeps non-auth errors useful without exposing implementatio
   assert.equal(copy.title, 'Cases could not load');
   assert.match(copy.body, /try again/i);
 });
+
+test('casesErrorCopy explains case limits as a new-case limit, not a load failure', () => {
+  const copy = casesErrorCopy(new Error('Your free plan includes 1 draft or active case.'));
+
+  assert.equal(copy.title, 'New case limit reached');
+  assert.match(copy.body, /current case/i);
+  assert.doesNotMatch(copy.body, /load/i);
+});

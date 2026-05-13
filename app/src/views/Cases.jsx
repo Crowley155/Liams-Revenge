@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, Plus } from 'lucide-react';
-import { fetchCases, openOrCreateDraftCase } from '../api/client';
+import { fetchCases, createCase } from '../api/client';
 import { casesErrorCopy } from '../utils/caseMessages';
 import { ActionButton } from './caseShared';
 
@@ -29,7 +29,7 @@ export default function Cases() {
     setStarting(true);
     setError(null);
     try {
-      const caseRecord = await openOrCreateDraftCase();
+      const caseRecord = await createCase({});
       navigate(`/cases/${caseRecord.id}?chat=open`);
     } catch (err) {
       setError(casesErrorCopy(err));
@@ -52,7 +52,7 @@ export default function Cases() {
           className="px-4"
         >
           {starting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
-          {starting ? 'Opening...' : 'New Case'}
+          {starting ? 'Creating...' : 'New Case'}
         </ActionButton>
       </div>
 
@@ -95,7 +95,7 @@ export default function Cases() {
                 className="w-full justify-center px-4 sm:w-auto"
               >
                 {starting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
-                {starting ? 'Opening...' : 'New Case'}
+                {starting ? 'Creating...' : 'New Case'}
               </ActionButton>
             </div>
           </section>
