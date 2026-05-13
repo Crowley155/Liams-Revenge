@@ -107,6 +107,10 @@ export const clerkAppearance = {
       color: colors.text,
     },
     formFieldInput: fieldInput,
+    formFieldHintText: {
+      color: colors.textDim,
+      lineHeight: 1.45,
+    },
     formFieldInputShowPasswordButton: {
       color: colors.textDim,
       minHeight: '2.5rem',
