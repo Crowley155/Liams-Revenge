@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -31,6 +31,10 @@ import {
 
 function categoryLabel(value) {
   return evidenceCategoryLabel(value, formatLabel);
+}
+
+function scrollReviewToTop() {
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
 }
 
 function DeleteEvidenceDialog({ doc, busy, onCancel, onConfirm }) {
@@ -125,6 +129,14 @@ export default function DocumentReview() {
   const insight = useMemo(() => documentInsightSummary(doc || {}), [doc]);
   const relevance = relevancePercent(doc?.relevance_score);
   const extractionConfidence = relevancePercent(doc?.extraction_confidence);
+
+  useLayoutEffect(() => {
+    scrollReviewToTop();
+  }, [docId]);
+
+  useEffect(() => {
+    if (status === 'ready') scrollReviewToTop();
+  }, [docId, status]);
 
   const revokeContentUrl = useCallback(() => {
     setContentUrl((current) => {

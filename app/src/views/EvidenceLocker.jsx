@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import {
   Check,
   ChevronDown,
@@ -35,6 +35,7 @@ import {
   ActionButton,
   Panel,
   StatusPill,
+  actionButtonClasses,
   formatBytes,
   formatLabel,
 } from './caseShared';
@@ -259,7 +260,7 @@ function DeleteEvidenceDialog({ doc, busy, onCancel, onConfirm }) {
   );
 }
 
-function EvidenceRow({ doc, onView, onDownload, onDelete, downloading, canDelete }) {
+function EvidenceRow({ doc, viewHref, onDownload, onDelete, downloading, canDelete }) {
   const insight = documentInsightSummary(doc);
   const relevance = relevancePercent(doc.relevance_score);
   const legalFlags = (doc.legal_flags || []).slice(0, 3);
@@ -306,10 +307,16 @@ function EvidenceRow({ doc, onView, onDownload, onDelete, downloading, canDelete
           {doc.relevance_basis && <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-text-dim">{doc.relevance_basis}</p>}
         </div>
         <div className="flex min-w-0 flex-wrap gap-2 xl:justify-end">
-          <ActionButton onClick={() => onView(doc)} variant="primary" aria-label={`View ${doc.filename}`}>
+          <a
+            href={viewHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={actionButtonClasses('primary')}
+            aria-label={`View ${doc.filename} in a new tab`}
+          >
             <Eye className="h-4 w-4" aria-hidden="true" />
             View
-          </ActionButton>
+          </a>
           <ActionButton disabled={downloading} onClick={() => onDownload(doc)} variant="download" aria-label={`Download ${doc.filename}`}>
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
             Download
@@ -329,7 +336,6 @@ function EvidenceRow({ doc, onView, onDownload, onDelete, downloading, canDelete
 
 export default function EvidenceLocker() {
   const { caseId } = useParams();
-  const navigate = useNavigate();
   const [access, setAccess] = useState(null);
   const [accessLoading, setAccessLoading] = useState(true);
   const [documents, setDocuments] = useState([]);
@@ -968,9 +974,9 @@ export default function EvidenceLocker() {
                 <EvidenceRow
                   key={doc.id}
                   doc={doc}
+                  viewHref={`/cases/${caseId}/locker/${doc.id}`}
                   downloading={downloadingDocId === doc.id}
                   canDelete={canDeleteEvidence}
-                  onView={(target) => navigate(`/cases/${caseId}/locker/${target.id}`)}
                   onDownload={handleDownload}
                   onDelete={setDeleteTarget}
                 />
