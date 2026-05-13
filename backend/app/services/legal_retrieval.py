@@ -39,7 +39,7 @@ def legal_embedding_candidates(current_embedding_model: str) -> list[LegalEmbedd
         LegalEmbeddingCandidate(
             model=current_embedding_model,
             provider=current_provider,
-            dimensions=2048,
+            dimensions=3072,
             status="current_baseline",
             rationale=[
                 "Current production-compatible baseline.",

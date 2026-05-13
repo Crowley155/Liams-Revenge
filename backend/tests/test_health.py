@@ -97,7 +97,7 @@ def test_model_diagnostics_requires_admin_and_redacts_provider_keys():
     data = allowed.json()
     assert data["agent_runtime"] == "agno"
     assert data["models"]["embedding"]
-    assert data["vector_store"]["qdrant_vector_size"] == 2048
+    assert data["vector_store"]["qdrant_vector_size"] == 3072
     assert data["retrieval_evaluation"]["recommended_first_candidate"] == "isaacus/kanon-2-embedder"
     assert data["retrieval_evaluation"]["requires_reindex_before_switch"] is True
     kanon = next(item for item in data["legal_embedding_candidates"] if item["model"] == "isaacus/kanon-2-embedder")

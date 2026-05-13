@@ -21,7 +21,7 @@ _client = None
 _available = False
 
 COLLECTION_NAME = "documents"
-VECTOR_SIZE = int(os.getenv("QDRANT_VECTOR_SIZE", "2048"))
+VECTOR_SIZE = int(os.getenv("QDRANT_VECTOR_SIZE", "3072"))
 SIMILARITY_THRESHOLD = 0.92  # above this = "same document"
 
 
