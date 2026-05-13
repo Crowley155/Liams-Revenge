@@ -2,32 +2,35 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
-  BookOpenCheck,
   Check,
-  ClipboardList,
-  FileText,
   FileUp,
-  FolderOpen,
-  Home,
   Loader2,
   MessageCircle,
+  MoreHorizontal,
+  RefreshCcw,
   Search,
   Send,
   StopCircle,
   Trash2,
-  Users,
   X,
   XCircle,
 } from 'lucide-react';
 import {
-  approveCaseAdvocateAction,
+  approveCaseChatAction,
   clearCaseChat,
-  fetchCaseAdvocateSession,
+  fetchCaseChatSession,
   openOrCreateDraftCase,
-  rejectCaseAdvocateAction,
-  streamCaseAdvocateMessage,
+  rejectCaseChatAction,
+  streamCaseChatMessage,
 } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
+
+let optimisticMessageSequence = 0;
+
+function nextOptimisticMessageId(prefix) {
+  optimisticMessageSequence += 1;
+  return `${prefix}-${optimisticMessageSequence}`;
+}
 
 function caseIdFromPath(pathname) {
   const match = pathname.match(/^\/cases\/([^/]+)/);
@@ -52,49 +55,28 @@ function latestStructured(session) {
   return {};
 }
 
-function questionCardsForSession(session, structured) {
-  const cards = Array.isArray(structured.question_cards) ? structured.question_cards.filter((card) => card?.question) : [];
-  if (cards.length) return cards;
-  const fallbackQuestion = structured.next_question || session?.next_question;
-  if (!fallbackQuestion) return [];
-  const missing = structured.missing_facts?.[0] || session?.missing_fields?.[0] || '';
-  return [{
-    id: 'next-question',
-    field: missing || 'case_context',
-    label: 'Next question',
-    question: fallbackQuestion,
-    why: '',
-    input_type: 'free_text',
-    options: [],
-    priority: 1,
-  }];
-}
-
-function localRouteForMessage(content, caseId) {
-  if (!caseId) return null;
-  const text = content.toLowerCase();
-  const wantsNavigation = /\b(open|go|take|show|switch|view|navigate)\b/.test(text);
-  if (!wantsNavigation) return null;
-  const base = `/cases/${caseId}`;
-  if (/\b(evidence|locker|upload|document|file|pdf|email)\b/.test(text)) return { label: 'Evidence Locker', to: `${base}/locker` };
-  if (/\b(records?|kora|request|requests?)\b/.test(text)) return { label: 'Records Requests', to: `${base}/records` };
-  if (/\b(people|person|staff|teacher|principal|agency)\b/.test(text)) return { label: 'People', to: `${base}/people` };
-  if (/\b(packet|print|export|summary)\b/.test(text)) return { label: 'Packet', to: `${base}/packet` };
-  if (/\b(plan|overview|home|case)\b/.test(text)) return { label: 'Case Plan', to: base };
-  return null;
+function suggestedRepliesForSession(structured) {
+  const suggestions = Array.isArray(structured.suggested_replies)
+    ? structured.suggested_replies.filter(Boolean)
+    : [];
+  return [...new Set(suggestions)].slice(0, 3);
 }
 
 function mergeStreamEvent(prev, event) {
   const structured = prev?.structured || {};
-  if (event.type === 'message') {
+  if (event.type === 'message' || event.type === 'message_delta') {
+    const content = event.data.content || event.data.delta || '';
     return {
       id: `stream-${Date.now()}`,
       role: 'assistant',
-      content: event.data.content || '',
+      content,
       created_at: new Date().toISOString(),
       structured: {
         ...structured,
         message_parts: event.data.message_parts || structured.message_parts || [],
+        suggested_replies: event.data.suggested_replies || structured.suggested_replies || [],
+        case_update_proposals: event.data.case_update_proposals || structured.case_update_proposals || [],
+        intent: event.data.intent || structured.intent || '',
         trace_id: event.data.trace_id || structured.trace_id || '',
         model_route: event.data.model_route || structured.model_route || {},
       },
@@ -115,35 +97,6 @@ function mergeStreamEvent(prev, event) {
       [key]: [...(structured[key] || []), event.data],
     },
   };
-}
-
-function StructuredQuestionCard({ card, onAnswer, busy }) {
-  const options = Array.isArray(card.options) ? card.options.filter(Boolean).slice(0, 5) : [];
-  return (
-    <div className="case-advocate-question-card">
-      <div className="case-advocate-question-header">
-        <BookOpenCheck className="h-3.5 w-3.5" aria-hidden="true" />
-        <p className="case-advocate-question-label">Next question</p>
-      </div>
-      <div className="case-advocate-question-body">
-        <p className="case-advocate-question-text">{card.question}</p>
-        {card.why && <p className="case-advocate-question-why">{card.why}</p>}
-      </div>
-      {options.length > 0 ? (
-        <div className="case-advocate-question-options">
-          {options.map((option) => (
-            <button key={option} type="button" onClick={() => onAnswer(card, option)} disabled={busy}>
-              {option}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <button type="button" className="case-advocate-answer-button" onClick={() => onAnswer(card)} disabled={busy}>
-          Answer in chat
-        </button>
-      )}
-    </div>
-  );
 }
 
 function SourceCards({ sources, onNavigate }) {
@@ -260,12 +213,14 @@ export default function FloatingCaseAdvocate() {
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
   const abortRef = useRef(null);
+  const lastUserTextRef = useRef('');
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState(null);
   const [streamMessage, setStreamMessage] = useState(null);
   const [streamStatus, setStreamStatus] = useState('');
   const [message, setMessage] = useState('');
-  const [activeQuestion, setActiveQuestion] = useState(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [dismissedSuggestionKey, setDismissedSuggestionKey] = useState('');
   const [busy, setBusy] = useState(false);
   const [busyActionId, setBusyActionId] = useState('');
   const [error, setError] = useState('');
@@ -273,19 +228,9 @@ export default function FloatingCaseAdvocate() {
   const caseId = caseIdFromPath(location.pathname);
   const inCaseWorkspace = Boolean(caseId);
   const context = useMemo(() => routeContext(location.pathname), [location.pathname]);
-  const routeShortcuts = useMemo(() => {
-    if (!caseId) return [];
-    return [
-      { label: 'Plan', title: 'Open Case Plan', icon: Home, to: `/cases/${caseId}` },
-      { label: 'Evidence', title: 'Open Evidence Locker', icon: FolderOpen, to: `/cases/${caseId}/locker` },
-      { label: 'Records', title: 'Open Records Requests', icon: ClipboardList, to: `/cases/${caseId}/records` },
-      { label: 'People', title: 'Open People', icon: Users, to: `/cases/${caseId}/people` },
-      { label: 'Packet', title: 'Open Self-Advocacy Packet', icon: FileText, to: `/cases/${caseId}/packet` },
-    ].filter((item) => item.to !== location.pathname);
-  }, [caseId, location.pathname]);
   const structured = latestStructured(session);
-  const questionCards = useMemo(() => questionCardsForSession(session, structured), [session, structured]);
-  const currentQuestion = questionCards[0] || null;
+  const suggestionKey = `${session?.id || ''}-${session?.messages?.length || 0}`;
+  const suggestedReplies = dismissedSuggestionKey === suggestionKey ? [] : suggestedRepliesForSession(structured);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -305,13 +250,13 @@ export default function FloatingCaseAdvocate() {
     if (!open) return undefined;
     const timer = window.setTimeout(() => textareaRef.current?.focus(), 120);
     return () => window.clearTimeout(timer);
-  }, [open, activeQuestion?.id]);
+  }, [open]);
 
   const loadSession = useCallback(async () => {
     if (!caseId || !open) return;
     setError('');
     try {
-      setSession(await fetchCaseAdvocateSession(caseId));
+      setSession(await fetchCaseChatSession(caseId));
     } catch (err) {
       setError(err.message || 'Chat could not load');
     }
@@ -357,58 +302,33 @@ export default function FloatingCaseAdvocate() {
     setStreamMessage(null);
   };
 
-  const sendMessage = async (content, questionCard = activeQuestion) => {
+  const sendMessage = async (content = '') => {
     const next = (content || message).trim();
     if (!next || !caseId || busy) return;
-    const outbound = questionCard?.question
-      ? [
-          `Question: ${questionCard.question}`,
-          questionCard.field ? `Field: ${questionCard.field}` : '',
-          `Answer: ${next}`,
-        ].filter(Boolean).join('\n')
-      : next;
+    const outbound = next;
+    lastUserTextRef.current = next;
     setMessage('');
-    setActiveQuestion(null);
+    setMenuOpen(false);
     setBusy(true);
     setError('');
     setStreamStatus('');
     setStreamMessage(null);
-    const localRoute = questionCard ? null : localRouteForMessage(next, caseId);
     const optimistic = session ? {
       ...session,
       messages: [
         ...(session.messages || []),
-        { id: `local-${Date.now()}`, role: 'user', content: next, created_at: new Date().toISOString() },
+        { id: nextOptimisticMessageId('local'), role: 'user', content: next, created_at: '' },
       ],
     } : session;
     if (optimistic) setSession(optimistic);
-    if (localRoute) {
-      const updated = optimistic ? {
-        ...optimistic,
-        messages: [
-          ...(optimistic.messages || []),
-          {
-            id: `local-route-${Date.now()}`,
-            role: 'assistant',
-            content: `I opened ${localRoute.label}. I will stay here if you need help with the next step.`,
-            created_at: new Date().toISOString(),
-            structured: { message_parts: [{ type: 'text', text: `I opened ${localRoute.label}. I will stay here if you need help with the next step.` }] },
-          },
-        ],
-      } : optimistic;
-      if (updated) setSession(updated);
-      navigate(localRoute.to);
-      setBusy(false);
-      return;
-    }
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const updated = await streamCaseAdvocateMessage(caseId, outbound, {
+      const updated = await streamCaseChatMessage(caseId, outbound, {
         signal: controller.signal,
         onEvent: (event) => {
           if (event.type === 'status') setStreamStatus(event.data.label || 'Working');
-          if (['message', 'source', 'action', 'safety'].includes(event.type)) {
+          if (['message_delta', 'message', 'source', 'action', 'safety'].includes(event.type)) {
             setStreamMessage((prev) => mergeStreamEvent(prev, event));
           }
         },
@@ -441,7 +361,8 @@ export default function FloatingCaseAdvocate() {
       const updated = await clearCaseChat(caseId);
       setSession(updated);
       setMessage('');
-      setActiveQuestion(null);
+      setDismissedSuggestionKey('');
+      setMenuOpen(false);
     } catch (err) {
       setError(err.message || 'Could not clear chat');
     } finally {
@@ -456,8 +377,8 @@ export default function FloatingCaseAdvocate() {
     setError('');
     try {
       const result = decision === 'approve'
-        ? await approveCaseAdvocateAction(caseId, action.id)
-        : await rejectCaseAdvocateAction(caseId, action.id);
+        ? await approveCaseChatAction(caseId, action.id)
+        : await rejectCaseChatAction(caseId, action.id);
       if (result.session) setSession(result.session);
       if (decision === 'approve' && result.route) navigate(result.route);
       if (result.executed) window.dispatchEvent(new CustomEvent('usdwatch:case-updated', { detail: { caseId } }));
@@ -479,13 +400,9 @@ export default function FloatingCaseAdvocate() {
     sendMessage();
   };
 
-  const answerQuestion = (card, option = '') => {
-    if (option) {
-      sendMessage(option, card);
-      return;
-    }
-    setActiveQuestion(card);
-    window.requestAnimationFrame(() => textareaRef.current?.focus());
+  const retryLastMessage = () => {
+    if (!lastUserTextRef.current || busy) return;
+    sendMessage(lastUserTextRef.current);
   };
 
   if (!isAuthenticated) return null;
@@ -495,33 +412,50 @@ export default function FloatingCaseAdvocate() {
   return (
     <div className={`case-advocate-widget ${open ? 'is-open' : ''} ${inCaseWorkspace ? 'is-case-sidecar' : ''}`}>
       {open && (
-        <section className="case-advocate-panel" aria-label="Case chat">
+        <section className="case-advocate-panel" aria-label="Chat">
           <header className="case-advocate-header">
             <div className="case-advocate-header-main">
               <span className="case-advocate-mark"><MessageCircle className="h-4 w-4" aria-hidden="true" /></span>
               <div className="min-w-0">
-                <p className="case-advocate-kicker">Case chat</p>
                 <h2 className="truncate text-base font-bold">Chat</h2>
                 <p className="truncate text-xs text-text-dim">{context.mode}</p>
               </div>
             </div>
             <div className="case-advocate-header-actions">
+              <div className="case-advocate-menu-wrap">
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((value) => !value)}
+                  className="case-advocate-icon-button"
+                  aria-label="Open chat menu"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  title="Chat menu"
+                >
+                  <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                </button>
+                {menuOpen && (
+                  <div className="case-advocate-menu" role="menu">
+                    <button
+                      type="button"
+                      onClick={clearChat}
+                      role="menuitem"
+                      disabled={!caseId || busy || Boolean(busyActionId)}
+                    >
+                      {busyActionId === 'clear-chat'
+                        ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                        : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+                      Clear chat
+                    </button>
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
-                onClick={clearChat}
-                className="case-advocate-icon-button case-advocate-clear-button"
-                aria-label="Clear chat"
-                title="Clear chat"
-                disabled={!caseId || busy || Boolean(busyActionId)}
-              >
-                {busyActionId === 'clear-chat'
-                  ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  : <Trash2 className="h-4 w-4" aria-hidden="true" />}
-                <span>Clear</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setOpen(false);
+                }}
                 className="case-advocate-icon-button"
                 aria-label="Close chat"
                 title="Close chat"
@@ -569,25 +503,36 @@ export default function FloatingCaseAdvocate() {
             <div ref={chatEndRef} />
           </div>
 
-          {!!routeShortcuts.length && (
-            <div className="case-advocate-shortcuts" aria-label="Case navigation shortcuts">
-              {routeShortcuts.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button key={item.to} type="button" onClick={() => navigate(item.to)} title={item.title} aria-label={item.title}>
-                    <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-                    {item.label}
-                  </button>
-                );
-              })}
+          {!!suggestedReplies.length && !busy && (
+            <div className="case-advocate-suggestions" aria-label="Suggested follow-ups">
+              {suggestedReplies.map((reply) => (
+                <button key={reply} type="button" onClick={() => sendMessage(reply)} disabled={!caseId || busy}>
+                  {reply}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="case-advocate-suggestions-dismiss"
+                onClick={() => setDismissedSuggestionKey(suggestionKey)}
+                aria-label="Dismiss suggested follow-ups"
+                title="Dismiss"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
             </div>
           )}
 
-          {currentQuestion && (
-            <StructuredQuestionCard card={currentQuestion} onAnswer={answerQuestion} busy={busy || !caseId} />
+          {error && (
+            <div className="case-advocate-error" role="alert">
+              <span>{error}</span>
+              {lastUserTextRef.current && (
+                <button type="button" onClick={retryLastMessage} disabled={busy}>
+                  <RefreshCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                  Retry
+                </button>
+              )}
+            </div>
           )}
-
-          {error && <p className="case-advocate-error">{error}</p>}
 
           <form onSubmit={handleSubmit} className="case-advocate-form">
             <textarea
@@ -595,7 +540,7 @@ export default function FloatingCaseAdvocate() {
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               onKeyDown={handleComposerKeyDown}
-              placeholder={activeQuestion?.question || (caseId ? 'Ask about this case...' : 'Open a draft case to start...')}
+              placeholder={caseId ? 'Ask about this case...' : 'Open a draft case to start...'}
               disabled={busy || (!caseId && open)}
             />
             <button type="submit" disabled={busy || !message.trim() || !caseId} aria-label="Send message">

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { clearCaseChat, setAuthTokenGetter, streamCaseAdvocateMessage } from './client.js';
+import { clearCaseChat, setAuthTokenGetter, streamCaseChatMessage } from './client.js';
 
 function streamFromText(chunks) {
   return new ReadableStream({
@@ -13,34 +13,34 @@ function streamFromText(chunks) {
   });
 }
 
-test('streamCaseAdvocateMessage emits SSE events and returns the completed session', async () => {
+test('streamCaseChatMessage emits semantic SSE events and returns the completed session', async () => {
   const events = [];
   setAuthTokenGetter(async () => 'test-token');
   globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
   globalThis.fetch = async (url, options) => {
-    assert.equal(url, 'http://localhost:8000/api/cases/case-1/advocate/messages/stream');
+    assert.equal(url, 'http://localhost:8000/api/cases/case-1/chat/messages/stream');
     assert.equal(options.method, 'POST');
     assert.equal(options.headers.Authorization, 'Bearer test-token');
     assert.equal(JSON.parse(options.body).content, 'What evidence do we have?');
     return new Response(streamFromText([
       'event: status\ndata: {"label":"Working"}\n\n',
-      'event: message\ndata: {"content":"I found one source.","message_parts":[]}\n\n',
+      'event: message_delta\ndata: {"delta":"I found one source.","content":"I found one source.","message_parts":[]}\n\n',
       'event: source\ndata: {"id":"doc:1","label":"incident.pdf"}\n\n',
       'event: action\ndata: {"id":"act-1","type":"open_evidence_locker","status":"pending"}\n\n',
       'event: complete\ndata: {"session":{"id":"session-1","messages":[]}}\n\n',
     ]), { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
   };
 
-  const session = await streamCaseAdvocateMessage('case-1', 'What evidence do we have?', {
+  const session = await streamCaseChatMessage('case-1', 'What evidence do we have?', {
     onEvent: (event) => events.push(event),
   });
 
   assert.equal(session.id, 'session-1');
-  assert.deepEqual(events.map((event) => event.type), ['status', 'message', 'source', 'action', 'complete']);
+  assert.deepEqual(events.map((event) => event.type), ['status', 'message_delta', 'source', 'action', 'complete']);
   assert.equal(events[2].data.label, 'incident.pdf');
 });
 
-test('streamCaseAdvocateMessage times out stalled streams', async () => {
+test('streamCaseChatMessage times out stalled streams', async () => {
   setAuthTokenGetter(async () => 'test-token');
   globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
   let aborted = false;
@@ -54,7 +54,7 @@ test('streamCaseAdvocateMessage times out stalled streams', async () => {
   });
 
   await assert.rejects(
-    streamCaseAdvocateMessage('case-1', 'Are you there?', { timeoutMs: 1 }),
+    streamCaseChatMessage('case-1', 'Are you there?', { timeoutMs: 1 }),
     /timed out/i,
   );
   assert.equal(aborted, true);
@@ -64,7 +64,7 @@ test('clearCaseChat posts to the case chat clear endpoint', async () => {
   setAuthTokenGetter(async () => 'test-token');
   globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
   globalThis.fetch = async (url, options) => {
-    assert.equal(url, 'http://localhost:8000/api/cases/case-1/advocate/session/clear');
+    assert.equal(url, 'http://localhost:8000/api/cases/case-1/chat/session/clear');
     assert.equal(options.method, 'POST');
     assert.equal(options.headers.Authorization, 'Bearer test-token');
     return new Response(JSON.stringify({ id: 'session-1', messages: [] }), {

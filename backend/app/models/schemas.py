@@ -293,6 +293,37 @@ class CaseIntakeAnalysis(BaseModel):
     trace_id: str = ""
 
 
+class CaseChatTurnRequest(BaseModel):
+    content: str = ""
+    client_message_id: str = ""
+    intent_hint: str = ""
+
+
+class CaseChatUpdateProposal(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    type: str = Field(default="update_case_facts", description="update_case_facts | update_family_narrative")
+    label: str = ""
+    description: str = ""
+    payload: dict = Field(default_factory=dict)
+    requires_confirmation: bool = True
+    status: str = Field(default="pending", description="pending | approved | rejected | expired")
+    created_at: datetime = Field(default_factory=utc_now)
+    resolved_at: Optional[datetime] = None
+
+
+class CaseChatTurnResult(BaseModel):
+    intent: str = Field(default="case_question")
+    assistant_message: str = ""
+    message_parts: list[AdvocateMessagePart] = Field(default_factory=list)
+    sources: list[AdvocateSource] = Field(default_factory=list)
+    suggested_replies: list[str] = Field(default_factory=list)
+    case_update_proposals: list[CaseChatUpdateProposal] = Field(default_factory=list)
+    action_proposals: list[AdvocateActionProposal] = Field(default_factory=list)
+    safety_flags: list[AdvocateSafetyFlag] = Field(default_factory=list)
+    model_route: dict = Field(default_factory=dict)
+    trace_id: str = ""
+
+
 class CaseIntakeMessage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
     role: str = Field(default="user", description="user | assistant | system")

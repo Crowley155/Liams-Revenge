@@ -352,19 +352,23 @@ export async function sendIntakeMessage(sessionId, content) {
   return res.json();
 }
 
-export async function fetchCaseAdvocateSession(caseId) {
+export async function fetchCaseChatSession(caseId) {
   requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/session`);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/session`);
   if (!res.ok) throw new Error(`Failed to load chat: ${res.status}`);
   return res.json();
 }
 
-export async function sendCaseAdvocateMessage(caseId, content) {
+export async function fetchCaseAdvocateSession(caseId) {
+  return fetchCaseChatSession(caseId);
+}
+
+export async function sendCaseChatMessage(caseId, content, { intentHint = '' } = {}) {
   requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/messages`, {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
+    body: JSON.stringify({ content, intent_hint: intentHint }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -373,9 +377,13 @@ export async function sendCaseAdvocateMessage(caseId, content) {
   return res.json();
 }
 
+export async function sendCaseAdvocateMessage(caseId, content) {
+  return sendCaseChatMessage(caseId, content);
+}
+
 export async function clearCaseChat(caseId) {
   requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/session/clear`, {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/session/clear`, {
     method: 'POST',
   });
   if (!res.ok) {
@@ -436,18 +444,19 @@ function streamAbortContext(signal, timeoutMs) {
   };
 }
 
-export async function streamCaseAdvocateMessage(caseId, content, {
+export async function streamCaseChatMessage(caseId, content, {
   onEvent,
+  intentHint = '',
   signal,
   timeoutMs = DEFAULT_CHAT_STREAM_TIMEOUT_MS,
 } = {}) {
   requireCaseId(caseId);
   const abortContext = streamAbortContext(signal, timeoutMs);
   try {
-    const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/messages/stream`, {
+    const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/messages/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, intent_hint: intentHint }),
       signal: abortContext.signal,
     });
     if (!res.ok) {
@@ -489,9 +498,29 @@ export async function streamCaseAdvocateMessage(caseId, content, {
   }
 }
 
-export async function approveCaseAdvocateAction(caseId, actionId) {
+export async function streamCaseAdvocateMessage(caseId, content, options = {}) {
+  return streamCaseChatMessage(caseId, content, options);
+}
+
+export async function approveCaseChatAction(caseId, actionId) {
   requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/actions/${actionId}/approve`, {
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/actions/${actionId}/approve`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Chat action failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function approveCaseAdvocateAction(caseId, actionId) {
+  return approveCaseChatAction(caseId, actionId);
+}
+
+export async function rejectCaseChatAction(caseId, actionId) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/chat/actions/${actionId}/reject`, {
     method: 'POST',
   });
   if (!res.ok) {
@@ -502,15 +531,7 @@ export async function approveCaseAdvocateAction(caseId, actionId) {
 }
 
 export async function rejectCaseAdvocateAction(caseId, actionId) {
-  requireCaseId(caseId);
-  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/actions/${actionId}/reject`, {
-    method: 'POST',
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Chat action failed: ${res.status}`);
-  }
-  return res.json();
+  return rejectCaseChatAction(caseId, actionId);
 }
 
 export async function updateIntakeFacts(sessionId, facts) {

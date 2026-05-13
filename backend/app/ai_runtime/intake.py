@@ -14,6 +14,7 @@ from app.models import (
     AdvocateSafetyFlag,
     AdvocateSource,
     AgentRun,
+    CaseChatTurnResult,
     CaseIntakeAnalysis,
     CaseIntakeFacts,
     CaseIntakeMessage,
@@ -66,6 +67,53 @@ def _latest_user_message(session: CaseIntakeSession) -> str:
         if message.role == "user":
             return message.content
     return ""
+
+
+def classify_case_chat_intent(message: str, hint: str = "") -> str:
+    explicit = hint.strip().lower()
+    if explicit in {
+        "case_question",
+        "case_summary",
+        "evidence_question",
+        "records_question",
+        "timeline_question",
+        "gap_question",
+        "intake_answer",
+        "action_request",
+        "legal_boundary",
+        "smalltalk",
+    }:
+        return explicit
+
+    text = message.strip()
+    lowered = text.lower()
+    if not lowered:
+        return "smalltalk"
+    if "question:" in lowered and "answer:" in lowered:
+        return "intake_answer"
+    asks_for_info = bool(
+        "?" in text
+        or re.search(r"\b(tell me|what|why|how|when|where|who|which|can you|could you|please help|help me)\b", lowered)
+    )
+    if any(phrase in lowered for phrase in ("legal advice", "should i sue", "can i sue", "lawsuit", "attorney", "lawyer")):
+        return "legal_boundary"
+    if re.search(r"\b(summarize|summary|recap|overview|what is this case|tell me about (this|my) case)\b", lowered):
+        return "case_summary"
+    if asks_for_info and re.search(r"\b(evidence|proof|source|sources|document|documents|file|files|screenshot|incident report)\b", lowered):
+        return "evidence_question"
+    if asks_for_info and re.search(r"\b(records?|kora|foia|open records|request|requests?)\b", lowered):
+        return "records_question"
+    if asks_for_info and re.search(r"\b(timeline|chronology|sequence|dates?|when did|what happened first)\b", lowered):
+        return "timeline_question"
+    if asks_for_info and re.search(r"\b(gap|gaps|missing|weak|weakness|strength|need next|next step|what else)\b", lowered):
+        return "gap_question"
+    if re.search(r"\b(open|go to|take me|show me|navigate|switch to|run|draft|import|update|search gmail|start case read)\b", lowered):
+        return "action_request"
+    if lowered in {"hi", "hello", "hey", "thanks", "thank you"}:
+        return "smalltalk"
+    if "?" in text:
+        return "case_question"
+    return "intake_answer"
 
 
 def _merge_facts(base: CaseIntakeFacts, patch: CaseIntakeFacts | dict, overrides: dict | None = None) -> CaseIntakeFacts:
@@ -568,6 +616,370 @@ def _run_agno_analysis_with_timeout(
         raise RuntimeError(f"Case chat model timed out after {timeout:g}s") from exc
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _case_location(facts: CaseIntakeFacts, context: dict | None) -> str:
+    case_context = (context or {}).get("case", {})
+    return facts.school or facts.district or case_context.get("school") or case_context.get("district") or "the school or district"
+
+
+def _has_case_story(facts: CaseIntakeFacts, context: dict | None) -> bool:
+    case_context = (context or {}).get("case", {})
+    return bool(
+        (facts.narrative or "").strip()
+        or facts.district
+        or facts.school
+        or facts.issue_categories and facts.issue_categories != ["other"]
+        or case_context.get("document_count", 0)
+    )
+
+
+def _first_sentence(text: str, limit: int = 360) -> str:
+    text = re.sub(r"\s+", " ", (text or "").strip())
+    if len(text) <= limit:
+        return text
+    return text[:limit].rsplit(" ", 1)[0].rstrip(".,;") + "."
+
+
+def _suggested_replies_for_intent(intent: str, has_story: bool, sources: list[AdvocateSource]) -> list[str]:
+    if intent == "case_summary" and not has_story:
+        return ["Share what happened", "Add the school or district", "Upload evidence"]
+    if intent == "case_summary":
+        return ["What evidence supports this?", "What gaps should I close?", "What records should I request?"]
+    if intent == "evidence_question" and not sources:
+        return ["Add the strongest document", "What evidence should I look for?", "Draft a records plan"]
+    if intent == "evidence_question":
+        return ["What does this evidence prove?", "What is still missing?", "Help me build a timeline"]
+    if intent == "records_question":
+        return ["What records should I request first?", "Help me draft the request", "What evidence supports this request?"]
+    if intent == "legal_boundary":
+        return ["Help me organize facts", "What questions should I ask a professional?", "Summarize the evidence"]
+    return ["Summarize this case", "What evidence is missing?", "What should I do next?"]
+
+
+def _suggested_replies_from_question_cards(cards: list[CaseIntakeQuestion]) -> list[str]:
+    if not cards:
+        return []
+    card = cards[0]
+    options = [item for item in card.options if item]
+    if options:
+        return options[:3]
+    return []
+
+
+def _chat_message_parts(message: str, sources: list[AdvocateSource], safety_flags: list[AdvocateSafetyFlag]) -> list[AdvocateMessagePart]:
+    parts = [AdvocateMessagePart(type="text", text=message)]
+    if sources:
+        parts.append(AdvocateMessagePart(
+            type="source_claim",
+            title="Sources checked",
+            text="I found matching evidence in this case file.",
+            source_ids=[source.id for source in sources[:4]],
+        ))
+    if safety_flags:
+        parts.append(AdvocateMessagePart(
+            type="status",
+            title="Boundary",
+            text=safety_flags[0].detail or safety_flags[0].label,
+            severity=safety_flags[0].severity,
+        ))
+    return parts
+
+
+def _fallback_case_chat_result(
+    session: CaseIntakeSession,
+    context: dict | None,
+    intent: str,
+    *,
+    model_id: str,
+    error: str = "",
+) -> CaseChatTurnResult:
+    facts = session.facts
+    latest = _latest_user_message(session)
+    sources = _context_sources(context)
+    safety_flags = _safety_flags_for_message(latest, facts, sources)
+    has_story = _has_case_story(facts, context)
+    case_context = (context or {}).get("case", {})
+    title = facts.title or case_context.get("title") or "this case"
+    location = _case_location(facts, context)
+    categories = [item for item in (facts.issue_categories or ([facts.issue_type] if facts.issue_type else [])) if item and item != "other"]
+    category_text = ", ".join(item.replace("_", " ") for item in categories) or "the concern you are documenting"
+    narrative = _first_sentence(facts.narrative)
+
+    if intent == "case_summary":
+        if not has_story:
+            message = (
+                "I do not have enough case detail yet to summarize this case. Share a few sentences about what happened, "
+                "who was involved, and what outcome you want, and I can turn it into a case summary."
+            )
+        else:
+            details = [f"{title} is about {category_text} involving {location}."]
+            if narrative:
+                details.append(f"The current narrative says: {narrative}")
+            if facts.desired_outcome:
+                details.append(f"The parent goal is: {facts.desired_outcome}")
+            doc_count = int(case_context.get("document_count") or 0)
+            if doc_count:
+                details.append(f"The Evidence Locker has {doc_count} file{'s' if doc_count != 1 else ''}.")
+            message = " ".join(details)
+    elif intent == "evidence_question":
+        if sources:
+            labels = ", ".join(source.label for source in sources[:3] if source.label)
+            message = f"I found matching evidence in this case file: {labels}. Treat this as a source-backed starting point and open the Evidence Locker if you need to inspect the full file."
+        else:
+            message = (
+                "I do not see matching evidence in this case yet. Add the strongest document, email, screenshot, incident note, "
+                "or records response you have, and I can connect future answers to specific sources."
+            )
+    elif intent == "records_question":
+        records = (context or {}).get("records", {})
+        pending = int(records.get("pending_count") or 0)
+        message = (
+            f"For records, start with source documents that can confirm what happened at {location}: incident reports, emails, supervision notes, "
+            "staff assignments, meeting notes, and any policy or procedure records tied to the concern."
+        )
+        if pending:
+            message += f" I see {pending} pending or draft records request item{'s' if pending != 1 else ''} already tracked."
+    elif intent == "timeline_question":
+        message = (
+            "I can help build a timeline from the case file. Right now, I need dated facts: when the incident happened, when you contacted the school, "
+            "when the school responded, and when any records or meetings occurred."
+        )
+        if facts.incident_date:
+            message = f"The incident date I have is {facts.incident_date}. " + message
+    elif intent == "gap_question":
+        missing = []
+        if not (facts.district or facts.school):
+            missing.append("school or district")
+        if not facts.narrative:
+            missing.append("plain-language narrative")
+        if not (facts.desired_outcome or facts.desired_outcomes):
+            missing.append("desired outcome")
+        if int(case_context.get("document_count") or 0) == 0:
+            missing.append("supporting evidence")
+        message = "The main gaps I see are: " + ", ".join(missing) + "." if missing else "The basic case file is started. The next useful step is to connect claims to specific evidence and records."
+    elif intent == "legal_boundary":
+        message = (
+            "I can help organize facts, evidence, timelines, records questions, and preparation notes, but I cannot give legal advice or promise outcomes. "
+            "For legal strategy, filing decisions, or deadlines, use this as preparation for a qualified professional."
+        )
+    elif intent == "action_request":
+        allowed_action_types = {"draft_records_request", "search_gmail", "import_selected_gmail", "start_case_read", "update_family_narrative"}
+        actions = [action for action in _action_proposals_for_message(latest, context) if action.type in allowed_action_types]
+        if actions:
+            message = "I can prepare that as a proposed action. Please confirm before anything changes in the case file or connected services."
+        else:
+            message = "I can point you to the right workspace, but I will not move you around automatically from chat. Use the case tabs for Evidence, Records, People, Packet, or Case Plan."
+    elif intent == "smalltalk":
+        message = "I am here. Ask me to summarize the case, check evidence, find gaps, plan records, or help organize what happened."
+    else:
+        if not has_story:
+            message = "I can answer case questions once there is a little case detail. Start with what happened, who was involved, and what you want changed."
+        else:
+            message = f"I can help with that from the case file. I currently see {category_text} involving {location}."
+
+    if intent != "action_request":
+        actions = []
+    route = {
+        "runtime": "agno",
+        "agent": "case_chat_manager",
+        "model": model_id,
+        "provider": "deepinfra",
+        "fallback": True,
+        "error": error,
+    }
+    return CaseChatTurnResult(
+        intent=intent,
+        assistant_message=message,
+        message_parts=_chat_message_parts(message, sources, safety_flags),
+        sources=sources,
+        suggested_replies=_suggested_replies_for_intent(intent, has_story, sources),
+        case_update_proposals=[],
+        action_proposals=actions[:3],
+        safety_flags=safety_flags,
+        model_route=route,
+        trace_id=f"chat-{session.id}-{utc_now().strftime('%Y%m%d%H%M%S')}",
+    )
+
+
+def _normalize_case_chat_result(
+    result: CaseChatTurnResult,
+    session: CaseIntakeSession,
+    context: dict | None,
+    *,
+    intent: str,
+    fallback: bool,
+    model_id: str,
+    error: str = "",
+) -> CaseChatTurnResult:
+    allowed_sources = {source.id: source for source in _context_sources(context)}
+    result.sources = [allowed_sources[source.id] for source in result.sources if source.id in allowed_sources]
+    if not result.assistant_message:
+        fallback_result = _fallback_case_chat_result(session, context, intent, model_id=model_id, error=error)
+        result.assistant_message = fallback_result.assistant_message
+    result.intent = intent
+    result.case_update_proposals = []
+    allowed_action_types = {"draft_records_request", "search_gmail", "import_selected_gmail", "start_case_read", "update_family_narrative"}
+    normalized_actions: list[AdvocateActionProposal] = []
+    for action in result.action_proposals:
+        if action.type not in allowed_action_types:
+            continue
+        action.requires_confirmation = True
+        if action.status not in {"approved", "rejected", "expired"}:
+            action.status = "pending"
+        normalized_actions.append(action)
+    result.action_proposals = normalized_actions[:3]
+    if not result.suggested_replies:
+        result.suggested_replies = _suggested_replies_for_intent(intent, _has_case_story(session.facts, context), result.sources)
+    if not result.message_parts:
+        result.message_parts = _chat_message_parts(result.assistant_message, result.sources, result.safety_flags)
+    result.model_route = {
+        "runtime": "agno",
+        "agent": "case_chat_manager",
+        "model": model_id,
+        "provider": "deepinfra",
+        "fallback": fallback,
+        "error": error,
+    }
+    result.trace_id = result.trace_id or f"chat-{session.id}-{utc_now().strftime('%Y%m%d%H%M%S')}"
+    return result
+
+
+def _run_case_chat_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MODEL, context: dict | None = None) -> CaseChatTurnResult:
+    if not settings.has_deepinfra:
+        raise RuntimeError("DEEPINFRA_API_KEY is not configured")
+    from agno.agent import Agent
+    from agno.models.deepinfra import DeepInfra
+
+    agent = Agent(
+        name="USDWatch Case Chat Manager",
+        model=DeepInfra(id=model_id, temperature=0.1, max_tokens=1800, timeout=AGNO_RUN_TIMEOUT_SECONDS),
+        output_schema=CaseChatTurnResult,
+        instructions=[
+            "You are USDWatch Chat, a careful case-aware assistant for parents organizing a private school case file.",
+            "Answer the user's direct question first. Do not force an intake question every turn.",
+            "Only use facts from the current case facts, conversation, and provided evidence_sources.",
+            "Only cite sources from evidence_sources. Do not invent document ids, quotations, or evidence.",
+            "Do not update case facts directly. Return case_update_proposals only when the user explicitly asks to update the case.",
+            "Return action_proposals only for side effects that require confirmation: records drafts, Gmail search or import, Case Read, or narrative update.",
+            "Do not return navigation actions for opening app sections. Mention the existing tab instead.",
+            "Keep suggested_replies optional and short.",
+            "Maintain legal-advice boundaries and never promise outcomes.",
+        ],
+        markdown=False,
+    )
+    prompt = "\n\n".join([
+        "Return structured JSON for one USDWatch case chat turn.",
+        f"Intent:\n{(context or {}).get('intent', 'case_question')}",
+        f"Current facts:\n{session.facts.model_dump_json()}",
+        f"Case context:\n{json.dumps(context or {}, default=str)}",
+        f"Conversation:\n{_conversation_text(session)}",
+    ])
+    response = agent.run(prompt)
+    content = getattr(response, "content", response)
+    if isinstance(content, CaseChatTurnResult):
+        return content
+    if isinstance(content, dict):
+        return CaseChatTurnResult(**content)
+    return CaseChatTurnResult.model_validate_json(str(content))
+
+
+def _run_case_chat_agno_analysis_with_timeout(
+    session: CaseIntakeSession,
+    model_id: str = REASONING_MODEL,
+    context: dict | None = None,
+) -> CaseChatTurnResult:
+    timeout = max(float(AGNO_RUN_TIMEOUT_SECONDS), 0.01)
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="case-chat-manager")
+    future = executor.submit(_run_case_chat_agno_analysis, session, model_id, context)
+    try:
+        return future.result(timeout=timeout)
+    except FutureTimeoutError as exc:
+        future.cancel()
+        raise RuntimeError(f"Case chat model timed out after {timeout:g}s") from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _store_case_chat_result(session: CaseIntakeSession, result: CaseChatTurnResult, run: AgentRun) -> CaseIntakeSession:
+    session.messages.append(CaseIntakeMessage(
+        role="assistant",
+        content=result.assistant_message,
+        structured={
+            "intent": result.intent,
+            "message_parts": [part.model_dump(mode="json") for part in result.message_parts],
+            "sources": [source.model_dump(mode="json") for source in result.sources],
+            "suggested_replies": result.suggested_replies,
+            "case_update_proposals": [proposal.model_dump(mode="json") for proposal in result.case_update_proposals],
+            "action_proposals": [action.model_dump(mode="json") for action in result.action_proposals],
+            "safety_flags": [flag.model_dump(mode="json") for flag in result.safety_flags],
+            "model_route": result.model_route,
+            "trace_id": result.trace_id,
+            "agent_run_ids": [run.id],
+            "question_cards": [],
+            "next_question": "",
+        },
+    ))
+    session.updated_at = utc_now()
+    run.output_tokens = len((result.assistant_message or "").split())
+    return session
+
+
+def analyze_case_chat_session(session: CaseIntakeSession, context: dict | None = None) -> CaseIntakeSession:
+    context = context or {}
+    intent = context.get("intent") or classify_case_chat_intent(_latest_user_message(session), context.get("intent_hint", ""))
+    if intent == "intake_answer":
+        session = analyze_intake_session(session, context={**context, "intent": intent})
+        latest = session.messages[-1] if session.messages else None
+        if latest and latest.structured:
+            cards = [CaseIntakeQuestion(**card) for card in latest.structured.get("question_cards", [])]
+            latest.structured = {
+                **latest.structured,
+                "intent": intent,
+                "suggested_replies": _suggested_replies_from_question_cards(cards),
+                "case_update_proposals": [],
+            }
+        return session
+
+    run = AgentRun(
+        workspace_id=session.workspace_id,
+        case_id=session.draft_case_id or session.case_id or "case-chat",
+        evaluation_id=session.id,
+        agent_id="case_chat_manager",
+        status="running",
+        model_id=REASONING_MODEL,
+    )
+    agent_runs[run.id] = run
+    try:
+        try:
+            try:
+                result = _run_case_chat_agno_analysis_with_timeout(session, REASONING_MODEL, {**context, "intent": intent})
+            except Exception as primary_exc:
+                if REASONING_MODEL == FALLBACK_MODEL or not settings.has_deepinfra:
+                    raise
+                run.model_id = FALLBACK_MODEL
+                run.status = "fallback_model"
+                run.error = f"Primary model {REASONING_MODEL} failed: {primary_exc}"
+                result = _run_case_chat_agno_analysis_with_timeout(session, FALLBACK_MODEL, {**context, "intent": intent})
+            if run.status != "fallback_model":
+                run.status = "complete"
+            result = _normalize_case_chat_result(
+                result,
+                session,
+                context,
+                intent=intent,
+                fallback=run.status == "fallback_model",
+                model_id=run.model_id,
+                error=run.error or "",
+            )
+        except Exception as exc:
+            run.status = "fallback"
+            run.error = str(exc)
+            result = _fallback_case_chat_result(session, context, intent, model_id=run.model_id or REASONING_MODEL, error=str(exc))
+        return _store_case_chat_result(session, result, run)
+    finally:
+        run.completed_at = utc_now()
+        agent_runs[run.id] = run
 
 
 def analyze_intake_session(session: CaseIntakeSession, context: dict | None = None) -> CaseIntakeSession:

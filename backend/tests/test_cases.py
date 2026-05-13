@@ -9,7 +9,7 @@ from app.api.deps import get_current_user
 from app.api._store import case_documents, cases, gmail_connections
 from app.config import Settings
 from app.main import app
-from app.models import CaseDocument, CaseIntake, CaseRecord, GmailConnection, GmailImportRule
+from app.models import CaseDocument, CaseIntake, CaseRecord, CaseStatus, GmailConnection, GmailImportRule
 from app.services.gmail_importer import import_matching_messages
 from app.services.gmail_security import encrypt_token
 
@@ -494,6 +494,110 @@ def test_case_bound_advocate_updates_draft_case_and_first_case_read_activates(mo
     assert activated.json()["status"] == "active"
 
 
+def test_case_chat_summary_on_empty_case_does_not_become_narrative(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai_runtime.intake._run_case_chat_agno_analysis",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mock fallback")),
+        raising=False,
+    )
+    user = _user()
+    _override_user(user)
+
+    draft = client.post("/api/cases/draft")
+    assert draft.status_code == 200
+    case_id = draft.json()["id"]
+
+    with client.stream(
+        "POST",
+        f"/api/cases/{case_id}/chat/messages/stream",
+        json={"content": "Can you summarize my case?"},
+    ) as response:
+        assert response.status_code == 200
+        events = _sse_events(response)
+
+    event_names = [name for name, _payload in events]
+    assert event_names[0] == "status"
+    assert "message_delta" in event_names
+    assert event_names[-1] == "complete"
+
+    latest = events[-1][1]["session"]["messages"][-1]
+    assert "do not have enough case detail yet" in latest["content"]
+    assert latest["structured"]["intent"] == "case_summary"
+    assert latest["structured"]["case_update_proposals"] == []
+    assert latest["structured"].get("question_cards", []) == []
+
+    updated = client.get(f"/api/cases/{case_id}")
+    assert updated.status_code == 200
+    case_body = updated.json()
+    assert case_body["family_narrative"] == ""
+    assert case_body["intake"]["narrative"] == ""
+
+
+def test_case_chat_summary_answers_from_existing_case_without_forced_question(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai_runtime.intake._run_case_chat_agno_analysis",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mock fallback")),
+        raising=False,
+    )
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Summary chat case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+    original_narrative = created.json()["family_narrative"]
+
+    with client.stream(
+        "POST",
+        f"/api/cases/{case_id}/chat/messages/stream",
+        json={"content": "Can you summarize my case?"},
+    ) as response:
+        assert response.status_code == 200
+        events = _sse_events(response)
+
+    latest = events[-1][1]["session"]["messages"][-1]
+    assert "Summary chat case" in latest["content"]
+    assert "unsafe incident" in latest["content"]
+    assert latest["structured"]["intent"] == "case_summary"
+    assert latest["structured"].get("question_cards", []) == []
+
+    updated = client.get(f"/api/cases/{case_id}")
+    assert updated.json()["family_narrative"] == original_narrative
+    assert "Can you summarize my case?" not in updated.json()["family_narrative"]
+
+
+def test_case_chat_evidence_question_without_documents_is_answered_not_mutated(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai_runtime.intake._run_case_chat_agno_analysis",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mock fallback")),
+        raising=False,
+    )
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Evidence chat case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+    original_narrative = created.json()["family_narrative"]
+
+    with client.stream(
+        "POST",
+        f"/api/cases/{case_id}/chat/messages/stream",
+        json={"content": "What evidence do we have about supervision?"},
+    ) as response:
+        assert response.status_code == 200
+        events = _sse_events(response)
+
+    latest = events[-1][1]["session"]["messages"][-1]
+    assert "do not see matching evidence" in latest["content"]
+    assert latest["structured"]["intent"] == "evidence_question"
+    assert latest["structured"]["sources"] == []
+    assert "Add the strongest document" in latest["structured"]["suggested_replies"]
+
+    updated = client.get(f"/api/cases/{case_id}")
+    assert updated.json()["family_narrative"] == original_narrative
+
+
 def test_case_advocate_stream_emits_case_scoped_sources_actions_and_completion(monkeypatch):
     monkeypatch.setattr(
         "app.ai_runtime.intake._run_agno_analysis",
@@ -554,7 +658,6 @@ def test_case_advocate_stream_emits_case_scoped_sources_actions_and_completion(m
     assert event_names[0] == "status"
     assert "message" in event_names
     assert "source" in event_names
-    assert "action" in event_names
     assert event_names[-1] == "complete"
 
     sources = [payload for name, payload in events if name == "source"]
@@ -562,14 +665,12 @@ def test_case_advocate_stream_emits_case_scoped_sources_actions_and_completion(m
     assert all(source["document_id"] != other_doc.id for source in sources)
 
     actions = [payload for name, payload in events if name == "action"]
-    assert actions[0]["type"] == "open_evidence_locker"
-    assert actions[0]["requires_confirmation"] is True
-    assert actions[0]["status"] == "pending"
+    assert actions == []
 
     complete = events[-1][1]
     structured = complete["session"]["messages"][-1]["structured"]
     assert structured["sources"][0]["document_id"] == source_doc.id
-    assert structured["action_proposals"][0]["id"] == actions[0]["id"]
+    assert structured["action_proposals"] == []
     assert structured["model_route"]["fallback"] is True
 
 
@@ -617,9 +718,14 @@ def test_case_chat_stream_falls_back_when_manager_times_out(monkeypatch):
 
     def slow_manager(*args, **kwargs):
         time.sleep(0.08)
-        return intake_runtime._heuristic_analysis(args[0], args[2] if len(args) > 2 else kwargs.get("context"))
+        return intake_runtime._fallback_case_chat_result(
+            args[0],
+            args[2] if len(args) > 2 else kwargs.get("context"),
+            "records_question",
+            model_id="mock-model",
+        )
 
-    monkeypatch.setattr(intake_runtime, "_run_agno_analysis", slow_manager)
+    monkeypatch.setattr(intake_runtime, "_run_case_chat_agno_analysis", slow_manager)
     user = _user()
     _override_user(user)
 
@@ -656,11 +762,12 @@ def test_case_advocate_actions_require_case_access_and_record_decisions(monkeypa
 
     streamed = client.post(
         f"/api/cases/{case_id}/advocate/messages/stream",
-        json={"content": "Please open the Evidence Locker so I can upload the incident report."},
+        json={"content": "Please draft a records request for the incident report and staff coverage notes."},
     )
     assert streamed.status_code == 200
     events = _sse_events(streamed)
     action = next(payload for name, payload in events if name == "action")
+    assert action["type"] == "draft_records_request"
 
     _override_user(outsider)
     hidden = client.post(f"/api/cases/{case_id}/advocate/actions/{action['id']}/approve")
@@ -674,14 +781,14 @@ def test_case_advocate_actions_require_case_access_and_record_decisions(monkeypa
 
     streamed_again = client.post(
         f"/api/cases/{case_id}/advocate/messages/stream",
-        json={"content": "Open the Evidence Locker again."},
+        json={"content": "Draft another records request for supervision notes."},
     )
     action_again = next(payload for name, payload in _sse_events(streamed_again) if name == "action")
     approved = client.post(f"/api/cases/{case_id}/advocate/actions/{action_again['id']}/approve")
     assert approved.status_code == 200
     assert approved.json()["action"]["status"] == "approved"
     assert approved.json()["action"]["requires_confirmation"] is True
-    assert approved.json()["route"].endswith("/locker")
+    assert approved.json()["route"].endswith("/records")
 
 
 def test_manual_family_narrative_override_beats_agent_patch(monkeypatch):
@@ -866,6 +973,34 @@ def test_case_document_category_filter_normalizes_legacy_kora_types():
     policy_resp = client.get(f"/api/cases/{case.id}/documents?category=policy_rules")
     assert policy_resp.status_code == 200
     assert [doc["id"] for doc in policy_resp.json()] == [policy.id]
+
+
+def test_legacy_demo_case_lists_orphaned_evidence_documents():
+    user = _user(workspace_id="demo")
+    _override_user(user)
+    case = CaseRecord(
+        id=f"crowley-v-usd232-{uuid.uuid4().hex[:6]}",
+        workspace_id=user["workspace_id"],
+        title="Legacy demo evidence",
+        status=CaseStatus.DEMO,
+        intake=CaseIntake(issue_type="student_safety", issue_categories=["student_safety"]),
+    )
+    cases[case.id] = case
+    orphaned_doc = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id="legacy-import-workspace",
+        case_id=case.id,
+        filename="JA Critical Incident Report.pdf",
+        evidence_type="critical_incident",
+        processing_status="indexed",
+        status="indexed",
+    )
+    case_documents[orphaned_doc.id] = orphaned_doc
+
+    response = client.get(f"/api/cases/{case.id}/documents")
+
+    assert response.status_code == 200
+    assert [doc["id"] for doc in response.json()] == [orphaned_doc.id]
 
 
 def test_case_document_search_includes_case_scoped_semantic_hits(monkeypatch):

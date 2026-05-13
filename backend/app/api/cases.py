@@ -15,7 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from fastapi.responses import StreamingResponse
 
 from app.ai_runtime.evaluation import run_case_evaluation
-from app.ai_runtime.intake import analyze_intake_session
+from app.ai_runtime.intake import analyze_case_chat_session, analyze_intake_session, classify_case_chat_intent
 from app.api._store import (
     case_documents,
     case_evaluations,
@@ -31,6 +31,7 @@ from app.api._store import (
 from app.api.deps import get_current_user
 from app.models import (
     CaseAccessSummary,
+    CaseChatTurnRequest,
     CaseCreate,
     CaseDocument,
     CaseEvaluation,
@@ -93,6 +94,11 @@ def _case_docs(case: CaseRecord) -> list[CaseDocument]:
         doc for doc in case_documents.values()
         if doc.workspace_id == case.workspace_id and doc.case_id == case.id
     ]
+    if not docs and case.status == CaseStatus.DEMO:
+        docs = [
+            doc for doc in case_documents.values()
+            if doc.case_id == case.id
+        ]
     docs.sort(key=lambda doc: normalize_utc(doc.uploaded_at), reverse=True)
     return docs
 
@@ -488,16 +494,55 @@ def _case_advocate_context(case: CaseRecord, user: dict, content: str) -> dict:
     }
 
 
-def _append_advocate_turn(case: CaseRecord, user: dict, content: str) -> CaseIntakeSession:
+def _chat_status_label(intent: str) -> str:
+    if intent == "evidence_question":
+        return "Searching evidence"
+    if intent == "records_question":
+        return "Checking records"
+    if intent in {"case_summary", "case_question", "gap_question", "timeline_question"}:
+        return "Checking the case file"
+    if intent == "intake_answer":
+        return "Updating the case file"
+    return "Thinking"
+
+
+def _update_case_chat_state(case: CaseRecord, session: CaseIntakeSession) -> CaseRecord:
+    structured = _latest_advocate_structured(session)
+    case.advocate_state = {
+        **case.advocate_state,
+        "active_session_id": session.id,
+        "chat_intent": structured.get("intent", ""),
+        "suggested_replies": structured.get("suggested_replies", []),
+        "sources": structured.get("sources", []),
+        "action_proposals": structured.get("action_proposals", []),
+        "safety_flags": structured.get("safety_flags", []),
+        "model_route": structured.get("model_route", {}),
+        "trace_id": structured.get("trace_id", ""),
+        "updated_by": "case_chat",
+    }
+    case.updated_at = utc_now()
+    cases[case.id] = case
+    return case
+
+
+def _append_case_chat_turn(case: CaseRecord, user: dict, content: str, *, intent_hint: str = "") -> CaseIntakeSession:
     session = _case_advocate_session(case, user)
     session.messages.append(CaseIntakeMessage(role="user", content=content))
-    context = _case_advocate_context(case, user, content)
-    session = analyze_intake_session(session, context=context)
+    intent = classify_case_chat_intent(content, intent_hint)
+    context = {**_case_advocate_context(case, user, content), "intent": intent, "intent_hint": intent_hint}
+    session = analyze_case_chat_session(session, context=context)
     session.case_id = case.id
     session.draft_case_id = case.id
     case_intake_sessions[session.id] = session
-    _apply_session_to_case(case, session)
+    if intent == "intake_answer":
+        _apply_session_to_case(case, session)
+    else:
+        _update_case_chat_state(case, session)
     return session
+
+
+def _append_advocate_turn(case: CaseRecord, user: dict, content: str) -> CaseIntakeSession:
+    return _append_case_chat_turn(case, user, content)
 
 
 def _sse(event: str, payload: dict) -> str:
@@ -943,10 +988,20 @@ async def get_case_advocate_session(case_id: str, user: dict = Depends(get_curre
     return _case_advocate_session(case, user)
 
 
+@router.get("/cases/{case_id}/chat/session", response_model=CaseIntakeSession)
+async def get_case_chat_session(case_id: str, user: dict = Depends(get_current_user)):
+    return await get_case_advocate_session(case_id, user)
+
+
 @router.post("/cases/{case_id}/advocate/session/clear", response_model=CaseIntakeSession)
 async def clear_case_advocate_session(case_id: str, user: dict = Depends(get_current_user)):
     case = require_case_access(user, cases.get(case_id), "edit")
     return _clear_case_chat_session(case, user)
+
+
+@router.post("/cases/{case_id}/chat/session/clear", response_model=CaseIntakeSession)
+async def clear_case_chat_session(case_id: str, user: dict = Depends(get_current_user)):
+    return await clear_case_advocate_session(case_id, user)
 
 
 @router.post("/cases/{case_id}/advocate/messages", response_model=CaseIntakeSession)
@@ -962,6 +1017,68 @@ async def append_case_advocate_message(
     return _append_advocate_turn(case, user, content)
 
 
+@router.post("/cases/{case_id}/chat/messages", response_model=CaseIntakeSession)
+async def append_case_chat_message(
+    case_id: str,
+    body: CaseChatTurnRequest,
+    user: dict = Depends(get_current_user),
+):
+    case = require_case_access(user, cases.get(case_id), "edit")
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+    return _append_case_chat_turn(case, user, content, intent_hint=body.intent_hint)
+
+
+def _case_chat_stream(case: CaseRecord, user: dict, content: str, *, intent_hint: str = ""):
+    intent = classify_case_chat_intent(content, intent_hint)
+    yield _sse("status", {"status": "working", "label": _chat_status_label(intent), "intent": intent})
+    try:
+        session = _append_case_chat_turn(case, user, content, intent_hint=intent_hint)
+        structured = _latest_advocate_structured(session)
+        latest_message = session.messages[-1] if session.messages else None
+        content_text = latest_message.content if latest_message else ""
+        message_payload = {
+            "delta": content_text,
+            "content": content_text,
+            "message_parts": structured.get("message_parts", []),
+            "suggested_replies": structured.get("suggested_replies", []),
+            "case_update_proposals": structured.get("case_update_proposals", []),
+            "trace_id": structured.get("trace_id", ""),
+            "model_route": structured.get("model_route", {}),
+            "intent": structured.get("intent", intent),
+        }
+        yield _sse("message_delta", message_payload)
+        yield _sse("message", message_payload)
+        for source in structured.get("sources", []):
+            yield _sse("source", source)
+        for action in structured.get("action_proposals", []):
+            yield _sse("action", action)
+        for flag in structured.get("safety_flags", []):
+            yield _sse("safety", flag)
+        yield _sse("complete", {"session": session.model_dump(mode="json")})
+    except Exception as exc:
+        logger.exception("Case chat stream failed for case %s", case.id)
+        yield _sse("error", {"detail": str(exc) or "Case chat failed"})
+
+
+@router.post("/cases/{case_id}/chat/messages/stream")
+async def append_case_chat_message_stream(
+    case_id: str,
+    body: CaseChatTurnRequest,
+    user: dict = Depends(get_current_user),
+):
+    case = require_case_access(user, cases.get(case_id), "edit")
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    return StreamingResponse(
+        _case_chat_stream(case, user, content, intent_hint=body.intent_hint),
+        media_type="text/event-stream",
+    )
+
+
 @router.post("/cases/{case_id}/advocate/messages/stream")
 async def append_case_advocate_message_stream(
     case_id: str,
@@ -972,31 +1089,7 @@ async def append_case_advocate_message_stream(
     content = body.content.strip()
     if not content:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
-
-    def generate():
-        yield _sse("status", {"status": "working", "label": "Reading the case file"})
-        try:
-            session = _append_advocate_turn(case, user, content)
-            structured = _latest_advocate_structured(session)
-            latest_message = session.messages[-1] if session.messages else None
-            yield _sse("message", {
-                "content": latest_message.content if latest_message else "",
-                "message_parts": structured.get("message_parts", []),
-                "trace_id": structured.get("trace_id", ""),
-                "model_route": structured.get("model_route", {}),
-            })
-            for source in structured.get("sources", []):
-                yield _sse("source", source)
-            for action in structured.get("action_proposals", []):
-                yield _sse("action", action)
-            for flag in structured.get("safety_flags", []):
-                yield _sse("safety", flag)
-            yield _sse("complete", {"session": session.model_dump(mode="json")})
-        except Exception as exc:
-            logger.exception("Case chat stream failed for case %s", case.id)
-            yield _sse("error", {"detail": str(exc) or "Case chat failed"})
-
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    return StreamingResponse(_case_chat_stream(case, user, content), media_type="text/event-stream")
 
 
 @router.post("/cases/{case_id}/advocate/actions/{action_id}/approve")
@@ -1009,6 +1102,15 @@ async def approve_case_advocate_action(
     return _resolve_advocate_action(case, user, action_id, "approved")
 
 
+@router.post("/cases/{case_id}/chat/actions/{action_id}/approve")
+async def approve_case_chat_action(
+    case_id: str,
+    action_id: str,
+    user: dict = Depends(get_current_user),
+):
+    return await approve_case_advocate_action(case_id, action_id, user)
+
+
 @router.post("/cases/{case_id}/advocate/actions/{action_id}/reject")
 async def reject_case_advocate_action(
     case_id: str,
@@ -1017,6 +1119,15 @@ async def reject_case_advocate_action(
 ):
     case = require_case_access(user, cases.get(case_id), "edit")
     return _resolve_advocate_action(case, user, action_id, "rejected")
+
+
+@router.post("/cases/{case_id}/chat/actions/{action_id}/reject")
+async def reject_case_chat_action(
+    case_id: str,
+    action_id: str,
+    user: dict = Depends(get_current_user),
+):
+    return await reject_case_advocate_action(case_id, action_id, user)
 
 
 @router.get("/cases/{case_id}/file")
