@@ -46,6 +46,38 @@ const fieldInput = {
   },
 };
 
+const popoverCard = {
+  backgroundColor: colors.surface,
+  border: `1px solid ${colors.border}`,
+  boxShadow: '0 1rem 3rem rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.03) inset',
+  color: colors.text,
+};
+
+const popoverAction = {
+  minHeight: '2.75rem',
+  backgroundColor: 'transparent',
+  color: colors.text,
+  fontWeight: 700,
+  '&:hover, &:focus': {
+    backgroundColor: colors.surfaceAlt,
+    color: colors.text,
+  },
+  '&:disabled, &[aria-disabled="true"], &[data-disabled]': {
+    color: colors.textDim,
+    opacity: 0.72,
+  },
+};
+
+const popoverActionText = {
+  color: 'inherit',
+  fontWeight: 700,
+};
+
+const popoverActionIcon = {
+  color: 'currentColor',
+  opacity: 0.9,
+};
+
 export const clerkAppearance = {
   theme: 'simple',
   variables: {
@@ -216,9 +248,69 @@ export const clerkAppearance = {
     alertText: {
       color: colors.text,
     },
-    organizationSwitcherTrigger:
-      'min-h-11 rounded-md border border-border bg-background px-3 py-2 text-text hover:bg-surface-alt',
-    organizationPreviewTextContainer: 'text-text',
-    userButtonAvatarBox: 'h-9 w-9',
+    userButtonPopoverCard: popoverCard,
+    userButtonPopoverActions: {
+      backgroundColor: colors.surface,
+    },
+    userButtonPopoverActionButton: popoverAction,
+    userButtonPopoverActionButtonText: popoverActionText,
+    userButtonPopoverActionButtonIcon: popoverActionIcon,
+    userButtonPopoverFooter: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    userPreviewMainIdentifier: {
+      color: colors.text,
+      fontWeight: 800,
+    },
+    userPreviewSecondaryIdentifier: {
+      color: colors.textDim,
+    },
+    organizationSwitcherTrigger: {
+      minHeight: '2.75rem',
+      backgroundColor: colors.background,
+      border: `1px solid ${colors.border}`,
+      borderRadius: '0.375rem',
+      color: colors.text,
+      padding: '0.5rem 0.75rem',
+      '&:hover, &:focus': {
+        backgroundColor: colors.surfaceAlt,
+        color: colors.text,
+      },
+      '&:focus': {
+        boxShadow: '0 0 0 3px rgba(108, 138, 255, 0.24)',
+      },
+    },
+    organizationSwitcherTriggerIcon: {
+      color: colors.textDim,
+    },
+    organizationSwitcherPopoverCard: popoverCard,
+    organizationSwitcherPopoverActionButton: popoverAction,
+    organizationSwitcherPopoverActionButtonText: popoverActionText,
+    organizationSwitcherPopoverActionButtonIcon: popoverActionIcon,
+    organizationSwitcherPopoverFooter: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    organizationPreviewTextContainer: {
+      color: colors.text,
+    },
+    organizationPreviewMainIdentifier: {
+      color: colors.text,
+      fontWeight: 800,
+    },
+    organizationPreviewSecondaryIdentifier: {
+      color: colors.textDim,
+    },
+    organizationSwitcherPopoverPersonalAccountPreview: {
+      color: colors.text,
+    },
+    organizationSwitcherPopoverOrganizationPreview: {
+      color: colors.text,
+    },
+    userButtonAvatarBox: {
+      height: '2.25rem',
+      width: '2.25rem',
+    },
   },
 };

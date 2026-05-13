@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Loader2, Plus } from 'lucide-react';
 import { fetchCases, openOrCreateDraftCase } from '../api/client';
+import { casesErrorCopy } from '../utils/caseMessages';
 import { ActionButton } from './caseShared';
 
 export default function Cases() {
   const navigate = useNavigate();
   const [cases, setCases] = useState([]);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
@@ -17,7 +18,7 @@ export default function Cases() {
         if (!cancelled) setCases(items);
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) setError(casesErrorCopy(err));
       });
     return () => {
       cancelled = true;
@@ -26,12 +27,12 @@ export default function Cases() {
 
   const handleStartCase = async () => {
     setStarting(true);
-    setError('');
+    setError(null);
     try {
       const caseRecord = await openOrCreateDraftCase();
       navigate(`/cases/${caseRecord.id}?advocate=open`);
     } catch (err) {
-      setError(err.message || 'Could not open your draft case');
+      setError(casesErrorCopy(err));
     } finally {
       setStarting(false);
     }
@@ -55,7 +56,12 @@ export default function Cases() {
         </ActionButton>
       </div>
 
-      {error && <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && (
+        <section className="rounded-md border border-warning/35 bg-warning/10 px-4 py-3 text-sm">
+          <h3 className="font-bold text-text">{error.title}</h3>
+          <p className="mt-1 max-w-3xl leading-relaxed text-text-dim">{error.body}</p>
+        </section>
+      )}
 
       <div className="grid gap-3">
         {cases.map((item) => (
@@ -74,9 +80,25 @@ export default function Cases() {
           </Link>
         ))}
         {!cases.length && !error && (
-          <div className="bg-surface border border-border rounded-md p-5 text-sm text-text-dim">
-            No cases yet. Start with a Draft Case and let the Case Advocate help you build it.
-          </div>
+          <section className="rounded-md border border-border bg-surface p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="max-w-2xl">
+                <h3 className="font-bold text-text">Start your first case workspace</h3>
+                <p className="mt-1 text-sm leading-relaxed text-text-dim">
+                  Create a draft case, then add evidence, notes, and the outcome you want. USDWatch will keep everything tied to this account.
+                </p>
+              </div>
+              <ActionButton
+                onClick={handleStartCase}
+                disabled={starting}
+                variant="secondary"
+                className="w-full justify-center px-4 sm:w-auto"
+              >
+                {starting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
+                {starting ? 'Opening...' : 'New Case'}
+              </ActionButton>
+            </div>
+          </section>
         )}
       </div>
     </div>

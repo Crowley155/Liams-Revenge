@@ -7,20 +7,23 @@ import {
 } from '@clerk/clerk-react';
 import { setAuthTokenGetter } from '../api/client';
 import { clerkAppearance } from './clerkAppearance';
+import { firstCleanEnvValue } from './clerkConfig';
 
-const API_BASE =
+const API_BASE = firstCleanEnvValue(
   import.meta.env.PUBLIC_API_URL ||
-  import.meta.env.VITE_API_URL ||
-  'http://localhost:8000';
+  import.meta.env.VITE_API_URL,
+  'http://localhost:8000',
+);
 const DEV_TOKEN_KEY = 'usdwatch_dev_token';
-const CLERK_KEY =
+const CLERK_KEY = firstCleanEnvValue(
   import.meta.env.PUBLIC_CLERK_PUBLISHABLE_KEY ||
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY ||
-  '';
-const CLERK_TEMPLATE =
+  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+  '',
+);
+const CLERK_TEMPLATE = firstCleanEnvValue(
   import.meta.env.PUBLIC_CLERK_JWT_TEMPLATE ||
-  import.meta.env.VITE_CLERK_JWT_TEMPLATE ||
-  undefined;
+  import.meta.env.VITE_CLERK_JWT_TEMPLATE,
+);
 const DEV_AUTH_ENABLED =
   import.meta.env.PUBLIC_ALLOW_DEV_AUTH === 'true' ||
   import.meta.env.VITE_ALLOW_DEV_AUTH === 'true';

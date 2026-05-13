@@ -54,6 +54,73 @@ h1, h2, h3 {
   word-break: normal;
 }
 
+:where(.cl-userButtonPopoverCard, .cl-organizationSwitcherPopoverCard, .cl-popoverCard) {
+  background: var(--color-surface) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.46) !important;
+  color: var(--color-text) !important;
+}
+
+:where(.cl-userButtonPopoverActions, .cl-organizationSwitcherPopoverActions, .cl-popoverBox) {
+  background: var(--color-surface) !important;
+  color: var(--color-text) !important;
+}
+
+:where(
+  .cl-userButtonPopoverActionButton,
+  .cl-organizationSwitcherPopoverActionButton,
+  .cl-menuItem,
+  .cl-navbarButton,
+  .cl-profileSectionPrimaryButton
+) {
+  color: var(--color-text) !important;
+}
+
+:where(
+  .cl-userButtonPopoverActionButtonText,
+  .cl-organizationSwitcherPopoverActionButtonText,
+  .cl-userButtonPopoverActionButtonIcon,
+  .cl-organizationSwitcherPopoverActionButtonIcon,
+  .cl-userPreviewMainIdentifier,
+  .cl-userPreviewSecondaryIdentifier,
+  .cl-organizationPreviewMainIdentifier,
+  .cl-organizationPreviewSecondaryIdentifier,
+  .cl-organizationPreviewTextContainer
+) {
+  color: inherit !important;
+}
+
+:where(
+  .cl-userButtonPopoverActionButton:hover,
+  .cl-userButtonPopoverActionButton:focus,
+  .cl-organizationSwitcherPopoverActionButton:hover,
+  .cl-organizationSwitcherPopoverActionButton:focus,
+  .cl-menuItem:hover,
+  .cl-menuItem:focus,
+  .cl-navbarButton:hover,
+  .cl-navbarButton:focus
+) {
+  background: var(--color-surface-alt) !important;
+  color: var(--color-text) !important;
+}
+
+:where(
+  .cl-userButtonPopoverActionButton[aria-disabled="true"],
+  .cl-organizationSwitcherPopoverActionButton[aria-disabled="true"],
+  .cl-userButtonPopoverActionButton:disabled,
+  .cl-organizationSwitcherPopoverActionButton:disabled,
+  .cl-menuItem[aria-disabled="true"],
+  .cl-menuItem:disabled
+) {
+  color: var(--color-text-dim) !important;
+  opacity: 0.62 !important;
+}
+
+:where(.cl-userButtonPopoverFooter, .cl-organizationSwitcherPopoverFooter) {
+  background: var(--color-surface) !important;
+  border-color: var(--color-border) !important;
+}
+
 :where(a, button, input, textarea, select, summary):focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 3px;
