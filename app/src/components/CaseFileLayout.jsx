@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useParams } from 'react-router-dom';
 import { Building2, ClipboardList, FileText, FolderOpen, Home, Scale, Users } from 'lucide-react';
-import { fetchCase } from '../api/client';
+import { fetchCase, fetchCaseAccess } from '../api/client';
 import { CaseProvider } from '../data/useCase';
+import { sharedAccessLabel } from '../utils/caseAccess';
 
 const PARENT_CASE_TABS = [
   { to: '', label: 'Case Plan', icon: Home, end: true },
@@ -23,14 +24,20 @@ const DEMO_CASE_TABS = [
 export default function CaseFileLayout() {
   const { caseId } = useParams();
   const [caseRecord, setCaseRecord] = useState(null);
+  const [access, setAccess] = useState(null);
   const isDemoCase = caseRecord?.status === 'demo';
   const tabs = isDemoCase ? DEMO_CASE_TABS : PARENT_CASE_TABS;
+  const accessLabel = sharedAccessLabel(access);
 
   useEffect(() => {
     let cancelled = false;
-    fetchCase(caseId)
-      .then((record) => {
+    Promise.all([
+      fetchCase(caseId),
+      fetchCaseAccess(caseId).catch(() => null),
+    ])
+      .then(([record, nextAccess]) => {
         if (!cancelled) setCaseRecord(record);
+        if (!cancelled) setAccess(nextAccess);
       })
       .catch(() => {
         if (!cancelled) setCaseRecord(null);
@@ -53,6 +60,11 @@ export default function CaseFileLayout() {
               <p className="text-xs text-text-dim">
                 {caseRecord?.intake?.district || 'Private workspace'} - {caseRecord?.status || 'scoped'}
               </p>
+              {accessLabel && (
+                <p className="inline-flex min-h-7 items-center rounded-md border border-info/35 bg-info/10 px-2 py-1 text-xs font-semibold text-info">
+                  {accessLabel}
+                </p>
+              )}
             </div>
             <div className="flex min-w-0 max-w-full gap-1 overflow-x-auto pb-1">
               {tabs.map((item) => {

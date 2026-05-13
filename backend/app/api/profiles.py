@@ -17,8 +17,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from typing import Optional
 
 from app.models import Person, PersonSource
-from app.api._store import profiles
-from app.api.deps import can_access_workspace, get_current_user, scoped_items
+from app.api._store import cases, profiles
+from app.api.deps import can_access_workspace, get_current_user
+from app.services.case_access import require_case_access, visible_cases_for_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["profiles"])
@@ -27,7 +28,12 @@ router = APIRouter(tags=["profiles"])
 @router.get("/profiles", response_model=list[Person])
 async def list_profiles(case_id: Optional[str] = "", user: dict = Depends(get_current_user)):
     """Return all completed profiles."""
-    items = scoped_items(list(profiles.values()), user)
+    if case_id:
+        case = require_case_access(user, cases.get(case_id), "view")
+        items = [item for item in profiles.values() if item.case_id == case.id and item.workspace_id == case.workspace_id]
+    else:
+        visible_case_ids = {case.id for case in visible_cases_for_user(user)}
+        items = [item for item in profiles.values() if item.case_id in visible_case_ids or can_access_workspace(user, item.workspace_id)]
     if case_id:
         items = [item for item in items if item.case_id == case_id]
     return items
@@ -37,7 +43,12 @@ async def list_profiles(case_id: Optional[str] = "", user: dict = Depends(get_cu
 async def get_profile(person_id: str, user: dict = Depends(get_current_user)):
     """Return a single profile by ID."""
     person = profiles.get(person_id)
-    if not person or not can_access_workspace(user, person.workspace_id):
+    if not person:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    case = cases.get(person.case_id)
+    if case:
+        require_case_access(user, case, "view")
+    elif not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Profile not found")
     return person
 
@@ -51,7 +62,12 @@ async def reset_research(person_id: str, user: dict = Depends(get_current_user))
     negative_anchors.
     """
     person = profiles.get(person_id)
-    if not person or not can_access_workspace(user, person.workspace_id):
+    if not person:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    case = cases.get(person.case_id)
+    if case:
+        require_case_access(user, case, "manage_records")
+    elif not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Profile not found")
 
     # Research fields
@@ -88,7 +104,12 @@ async def delete_profile(person_id: str, user: dict = Depends(get_current_user))
     Re-run /api/seed to recreate seeded actors.
     """
     person = profiles.get(person_id)
-    if not person or not can_access_workspace(user, person.workspace_id):
+    if not person:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    case = cases.get(person.case_id)
+    if case:
+        require_case_access(user, case, "manage_records")
+    elif not can_access_workspace(user, person.workspace_id):
         raise HTTPException(status_code=404, detail="Profile not found")
 
     profiles.pop(person_id, None)

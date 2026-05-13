@@ -17,6 +17,7 @@ import {
 import {
   deleteDocument,
   disconnectGmail,
+  fetchCaseAccess,
   fetchCaseDocuments,
   fetchDocumentContentBlob,
   fetchGmailStatus,
@@ -28,6 +29,7 @@ import {
   syncGmailMessages,
   uploadCaseDocument,
 } from '../api/client';
+import { casePermissions, caseRoleLabel } from '../utils/caseAccess';
 import {
   ActionButton,
   Panel,
@@ -241,7 +243,7 @@ function DeleteEvidenceDialog({ doc, busy, onCancel, onConfirm }) {
   );
 }
 
-function EvidenceRow({ doc, onView, onDownload, onDelete, downloading }) {
+function EvidenceRow({ doc, onView, onDownload, onDelete, downloading, canDelete }) {
   const insight = documentInsightSummary(doc);
   const relevance = relevancePercent(doc.relevance_score);
   const legalFlags = (doc.legal_flags || []).slice(0, 3);
@@ -296,10 +298,12 @@ function EvidenceRow({ doc, onView, onDownload, onDelete, downloading }) {
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
             Download
           </ActionButton>
-          <ActionButton onClick={() => onDelete(doc)} variant="danger" aria-label={`Delete ${doc.filename}`}>
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-            Delete
-          </ActionButton>
+          {canDelete && (
+            <ActionButton onClick={() => onDelete(doc)} variant="danger" aria-label={`Delete ${doc.filename}`}>
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+              Delete
+            </ActionButton>
+          )}
         </div>
       </div>
       {doc.failure_reason && <p className="mt-3 rounded-md border border-warning/30 bg-warning/8 px-3 py-2 text-xs leading-relaxed text-warning">{doc.failure_reason}</p>}
@@ -310,6 +314,8 @@ function EvidenceRow({ doc, onView, onDownload, onDelete, downloading }) {
 export default function EvidenceLocker() {
   const { caseId } = useParams();
   const navigate = useNavigate();
+  const [access, setAccess] = useState(null);
+  const [accessLoading, setAccessLoading] = useState(true);
   const [documents, setDocuments] = useState([]);
   const [queue, setQueue] = useState([]);
   const [filters, setFilters] = useState({ q: '', category: '', status: '', sort: 'uploaded_at', direction: 'desc' });
@@ -326,6 +332,10 @@ export default function EvidenceLocker() {
   const [busy, setBusy] = useState(false);
   const [downloadingDocId, setDownloadingDocId] = useState('');
   const [notice, setNotice] = useState(null);
+  const permissions = useMemo(() => casePermissions(access), [access]);
+  const canUploadEvidence = permissions.can_upload_evidence;
+  const canDeleteEvidence = permissions.can_delete_evidence;
+  const canManageGmail = permissions.can_manage_gmail;
 
   const showNotice = useCallback((type, message) => {
     setNotice(message ? { type, message } : null);
@@ -351,6 +361,24 @@ export default function EvidenceLocker() {
 
   useEffect(() => {
     let cancelled = false;
+    setAccessLoading(true);
+    fetchCaseAccess(caseId)
+      .then((nextAccess) => {
+        if (!cancelled) setAccess(nextAccess);
+      })
+      .catch(() => {
+        if (!cancelled) setAccess(null);
+      })
+      .finally(() => {
+        if (!cancelled) setAccessLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId]);
+
+  useEffect(() => {
+    let cancelled = false;
     fetchWorkspace()
       .then((summary) => {
         if (!cancelled) setWorkspaceSummary(summary);
@@ -362,6 +390,11 @@ export default function EvidenceLocker() {
   }, []);
 
   useEffect(() => {
+    if (accessLoading) return undefined;
+    if (!canManageGmail) {
+      setGmailStatus(null);
+      return undefined;
+    }
     let cancelled = false;
     fetchGmailStatus(caseId)
       .then((status) => {
@@ -383,7 +416,7 @@ export default function EvidenceLocker() {
     return () => {
       cancelled = true;
     };
-  }, [caseId]);
+  }, [accessLoading, canManageGmail, caseId]);
 
   const counts = useMemo(() => {
     const next = { total: documents.length, indexed: 0, processing: 0, needs_review: 0, failed: 0 };
@@ -413,6 +446,10 @@ export default function EvidenceLocker() {
   const limitReached = hasDocumentLimit && remainingDocuments <= 0;
 
   const addFiles = (files) => {
+    if (!canUploadEvidence) {
+      showNotice('warning', 'Your access can view evidence, but cannot add files to this case.');
+      return;
+    }
     const incoming = Array.from(files || []);
     if (!incoming.length) return;
     if (limitReached || availableQueueSlots === 0) {
@@ -442,6 +479,10 @@ export default function EvidenceLocker() {
 
   const handleUploadQueue = async () => {
     if (!queue.length) return;
+    if (!canUploadEvidence) {
+      showNotice('warning', 'Your access can view evidence, but cannot add files to this case.');
+      return;
+    }
     if (limitReached) {
       showNotice('warning', `Your current plan includes ${documentLimit} documents in this case. Remove a file or upgrade before adding more evidence.`);
       return;
@@ -502,6 +543,11 @@ export default function EvidenceLocker() {
 
   const handleDeleteConfirmed = async () => {
     if (!deleteTarget) return;
+    if (!canDeleteEvidence) {
+      setDeleteTarget(null);
+      showNotice('warning', 'Your access can view evidence, but cannot delete files from this case.');
+      return;
+    }
     setBusy(true);
     showNotice(null, '');
     try {
@@ -652,6 +698,11 @@ export default function EvidenceLocker() {
 
       {notice && <p className={`rounded-md border px-3 py-2 text-sm ${NOTICE_STYLES[notice.type] || NOTICE_STYLES.info}`}>{notice.message}</p>}
 
+      {accessLoading ? (
+        <Panel title="Add evidence" eyebrow="Checking access">
+          <p className="text-sm text-text-dim">Checking your evidence permissions...</p>
+        </Panel>
+      ) : canUploadEvidence ? (
       <Panel title="Add evidence" eyebrow="Upload or import">
         <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)]">
           <div className="min-w-0">
@@ -742,6 +793,13 @@ export default function EvidenceLocker() {
           </details>
         </div>
       </Panel>
+      ) : (
+        <Panel title="Evidence access" eyebrow={caseRoleLabel(access?.role)}>
+          <p className="text-sm leading-relaxed text-text-dim">
+            You can review and download evidence in this shared case. Adding or deleting files requires editor access from the case owner; Gmail import stays owner-only.
+          </p>
+        </Panel>
+      )}
 
       <Panel title="Evidence ledger" eyebrow="Find and review">
         <div className="space-y-4">
@@ -792,6 +850,7 @@ export default function EvidenceLocker() {
                   key={doc.id}
                   doc={doc}
                   downloading={downloadingDocId === doc.id}
+                  canDelete={canDeleteEvidence}
                   onView={(target) => navigate(`/cases/${caseId}/locker/${target.id}`)}
                   onDownload={handleDownload}
                   onDelete={setDeleteTarget}

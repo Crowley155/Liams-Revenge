@@ -401,6 +401,82 @@ export async function fetchCase(caseId) {
   return res.json();
 }
 
+export async function fetchCaseAccess(caseId) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/access`);
+  if (!res.ok) throw new Error(`Case access not found: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchCaseShares(caseId) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/shares`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Case sharing failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function inviteCaseCollaborator(caseId, data) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/invites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Invite failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function acceptCaseInvitation(token) {
+  const res = await authFetch(`${API_BASE}/api/case-invitations/${encodeURIComponent(token)}/accept`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Invitation failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function updateCaseShareRole(caseId, grantId, role) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/shares/${grantId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Role update failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function revokeCaseShare(caseId, grantId) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/shares/${grantId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Revoke failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function revokeCaseInvitation(caseId, invitationId) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/invites/${invitationId}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Invite revoke failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function updateCase(caseId, data) {
   requireCaseId(caseId);
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}`, {

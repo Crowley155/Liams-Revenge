@@ -1,20 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Download, FileText, Loader2, Printer } from 'lucide-react';
+import { Copy, Download, FileText, Loader2, MailPlus, Printer, ShieldCheck, Trash2, UserRound, Users } from 'lucide-react';
 import {
   fetchCase,
+  fetchCaseAccess,
   fetchCaseDocuments,
   fetchCaseEvaluation,
   fetchCaseExport,
+  fetchCaseShares,
   fetchEvidenceChecklist,
   fetchLatestEvaluation,
   fetchRecordsRequestDrafts,
   fetchSelfAdvocacyPacket,
+  inviteCaseCollaborator,
+  revokeCaseInvitation,
+  revokeCaseShare,
   startCaseEvaluation,
   updateCase,
+  updateCaseShareRole,
   updateSupportConsent,
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
+import { casePermissions, caseRoleHelp, caseRoleLabel, sharedAccessLabel } from '../utils/caseAccess';
 import {
   ActionButton,
   EMPTY_SUPPORT,
@@ -39,9 +46,178 @@ function outcomeTextFromCase(caseRecord) {
   return (intake.desired_outcomes || []).join('\n');
 }
 
+const SHARE_ROLE_OPTIONS = [
+  { value: 'viewer', label: 'Viewer' },
+  { value: 'editor', label: 'Editor' },
+];
+
+function formatShortDate(value) {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleDateString();
+  } catch {
+    return '';
+  }
+}
+
+function AccessSummaryPanel({ access }) {
+  const accessLabel = sharedAccessLabel(access);
+  if (!accessLabel) return null;
+  return (
+    <Panel title="Your Access" eyebrow="Shared case">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-info/35 bg-info/10 text-info">
+          <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-text">{accessLabel}</p>
+          <p className="mt-1 text-sm leading-relaxed text-text-dim">{caseRoleHelp(access?.role)}</p>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function CaseSharingPanel({
+  shares,
+  inviteEmail,
+  inviteRole,
+  sharingBusy,
+  sharingNotice,
+  copiedInviteUrl,
+  onInviteEmailChange,
+  onInviteRoleChange,
+  onInvite,
+  onCopyInvite,
+  onUpdateRole,
+  onRevokeGrant,
+  onRevokeInvite,
+}) {
+  const collaborators = shares?.collaborators || [];
+  const invitations = shares?.invitations || [];
+  const pendingInvitations = invitations.filter((invite) => invite.status === 'pending');
+
+  return (
+    <Panel title="Sharing" eyebrow="Case-level access">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
+        <div className="min-w-0">
+          <p className="text-sm leading-relaxed text-text-dim">
+            Invite a spouse, advocate, attorney, or trusted helper to this case only. They will need a USDWatch account with the same email address.
+          </p>
+          <form onSubmit={onInvite} className="mt-4 grid gap-3">
+            <label className="block space-y-2">
+              <span className="text-xs font-semibold text-text-dim">Email address</span>
+              <input
+                type="email"
+                required
+                value={inviteEmail}
+                onChange={(event) => onInviteEmailChange(event.target.value)}
+                className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-text outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45"
+                placeholder="helper@example.com"
+              />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-xs font-semibold text-text-dim">Access level</span>
+              <select
+                value={inviteRole}
+                onChange={(event) => onInviteRoleChange(event.target.value)}
+                className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-semibold text-text outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45"
+              >
+                {SHARE_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <span className="block text-xs leading-relaxed text-text-dim">{caseRoleHelp(inviteRole)}</span>
+            </label>
+            <ActionButton type="submit" disabled={sharingBusy} variant="primary" className="w-full">
+              {sharingBusy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <MailPlus className="h-4 w-4" aria-hidden="true" />}
+              Create invite link
+            </ActionButton>
+          </form>
+          {sharingNotice && (
+            <p className={`mt-3 rounded-md border px-3 py-2 text-sm ${sharingNotice.type === 'error' ? 'border-danger/30 bg-danger/10 text-danger' : 'border-success/30 bg-success/8 text-success'}`}>
+              {sharingNotice.message}
+            </p>
+          )}
+          {copiedInviteUrl && (
+            <div className="mt-3 rounded-md border border-info/30 bg-info/8 p-3">
+              <p className="text-xs font-semibold text-info">Invite link ready</p>
+              <p className="wrap-anywhere mt-1 text-xs leading-relaxed text-text-dim">{copiedInviteUrl}</p>
+              <ActionButton onClick={() => onCopyInvite(copiedInviteUrl)} variant="download" className="mt-3">
+                <Copy className="h-4 w-4" aria-hidden="true" />
+                Copy link
+              </ActionButton>
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 space-y-4">
+          <section className="min-w-0 rounded-md border border-border bg-background/60 p-3">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-accent" aria-hidden="true" />
+              <h4 className="text-sm font-bold text-text">Current collaborators</h4>
+            </div>
+            <div className="mt-3 space-y-2">
+              {!collaborators.length && <p className="text-sm text-text-dim">No one else has accepted access yet.</p>}
+              {collaborators.map((grant) => (
+                <article key={grant.id} className="flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="wrap-anywhere text-sm font-semibold text-text">{grant.email || 'Collaborator'}</p>
+                    <p className="mt-1 text-xs text-text-dim">Accepted {formatShortDate(grant.accepted_at) || 'recently'}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      value={grant.role}
+                      onChange={(event) => onUpdateRole(grant.id, event.target.value)}
+                      disabled={sharingBusy}
+                      className="min-h-11 rounded-md border border-border bg-background px-3 py-2 text-sm font-semibold text-text outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45"
+                      aria-label={`Role for ${grant.email}`}
+                    >
+                      {SHARE_ROLE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                    </select>
+                    <ActionButton disabled={sharingBusy} onClick={() => onRevokeGrant(grant)} variant="danger">
+                      <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      Revoke
+                    </ActionButton>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="min-w-0 rounded-md border border-border bg-background/60 p-3">
+            <div className="flex items-center gap-2">
+              <UserRound className="h-4 w-4 text-accent" aria-hidden="true" />
+              <h4 className="text-sm font-bold text-text">Pending invites</h4>
+            </div>
+            <div className="mt-3 space-y-2">
+              {!pendingInvitations.length && <p className="text-sm text-text-dim">No pending invite links.</p>}
+              {pendingInvitations.map((invite) => (
+                <article key={invite.id} className="flex min-w-0 flex-col gap-3 rounded-md border border-border bg-surface p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="wrap-anywhere text-sm font-semibold text-text">{invite.email}</p>
+                      <StatusPill status={invite.role} />
+                    </div>
+                    <p className="mt-1 text-xs text-text-dim">Expires {formatShortDate(invite.expires_at) || 'soon'}</p>
+                  </div>
+                  <ActionButton disabled={sharingBusy} onClick={() => onRevokeInvite(invite)} variant="danger">
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                    Revoke invite
+                  </ActionButton>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 export default function CaseDetail() {
   const { caseId } = useParams();
   const [caseRecord, setCaseRecord] = useState(null);
+  const [access, setAccess] = useState(null);
+  const [shares, setShares] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [evaluation, setEvaluation] = useState(null);
   const [packet, setPacket] = useState(null);
@@ -55,12 +231,18 @@ export default function CaseDetail() {
   const [savingNarrative, setSavingNarrative] = useState(false);
   const [savingOutcome, setSavingOutcome] = useState(false);
   const [savingSupport, setSavingSupport] = useState(false);
+  const [sharingBusy, setSharingBusy] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('viewer');
+  const [sharingNotice, setSharingNotice] = useState(null);
+  const [copiedInviteUrl, setCopiedInviteUrl] = useState('');
 
   const loadCase = useCallback(async () => {
     setError('');
     try {
       const [
         nextCase,
+        nextAccess,
         nextDocs,
         nextEval,
         nextPacket,
@@ -68,13 +250,19 @@ export default function CaseDetail() {
         nextRecords,
       ] = await Promise.all([
         fetchCase(caseId),
+        fetchCaseAccess(caseId).catch(() => null),
         fetchCaseDocuments(caseId).catch(() => []),
         fetchLatestEvaluation(caseId).catch(() => null),
         fetchSelfAdvocacyPacket(caseId).catch(() => null),
         fetchEvidenceChecklist(caseId).catch(() => ({ items: [] })),
         fetchRecordsRequestDrafts(caseId).catch(() => ({ records: [] })),
       ]);
+      const nextShares = casePermissions(nextAccess).can_manage_sharing
+        ? await fetchCaseShares(caseId).catch(() => null)
+        : null;
       setCaseRecord(nextCase);
+      setAccess(nextAccess);
+      setShares(nextShares);
       setFamilyNarrative(nextCase.family_narrative || nextCase.intake?.narrative || '');
       setDesiredOutcome(outcomeTextFromCase(nextCase));
       setDocuments(nextDocs);
@@ -108,6 +296,20 @@ export default function CaseDetail() {
     return () => window.removeEventListener('usdwatch:case-updated', handleCaseUpdated);
   }, [caseId, loadCase]);
 
+  const reloadShares = useCallback(async () => {
+    try {
+      setShares(await fetchCaseShares(caseId));
+    } catch (err) {
+      setSharingNotice({ type: 'error', message: err.message || 'Failed to refresh sharing.' });
+    }
+  }, [caseId]);
+
+  const permissions = useMemo(() => casePermissions(access), [access]);
+  const canEditCase = permissions.can_edit;
+  const canRunCaseRead = permissions.can_run_case_read;
+  const canManageSharing = permissions.can_manage_sharing;
+  const canManageSupport = permissions.can_manage_support;
+  const accessLabel = sharedAccessLabel(access);
   const caseReadInProgress = ['queued', 'running'].includes(evaluation?.status);
 
   useEffect(() => {
@@ -175,6 +377,7 @@ export default function CaseDetail() {
   };
 
   const handleRunEvaluation = async () => {
+    if (!canRunCaseRead) return;
     setBusy(true);
     setError('');
     try {
@@ -188,6 +391,7 @@ export default function CaseDetail() {
   };
 
   const handleSaveNarrative = async () => {
+    if (!canEditCase) return;
     setSavingNarrative(true);
     setError('');
     try {
@@ -202,6 +406,7 @@ export default function CaseDetail() {
   };
 
   const handleSaveDesiredOutcome = async () => {
+    if (!canEditCase) return;
     setSavingOutcome(true);
     setError('');
     try {
@@ -220,6 +425,7 @@ export default function CaseDetail() {
   };
 
   const handleSaveSupport = async () => {
+    if (!canManageSupport) return;
     setSavingSupport(true);
     setError('');
     try {
@@ -236,6 +442,7 @@ export default function CaseDetail() {
   };
 
   const handleRevokeSupport = async () => {
+    if (!canManageSupport) return;
     setSavingSupport(true);
     setError('');
     try {
@@ -246,6 +453,79 @@ export default function CaseDetail() {
       setError(err.message || 'Failed to revoke support consent');
     } finally {
       setSavingSupport(false);
+    }
+  };
+
+  const handleInvite = async (event) => {
+    event.preventDefault();
+    if (!canManageSharing) return;
+    setSharingBusy(true);
+    setSharingNotice(null);
+    setCopiedInviteUrl('');
+    try {
+      const result = await inviteCaseCollaborator(caseId, { email: inviteEmail, role: inviteRole });
+      setInviteEmail('');
+      setCopiedInviteUrl(result.accept_url || '');
+      setSharingNotice({ type: 'success', message: 'Invite link created. Share it with the person you invited.' });
+      await reloadShares();
+    } catch (err) {
+      setSharingNotice({ type: 'error', message: err.message || 'Invite failed.' });
+    } finally {
+      setSharingBusy(false);
+    }
+  };
+
+  const handleCopyInvite = async (url) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setSharingNotice({ type: 'success', message: 'Invite link copied.' });
+    } catch {
+      setSharingNotice({ type: 'error', message: 'Could not copy automatically. Select the link and copy it manually.' });
+    }
+  };
+
+  const handleUpdateShareRole = async (grantId, role) => {
+    if (!canManageSharing) return;
+    setSharingBusy(true);
+    setSharingNotice(null);
+    try {
+      await updateCaseShareRole(caseId, grantId, role);
+      setSharingNotice({ type: 'success', message: 'Collaborator role updated.' });
+      await reloadShares();
+    } catch (err) {
+      setSharingNotice({ type: 'error', message: err.message || 'Role update failed.' });
+    } finally {
+      setSharingBusy(false);
+    }
+  };
+
+  const handleRevokeGrant = async (grant) => {
+    if (!canManageSharing) return;
+    setSharingBusy(true);
+    setSharingNotice(null);
+    try {
+      await revokeCaseShare(caseId, grant.id);
+      setSharingNotice({ type: 'success', message: `${grant.email || 'Collaborator'} no longer has access.` });
+      await reloadShares();
+    } catch (err) {
+      setSharingNotice({ type: 'error', message: err.message || 'Revoke failed.' });
+    } finally {
+      setSharingBusy(false);
+    }
+  };
+
+  const handleRevokeInvite = async (invite) => {
+    if (!canManageSharing) return;
+    setSharingBusy(true);
+    setSharingNotice(null);
+    try {
+      await revokeCaseInvitation(caseId, invite.id);
+      setSharingNotice({ type: 'success', message: `Invite for ${invite.email} was revoked.` });
+      await reloadShares();
+    } catch (err) {
+      setSharingNotice({ type: 'error', message: err.message || 'Invite revoke failed.' });
+    } finally {
+      setSharingBusy(false);
     }
   };
 
@@ -303,6 +583,7 @@ export default function CaseDetail() {
             {issueCategories.map((category) => <StatusPill key={category} status={category} />)}
             {caseRecord.intake?.safety_risk && <StatusPill status="safety risk" />}
             {caseRecord.intake?.retaliation_concern && <StatusPill status="retaliation concern" />}
+            {accessLabel && <span className="inline-flex items-center rounded-md border border-info/30 bg-info/10 px-2 py-1 text-xs font-medium leading-none text-info">{accessLabel}</span>}
           </div>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -325,7 +606,7 @@ export default function CaseDetail() {
             Export Case
           </ActionButton>
           <ActionButton
-            disabled={busy || caseReadInProgress}
+            disabled={busy || caseReadInProgress || !canRunCaseRead}
             onClick={handleRunEvaluation}
             variant="primary"
             className="px-4"
@@ -345,10 +626,12 @@ export default function CaseDetail() {
         <Metric label="Records Requests" value={activeRecordCount} detail="Drafts and tracked requests." />
       </div>
 
+      <AccessSummaryPanel access={access} />
+
       <Panel
         title="Family Narrative"
         eyebrow={caseRecord.advocate_state?.family_narrative_manual ? 'Parent-edited' : 'Case Advocate draft'}
-        action={(
+        action={canEditCase ? (
           <ActionButton
             disabled={savingNarrative || familyNarrative === (caseRecord.family_narrative || caseRecord.intake?.narrative || '')}
             onClick={handleSaveNarrative}
@@ -356,15 +639,16 @@ export default function CaseDetail() {
           >
             {savingNarrative ? 'Saving...' : 'Save Narrative'}
           </ActionButton>
-        )}
+        ) : null}
       >
         <p className="mb-3 max-w-3xl text-sm leading-relaxed text-text-dim">
           This is the parent-centered story the Case Advocate helps assemble. Edits you save here stay in control unless you later accept a suggested revision.
         </p>
         <textarea
           value={familyNarrative}
+          readOnly={!canEditCase}
           onChange={(event) => setFamilyNarrative(event.target.value)}
-          className="min-h-[150px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-relaxed text-text outline-none transition-colors focus:border-accent"
+          className="min-h-[150px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-relaxed text-text outline-none transition-colors focus:border-accent read-only:text-text-dim"
           placeholder="Tell the story the way you would tell a trusted advocate: what happened, who was affected, what worries you now, and what you need next."
         />
       </Panel>
@@ -372,7 +656,7 @@ export default function CaseDetail() {
       <Panel
         title="Desired Outcome"
         eyebrow="What you want changed"
-        action={(
+        action={canEditCase ? (
           <ActionButton
             disabled={savingOutcome || desiredOutcome.trim() === savedDesiredOutcome.trim()}
             onClick={handleSaveDesiredOutcome}
@@ -380,7 +664,7 @@ export default function CaseDetail() {
           >
             {savingOutcome ? 'Saving...' : 'Save Desired Outcome'}
           </ActionButton>
-        )}
+        ) : null}
       >
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div className="min-w-0">
@@ -389,8 +673,9 @@ export default function CaseDetail() {
             </p>
             <textarea
               value={desiredOutcome}
+              readOnly={!canEditCase}
               onChange={(event) => setDesiredOutcome(event.target.value)}
-              className="min-h-[130px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-relaxed text-text outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45"
+              className="min-h-[130px] w-full rounded-md border border-border bg-background px-3 py-3 text-sm leading-relaxed text-text outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45 read-only:text-text-dim"
               placeholder="Example: I want a written safety plan, a corrected incident report, age-group separation during outdoor play, and clear parent notification after serious injuries."
             />
           </div>
@@ -407,6 +692,24 @@ export default function CaseDetail() {
           </aside>
         </div>
       </Panel>
+
+      {canManageSharing && (
+        <CaseSharingPanel
+          shares={shares}
+          inviteEmail={inviteEmail}
+          inviteRole={inviteRole}
+          sharingBusy={sharingBusy}
+          sharingNotice={sharingNotice}
+          copiedInviteUrl={copiedInviteUrl}
+          onInviteEmailChange={setInviteEmail}
+          onInviteRoleChange={setInviteRole}
+          onInvite={handleInvite}
+          onCopyInvite={handleCopyInvite}
+          onUpdateRole={handleUpdateShareRole}
+          onRevokeGrant={handleRevokeGrant}
+          onRevokeInvite={handleRevokeInvite}
+        />
+      )}
 
       <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
         <aside className="space-y-5">
@@ -457,6 +760,7 @@ export default function CaseDetail() {
             </dl>
           </Panel>
 
+          {canManageSupport ? (
           <Panel title="Support Options" eyebrow="Manual opt-in only">
             <p className="mb-4 max-w-3xl text-sm leading-relaxed text-text-dim">
               Default is no sharing. These preferences only allow USDWatch to manually review your case before any limited summary is shared with the support category you choose.
@@ -518,6 +822,13 @@ export default function CaseDetail() {
               </ActionButton>
             </div>
           </Panel>
+          ) : (
+          <Panel title="Support Options" eyebrow="Owner-only">
+            <p className="text-sm leading-relaxed text-text-dim">
+              The case owner controls attorney, advocate, media, and support-consent preferences. Your {caseRoleLabel(access?.role).toLowerCase()} access does not include those settings.
+            </p>
+          </Panel>
+          )}
         </main>
       </div>
     </div>

@@ -114,6 +114,201 @@ def test_cases_are_workspace_scoped():
     assert hidden.status_code == 404
 
 
+def test_owner_can_invite_viewer_and_shared_case_is_read_only():
+    owner = _user()
+    viewer = _user()
+    viewer["email"] = "shared.viewer@example.com"
+    _override_user(owner)
+
+    created = client.post("/api/cases", json=_case_payload("Shared viewer case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    invited = client.post(
+        f"/api/cases/{case_id}/invites",
+        json={"email": viewer["email"], "role": "viewer"},
+    )
+    assert invited.status_code == 200
+    invite_body = invited.json()
+    assert invite_body["invitation"]["email"] == viewer["email"]
+    assert invite_body["invitation"]["role"] == "viewer"
+    assert invite_body["accept_url"].endswith(f"/case-invitations/{invite_body['token']}")
+
+    _override_user(viewer)
+    accepted = client.post(f"/api/case-invitations/{invite_body['token']}/accept")
+    assert accepted.status_code == 200
+    assert accepted.json()["grant"]["role"] == "viewer"
+
+    visible = client.get("/api/cases")
+    assert visible.status_code == 200
+    assert any(item["id"] == case_id for item in visible.json())
+
+    access = client.get(f"/api/cases/{case_id}/access")
+    assert access.status_code == 200
+    assert access.json()["role"] == "viewer"
+    assert access.json()["permissions"]["can_view"] is True
+    assert access.json()["permissions"]["can_edit"] is False
+
+    fetched = client.get(f"/api/cases/{case_id}")
+    assert fetched.status_code == 200
+
+    update = client.patch(f"/api/cases/{case_id}", json={"desired_outcome": "Viewer should not edit."})
+    assert update.status_code == 403
+
+    upload = client.post(
+        f"/api/cases/{case_id}/documents",
+        files={"file": ("viewer-note.txt", b"viewer cannot upload", "text/plain")},
+    )
+    assert upload.status_code == 403
+
+    read_docs = client.get(f"/api/cases/{case_id}/documents")
+    assert read_docs.status_code == 200
+
+    support = client.put(f"/api/cases/{case_id}/support-consent", json={
+        "attorney_contact_opt_in": True,
+        "advocacy_contact_opt_in": False,
+        "media_contact_opt_in": False,
+        "contact_preference": "Email",
+        "sensitivity_notes": "",
+        "share_summary_consent": True,
+    })
+    assert support.status_code == 403
+
+
+def test_editor_can_edit_case_and_evidence_but_not_manage_owner_only_surfaces(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    owner = _user()
+    editor = _user()
+    editor["email"] = "case.editor@example.com"
+    _override_user(owner)
+
+    created = client.post("/api/cases", json=_case_payload("Shared editor case"))
+    case_id = created.json()["id"]
+    invited = client.post(
+        f"/api/cases/{case_id}/invites",
+        json={"email": editor["email"], "role": "editor"},
+    )
+    token = invited.json()["token"]
+
+    _override_user(editor)
+    accepted = client.post(f"/api/case-invitations/{token}/accept")
+    assert accepted.status_code == 200
+
+    update = client.patch(f"/api/cases/{case_id}", json={"desired_outcome": "Prepare a meeting packet."})
+    assert update.status_code == 200
+    assert update.json()["intake"]["desired_outcome"] == "Prepare a meeting packet."
+
+    uploaded = client.post(
+        f"/api/cases/{case_id}/documents",
+        files={"file": ("editor-note.txt", b"Editor supplied evidence.", "text/plain")},
+    )
+    assert uploaded.status_code == 200
+    doc_id = uploaded.json()["id"]
+
+    deleted = client.delete(f"/api/documents/{doc_id}")
+    assert deleted.status_code == 200
+
+    share_list = client.get(f"/api/cases/{case_id}/shares")
+    assert share_list.status_code == 403
+
+    gmail = client.post("/api/gmail/import-rules", json={
+        "case_id": case_id,
+        "domains": ["usd232.org"],
+        "email_addresses": [],
+        "keywords": [],
+        "include_attachments": True,
+        "auto_sync": False,
+    })
+    assert gmail.status_code == 403
+
+    support = client.put(f"/api/cases/{case_id}/support-consent", json={
+        "attorney_contact_opt_in": True,
+        "advocacy_contact_opt_in": False,
+        "media_contact_opt_in": False,
+        "contact_preference": "Email",
+        "sensitivity_notes": "",
+        "share_summary_consent": True,
+    })
+    assert support.status_code == 403
+
+
+def test_invitation_acceptance_rejects_wrong_email_reuse_and_revoked_access():
+    owner = _user()
+    invited_user = _user()
+    invited_user["email"] = "invited.parent@example.com"
+    wrong_user = _user()
+    wrong_user["email"] = "wrong.person@example.com"
+    _override_user(owner)
+
+    created = client.post("/api/cases", json=_case_payload("Invite safety case"))
+    case_id = created.json()["id"]
+    invited = client.post(
+        f"/api/cases/{case_id}/invites",
+        json={"email": invited_user["email"], "role": "viewer"},
+    )
+    token = invited.json()["token"]
+
+    _override_user(wrong_user)
+    wrong_accept = client.post(f"/api/case-invitations/{token}/accept")
+    assert wrong_accept.status_code == 403
+
+    _override_user(invited_user)
+    first_accept = client.post(f"/api/case-invitations/{token}/accept")
+    assert first_accept.status_code == 200
+    second_accept = client.post(f"/api/case-invitations/{token}/accept")
+    assert second_accept.status_code == 409
+
+    _override_user(owner)
+    shares = client.get(f"/api/cases/{case_id}/shares")
+    assert shares.status_code == 200
+    grant_id = shares.json()["collaborators"][0]["id"]
+
+    revoked = client.delete(f"/api/cases/{case_id}/shares/{grant_id}")
+    assert revoked.status_code == 200
+
+    _override_user(invited_user)
+    hidden = client.get(f"/api/cases/{case_id}")
+    assert hidden.status_code == 404
+
+
+def test_owner_can_change_collaborator_role_and_revoke_pending_invite():
+    owner = _user()
+    collaborator = _user()
+    collaborator["email"] = "role.change@example.com"
+    pending_email = "pending.revoke@example.com"
+    _override_user(owner)
+
+    created = client.post("/api/cases", json=_case_payload("Role changes case"))
+    case_id = created.json()["id"]
+    invited = client.post(
+        f"/api/cases/{case_id}/invites",
+        json={"email": collaborator["email"], "role": "viewer"},
+    )
+    pending = client.post(
+        f"/api/cases/{case_id}/invites",
+        json={"email": pending_email, "role": "viewer"},
+    )
+    assert pending.status_code == 200
+
+    _override_user(collaborator)
+    accepted = client.post(f"/api/case-invitations/{invited.json()['token']}/accept")
+    assert accepted.status_code == 200
+
+    _override_user(owner)
+    shares = client.get(f"/api/cases/{case_id}/shares")
+    grant_id = shares.json()["collaborators"][0]["id"]
+    invite_id = next(item["id"] for item in shares.json()["invitations"] if item["email"] == pending_email)
+
+    changed = client.patch(f"/api/cases/{case_id}/shares/{grant_id}", json={"role": "editor"})
+    assert changed.status_code == 200
+    assert changed.json()["role"] == "editor"
+
+    revoked_invite = client.delete(f"/api/cases/{case_id}/invites/{invite_id}")
+    assert revoked_invite.status_code == 200
+    after = client.get(f"/api/cases/{case_id}/shares")
+    assert all(item["status"] == "revoked" for item in after.json()["invitations"] if item["id"] == invite_id)
+
+
 def test_admin_role_does_not_bypass_workspace_case_scope():
     owner = _user()
     admin = _user()

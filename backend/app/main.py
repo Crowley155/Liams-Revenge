@@ -151,7 +151,11 @@ async def startup_ingest():
     seed_admin_user()
     cases.seed_demo_case()
 
-    from app.scripts.seed_actors import seed
+    try:
+        from app.scripts.seed_actors import seed
+    except ModuleNotFoundError as exc:
+        logger.warning("Actor seed skipped because an optional pipeline dependency is missing: %s", exc)
+        return
     seed()
     _ingest_evidence_to_qdrant()
 

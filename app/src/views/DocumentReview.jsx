@@ -13,11 +13,13 @@ import {
 } from 'lucide-react';
 import {
   deleteDocument,
+  fetchCaseAccess,
   fetchDocumentContentBlob,
   fetchDocumentPreview,
 } from '../api/client';
 import { ActionButton, StatusPill, actionButtonClasses, formatBytes, formatLabel } from './caseShared';
 import { canPreviewOriginal, documentDisplayKind } from '../utils/documentPreview';
+import { casePermissions } from '../utils/caseAccess';
 import {
   documentInsightSummary,
   evidenceCategoryLabel,
@@ -112,8 +114,11 @@ export default function DocumentReview() {
   const [activeTab, setActiveTab] = useState('original');
   const [busy, setBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [access, setAccess] = useState(null);
 
   const doc = preview?.document || null;
+  const permissions = useMemo(() => casePermissions(access), [access]);
+  const canDeleteEvidence = permissions.can_delete_evidence;
   const kind = documentDisplayKind(doc || {});
   const isPdf = kind === 'pdf';
   const isImage = kind === 'image';
@@ -160,6 +165,20 @@ export default function DocumentReview() {
     return () => revokeContentUrl();
   }, [loadPreview, revokeContentUrl]);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetchCaseAccess(caseId)
+      .then((nextAccess) => {
+        if (!cancelled) setAccess(nextAccess);
+      })
+      .catch(() => {
+        if (!cancelled) setAccess(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [caseId]);
+
   const handleDownload = async () => {
     if (!doc) return;
     setBusy(true);
@@ -180,6 +199,10 @@ export default function DocumentReview() {
 
   const handleDeleteConfirmed = async () => {
     if (!deleteTarget) return;
+    if (!canDeleteEvidence) {
+      setDeleteTarget(null);
+      return;
+    }
     setBusy(true);
     try {
       await deleteDocument(deleteTarget.id);
@@ -212,10 +235,12 @@ export default function DocumentReview() {
               {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Download className="h-4 w-4" aria-hidden="true" />}
               Download
             </ActionButton>
-            <ActionButton onClick={() => setDeleteTarget(doc)} variant="danger">
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              Delete
-            </ActionButton>
+            {canDeleteEvidence && (
+              <ActionButton onClick={() => setDeleteTarget(doc)} variant="danger">
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Delete
+              </ActionButton>
+            )}
           </div>
         )}
       </div>

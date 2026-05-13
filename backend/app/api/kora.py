@@ -21,7 +21,8 @@ from typing import Optional
 
 from app.models import KoraRequest, ResearchJob, JobStatus
 from app.api._store import kora_requests, jobs, cases
-from app.api.deps import can_access_workspace, get_current_user, scoped_items
+from app.api.deps import get_current_user
+from app.services.case_access import require_case_access, visible_cases_for_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["kora"])
@@ -68,8 +69,7 @@ def _run_kora_generation(job: ResearchJob):
 async def generate_kora(bg: BackgroundTasks, case_id: str = "crowley-v-usd232", user: dict = Depends(get_current_user)):
     """Generate KORA requests for the entire case. Runs async."""
     case = cases.get(case_id)
-    if not case or not can_access_workspace(user, case.workspace_id):
-        raise HTTPException(status_code=404, detail="Case not found")
+    require_case_access(user, case, "manage_records")
 
     job_id = str(uuid.uuid4())[:8]
     job = ResearchJob(id=job_id, workspace_id=case.workspace_id, case_id=case.id, person_id="kora-generation")
@@ -90,7 +90,12 @@ async def list_kora_requests(
     user: dict = Depends(get_current_user),
 ):
     """List KORA requests with optional filters."""
-    reqs = scoped_items(list(kora_requests.values()), user)
+    if case_id:
+        case = require_case_access(user, cases.get(case_id), "view")
+        reqs = [r for r in kora_requests.values() if r.case_id == case.id and r.workspace_id == case.workspace_id]
+    else:
+        visible_case_ids = {case.id for case in visible_cases_for_user(user)}
+        reqs = [r for r in kora_requests.values() if r.case_id in visible_case_ids]
     if case_id:
         reqs = [r for r in reqs if r.case_id == case_id]
     if entity_id:
@@ -106,8 +111,9 @@ async def list_kora_requests(
 @router.get("/kora/requests/{request_id}", response_model=KoraRequest)
 async def get_kora_request(request_id: str, user: dict = Depends(get_current_user)):
     req = kora_requests.get(request_id)
-    if not req or not can_access_workspace(user, req.workspace_id):
+    if not req:
         raise HTTPException(status_code=404, detail="KORA request not found")
+    require_case_access(user, cases.get(req.case_id), "view")
     return req
 
 
@@ -124,8 +130,9 @@ class KoraRequestUpdate(BaseModel):
 async def update_kora_request(request_id: str, body: KoraRequestUpdate, user: dict = Depends(get_current_user)):
     """Edit a KORA request (subject, description, status, etc.)."""
     req = kora_requests.get(request_id)
-    if not req or not can_access_workspace(user, req.workspace_id):
+    if not req:
         raise HTTPException(status_code=404, detail="KORA request not found")
+    require_case_access(user, cases.get(req.case_id), "manage_records")
 
     if body.subject is not None:
         req.subject = body.subject
@@ -155,8 +162,9 @@ async def update_kora_request(request_id: str, body: KoraRequestUpdate, user: di
 async def mark_sent(request_id: str, user: dict = Depends(get_current_user)):
     """Mark a KORA request as sent."""
     req = kora_requests.get(request_id)
-    if not req or not can_access_workspace(user, req.workspace_id):
+    if not req:
         raise HTTPException(status_code=404, detail="KORA request not found")
+    require_case_access(user, cases.get(req.case_id), "manage_records")
 
     req.status = "sent"
     req.sent_at = utc_now()

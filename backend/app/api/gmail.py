@@ -10,8 +10,9 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from app.api._store import cases, gmail_connections, gmail_import_runs
-from app.api.deps import can_access_workspace, get_current_user
+from app.api.deps import get_current_user
 from app.models import GmailConnection, GmailImportRule, GmailImportRun
+from app.services.case_access import require_case_access
 from app.services.gmail_importer import (
     GMAIL_READONLY_SCOPE,
     GmailImportError,
@@ -63,22 +64,29 @@ class GmailImportRequest(BaseModel):
 
 def _get_case(case_id: str, user: dict):
     case = cases.get(case_id)
-    if not case or not can_access_workspace(user, case.workspace_id):
-        raise HTTPException(status_code=404, detail="Case not found")
-    return case
+    return require_case_access(user, case, "manage_gmail")
 
 
 def _connections_for(user: dict, case_id: str = "") -> list[GmailConnection]:
+    if case_id:
+        case = cases.get(case_id)
+        if not case:
+            return []
+        return [
+            item for item in gmail_connections.values()
+            if item.case_id == case.id and item.workspace_id == case.workspace_id
+        ]
     return [
         item for item in gmail_connections.values()
-        if item.workspace_id == user["workspace_id"] and (not case_id or item.case_id == case_id)
+        if item.workspace_id == user["workspace_id"]
     ]
 
 
 def _connection_for_case(case_id: str, user: dict, connection_id: str = "") -> GmailConnection:
     if connection_id:
         connection = gmail_connections.get(connection_id)
-        if not connection or connection.workspace_id != user["workspace_id"] or connection.case_id != case_id:
+        case = cases.get(case_id)
+        if not connection or not case or connection.workspace_id != case.workspace_id or connection.case_id != case_id:
             raise HTTPException(status_code=404, detail="Gmail connection not found")
         return connection
     connections = _connections_for(user, case_id)

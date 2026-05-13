@@ -20,7 +20,8 @@ from typing import Optional
 
 from app.models import CaseDocument, CaseDocumentUpdate
 from app.api._store import case_documents, cases
-from app.api.deps import can_access_workspace, get_current_user, scoped_items
+from app.api.deps import can_access_workspace, get_current_user
+from app.services.case_access import require_case_access, visible_cases_for_user
 from app.services.document_classifier import infer_document_metadata
 from app.services.document_ingestion import process_document_bytes
 from app.services.document_storage import delete_document_file, resolve_document_path, save_case_document_file
@@ -120,6 +121,21 @@ def _extract_facts_from_document(doc: CaseDocument):
         logger.warning("Post-ingestion fact extraction failed: %s", e)
 
 
+def _case_for_document(doc: CaseDocument):
+    return cases.get(doc.case_id)
+
+
+def _require_document_access(doc: CaseDocument | None, user: dict, action: str = "view") -> CaseDocument:
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    case = _case_for_document(doc)
+    if case:
+        require_case_access(user, case, action)
+    elif not can_access_workspace(user, doc.workspace_id):
+        raise HTTPException(status_code=404, detail="Document not found")
+    return doc
+
+
 @router.post("/documents/upload", response_model=CaseDocument)
 async def upload_document(
     bg: BackgroundTasks,
@@ -139,8 +155,7 @@ async def upload_document(
     if not case_id:
         raise HTTPException(status_code=400, detail="case_id is required")
     target_case = cases.get(case_id or "")
-    if not target_case or not can_access_workspace(user, target_case.workspace_id):
-        raise HTTPException(status_code=404, detail="Case not found")
+    require_case_access(user, target_case, "upload_evidence")
 
     content = await file.read()
     if not content:
@@ -200,7 +215,19 @@ async def list_documents(
     user: dict = Depends(get_current_user),
 ):
     """List uploaded documents, optionally filtered."""
-    docs = scoped_items(list(case_documents.values()), user)
+    if case_id:
+        target_case = cases.get(case_id)
+        require_case_access(user, target_case, "view")
+        docs = [
+            d for d in case_documents.values()
+            if d.case_id == case_id and d.workspace_id == target_case.workspace_id
+        ]
+    else:
+        visible_case_ids = {case.id for case in visible_cases_for_user(user)}
+        docs = [
+            d for d in case_documents.values()
+            if d.case_id in visible_case_ids or can_access_workspace(user, d.workspace_id)
+        ]
     if case_id:
         docs = [d for d in docs if d.case_id == case_id]
     if entity_id:
@@ -240,16 +267,13 @@ async def list_documents(
 @router.get("/documents/{doc_id}", response_model=CaseDocument)
 async def get_document(doc_id: str, user: dict = Depends(get_current_user)):
     doc = case_documents.get(doc_id)
-    if not doc or not can_access_workspace(user, doc.workspace_id):
-        raise HTTPException(status_code=404, detail="Document not found")
-    return doc
+    return _require_document_access(doc, user, "view")
 
 
 @router.patch("/documents/{doc_id}", response_model=CaseDocument)
 async def update_document(doc_id: str, body: CaseDocumentUpdate, user: dict = Depends(get_current_user)):
     doc = case_documents.get(doc_id)
-    if not doc or not can_access_workspace(user, doc.workspace_id):
-        raise HTTPException(status_code=404, detail="Document not found")
+    _require_document_access(doc, user, "edit")
     patch = body.model_dump(exclude_unset=True)
     for key, value in patch.items():
         setattr(doc, key, value)
@@ -260,8 +284,7 @@ async def update_document(doc_id: str, body: CaseDocumentUpdate, user: dict = De
 @router.get("/documents/{doc_id}/preview")
 async def preview_document(doc_id: str, user: dict = Depends(get_current_user)):
     doc = case_documents.get(doc_id)
-    if not doc or not can_access_workspace(user, doc.workspace_id):
-        raise HTTPException(status_code=404, detail="Document not found")
+    _require_document_access(doc, user, "view")
     return {
         "document": doc.model_dump(mode="json"),
         "text_preview": (doc.extracted_text or "")[:12000],
@@ -272,8 +295,7 @@ async def preview_document(doc_id: str, user: dict = Depends(get_current_user)):
 @router.get("/documents/{doc_id}/content")
 async def document_content(doc_id: str, user: dict = Depends(get_current_user)):
     doc = case_documents.get(doc_id)
-    if not doc or not can_access_workspace(user, doc.workspace_id):
-        raise HTTPException(status_code=404, detail="Document not found")
+    _require_document_access(doc, user, "view")
     path = resolve_document_path(doc)
     if not path:
         raise HTTPException(status_code=404, detail="Original file not available")
@@ -284,8 +306,7 @@ async def document_content(doc_id: str, user: dict = Depends(get_current_user)):
 @router.delete("/documents/{doc_id}")
 async def delete_document(doc_id: str, user: dict = Depends(get_current_user)):
     doc = case_documents.get(doc_id)
-    if not doc or not can_access_workspace(user, doc.workspace_id):
-        raise HTTPException(status_code=404, detail="Document not found")
+    _require_document_access(doc, user, "delete_evidence")
     try:
         from app.services.qdrant_client import delete_points
         delete_points(doc.qdrant_point_ids)

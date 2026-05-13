@@ -38,6 +38,24 @@ class WorkspacePlan(str, Enum):
     ADMIN = "admin"
 
 
+class CaseShareRole(str, Enum):
+    OWNER = "owner"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+
+
+class CaseShareStatus(str, Enum):
+    ACTIVE = "active"
+    REVOKED = "revoked"
+
+
+class CaseInvitationStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    REVOKED = "revoked"
+    EXPIRED = "expired"
+
+
 class CaseStatus(str, Enum):
     DRAFT = "draft"
     ACTIVE = "active"
@@ -288,6 +306,69 @@ class CaseRecord(BaseModel):
     created_by: str = ""
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
+
+
+class CasePermissions(BaseModel):
+    can_view: bool = False
+    can_edit: bool = False
+    can_upload_evidence: bool = False
+    can_delete_evidence: bool = False
+    can_run_case_read: bool = False
+    can_manage_records: bool = False
+    can_manage_sharing: bool = False
+    can_manage_support: bool = False
+    can_manage_gmail: bool = False
+
+
+class CaseAccessSummary(BaseModel):
+    case_id: str
+    role: Optional[CaseShareRole] = None
+    permissions: CasePermissions = Field(default_factory=CasePermissions)
+
+
+class CaseShareGrant(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str
+    case_id: str
+    user_id: str = ""
+    clerk_user_id: str = ""
+    email: str = ""
+    role: CaseShareRole = CaseShareRole.VIEWER
+    status: CaseShareStatus = CaseShareStatus.ACTIVE
+    invited_by_user_id: str = ""
+    invited_by_email: str = ""
+    accepted_at: datetime = Field(default_factory=utc_now)
+    revoked_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class CaseInvitation(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str
+    case_id: str
+    email: str
+    role: CaseShareRole = CaseShareRole.VIEWER
+    status: CaseInvitationStatus = CaseInvitationStatus.PENDING
+    token_hash: str = ""
+    invited_by_user_id: str = ""
+    invited_by_email: str = ""
+    accepted_by_user_id: str = ""
+    grant_id: str = ""
+    expires_at: datetime
+    accepted_at: Optional[datetime] = None
+    revoked_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
+class CaseInviteCreate(BaseModel):
+    email: str
+    role: CaseShareRole = CaseShareRole.VIEWER
+
+
+class CaseShareRoleUpdate(BaseModel):
+    role: CaseShareRole
 
 
 class EvaluationIssueArea(BaseModel):

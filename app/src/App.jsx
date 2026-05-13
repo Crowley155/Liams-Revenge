@@ -26,6 +26,7 @@ const Cases = lazy(() => import('./views/Cases'));
 const CaseDetail = lazy(() => import('./views/CaseDetail'));
 const EvidenceLocker = lazy(() => import('./views/EvidenceLocker'));
 const DocumentReview = lazy(() => import('./views/DocumentReview'));
+const AcceptCaseInvitation = lazy(() => import('./views/AcceptCaseInvitation'));
 const RecordsRequests = lazy(() => import('./views/RecordsRequests'));
 const SelfAdvocacyPacket = lazy(() => import('./views/SelfAdvocacyPacket'));
 
@@ -133,6 +134,7 @@ export default function App() {
                 {/* Protected routes */}
                 <Route element={<RequireAuth />}>
                   <Route path="evaluate" element={<EvaluateRedirect />} />
+                  <Route path="case-invitations/:token" element={<AcceptCaseInvitation />} />
                   <Route path="cases" element={<Cases />} />
                   <Route path="cases/:caseId" element={<CaseFileLayout />}>
                     <Route index element={<CaseDetail />} />

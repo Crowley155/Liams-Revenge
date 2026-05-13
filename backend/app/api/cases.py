@@ -14,18 +14,22 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 
 from app.ai_runtime.evaluation import run_case_evaluation
 from app.ai_runtime.intake import analyze_intake_session
-from app.api._store import case_documents, case_evaluations, case_intake_sessions, cases, usage_events, workspaces
+from app.api._store import case_documents, case_evaluations, case_intake_sessions, case_invitations, case_share_grants, cases, usage_events, workspaces
 from app.api.deps import get_current_user
 from app.models import (
+    CaseAccessSummary,
     CaseCreate,
     CaseDocument,
     CaseEvaluation,
+    CaseInviteCreate,
     CaseIntake,
     CaseIntakeFacts,
     CaseIntakeMessage,
     CaseIntakeMessageCreate,
     CaseIntakeSession,
     CaseRecord,
+    CaseShareRoleUpdate,
+    CaseShareStatus,
     CaseStatus,
     CaseUpdate,
     EvaluationStatus,
@@ -36,6 +40,19 @@ from app.models import (
     WorkspaceType,
 )
 from app.services.entitlements import ensure_can_create_case, ensure_can_run_evaluation, ensure_can_upload_document
+from app.services.case_access import (
+    accept_case_invitation,
+    access_summary,
+    can_access_case,
+    create_case_invitation,
+    public_grant,
+    public_invitation,
+    require_case_access,
+    revoke_case_invitation,
+    revoke_share_grant,
+    update_share_grant_role,
+    visible_cases_for_user,
+)
 from app.services.case_file_builder import build_private_case_file
 from app.services.document_classifier import infer_document_metadata
 from app.services.document_ingestion import process_document_bytes
@@ -50,14 +67,12 @@ CASE_DATA_PATH = Path(os.getenv("CASE_DATA_PATH", "/app/case-data/case-data.json
 
 
 def _visible_case(case: CaseRecord, user: dict) -> bool:
-    return case.workspace_id == user["workspace_id"]
+    return can_access_case(user, case, "view")
 
 
 def _get_case(case_id: str, user: dict) -> CaseRecord:
     case = cases.get(case_id)
-    if not case or not _visible_case(case, user):
-        raise HTTPException(status_code=404, detail="Case not found")
-    return case
+    return require_case_access(user, case, "view")
 
 
 def _case_docs(case: CaseRecord) -> list[CaseDocument]:
@@ -232,7 +247,10 @@ def _apply_session_to_case(case: CaseRecord, session: CaseIntakeSession) -> Case
 
 
 def _open_case_for_workspace(user: dict) -> CaseRecord | None:
-    visible = [case for case in cases.values() if _visible_case(case, user) and case.status != CaseStatus.ARCHIVED]
+    visible = [
+        case for case in cases.values()
+        if case.workspace_id == user["workspace_id"] and case.status != CaseStatus.ARCHIVED
+    ]
     if not visible:
         return None
     visible.sort(key=lambda case: normalize_utc(case.updated_at), reverse=True)
@@ -545,7 +563,7 @@ async def workspace_summary(user: dict = Depends(get_current_user)):
 
 @router.get("/cases", response_model=list[CaseRecord])
 async def list_cases(user: dict = Depends(get_current_user)):
-    visible = [case for case in cases.values() if _visible_case(case, user)]
+    visible = visible_cases_for_user(user)
     visible.sort(key=lambda case: normalize_utc(case.updated_at), reverse=True)
     return visible
 
@@ -604,9 +622,93 @@ async def get_case(case_id: str, user: dict = Depends(get_current_user)):
     return _get_case(case_id, user)
 
 
+@router.get("/cases/{case_id}/access", response_model=CaseAccessSummary)
+async def get_case_access(case_id: str, user: dict = Depends(get_current_user)):
+    case = _get_case(case_id, user)
+    return access_summary(user, case)
+
+
+@router.get("/cases/{case_id}/shares")
+async def list_case_shares(case_id: str, user: dict = Depends(get_current_user)):
+    case = require_case_access(user, cases.get(case_id), "manage_sharing")
+    collaborators = [
+        public_grant(grant)
+        for grant in case_share_grants.values()
+        if grant.case_id == case.id and grant.status == CaseShareStatus.ACTIVE
+    ]
+    invitations = [
+        public_invitation(invitation)
+        for invitation in case_invitations.values()
+        if invitation.case_id == case.id
+    ]
+    collaborators.sort(key=lambda item: item.get("email", ""))
+    invitations.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+    return {"case_id": case.id, "collaborators": collaborators, "invitations": invitations}
+
+
+@router.post("/cases/{case_id}/invites")
+async def invite_case_collaborator(
+    case_id: str,
+    body: CaseInviteCreate,
+    user: dict = Depends(get_current_user),
+):
+    case = require_case_access(user, cases.get(case_id), "manage_sharing")
+    invitation, token, accept_url = create_case_invitation(case, user, body.email, body.role)
+    return {
+        "invitation": public_invitation(invitation),
+        "token": token,
+        "accept_url": accept_url,
+    }
+
+
+@router.post("/case-invitations/{token}/accept")
+async def accept_invitation(token: str, user: dict = Depends(get_current_user)):
+    invitation, grant = accept_case_invitation(token, user)
+    case = cases.get(invitation.case_id)
+    return {
+        "invitation": public_invitation(invitation),
+        "grant": public_grant(grant),
+        "case": case.model_dump(mode="json") if case else None,
+    }
+
+
+@router.patch("/cases/{case_id}/shares/{grant_id}")
+async def update_case_share_role(
+    case_id: str,
+    grant_id: str,
+    body: CaseShareRoleUpdate,
+    user: dict = Depends(get_current_user),
+):
+    require_case_access(user, cases.get(case_id), "manage_sharing")
+    grant = update_share_grant_role(case_id, grant_id, body.role)
+    return public_grant(grant)
+
+
+@router.delete("/cases/{case_id}/shares/{grant_id}")
+async def revoke_case_share(
+    case_id: str,
+    grant_id: str,
+    user: dict = Depends(get_current_user),
+):
+    require_case_access(user, cases.get(case_id), "manage_sharing")
+    grant = revoke_share_grant(case_id, grant_id)
+    return public_grant(grant)
+
+
+@router.delete("/cases/{case_id}/invites/{invitation_id}")
+async def revoke_case_invite(
+    case_id: str,
+    invitation_id: str,
+    user: dict = Depends(get_current_user),
+):
+    require_case_access(user, cases.get(case_id), "manage_sharing")
+    invitation = revoke_case_invitation(case_id, invitation_id)
+    return public_invitation(invitation)
+
+
 @router.patch("/cases/{case_id}", response_model=CaseRecord)
 async def update_case(case_id: str, body: CaseUpdate, user: dict = Depends(get_current_user)):
-    case = _get_case(case_id, user)
+    case = require_case_access(user, cases.get(case_id), "edit")
     if body.title is not None:
         case.title = body.title.strip() or case.title
     if body.summary is not None:
@@ -631,7 +733,7 @@ async def update_case(case_id: str, body: CaseUpdate, user: dict = Depends(get_c
 
 @router.post("/cases/{case_id}/activate", response_model=CaseRecord)
 async def activate_case(case_id: str, user: dict = Depends(get_current_user)):
-    case = _get_case(case_id, user)
+    case = require_case_access(user, cases.get(case_id), "edit")
     if case.status == CaseStatus.DRAFT:
         case.status = CaseStatus.ACTIVE
         case.updated_at = utc_now()
@@ -641,7 +743,7 @@ async def activate_case(case_id: str, user: dict = Depends(get_current_user)):
 
 @router.get("/cases/{case_id}/advocate/session", response_model=CaseIntakeSession)
 async def get_case_advocate_session(case_id: str, user: dict = Depends(get_current_user)):
-    case = _get_case(case_id, user)
+    case = require_case_access(user, cases.get(case_id), "edit")
     return _case_advocate_session(case, user)
 
 
@@ -651,7 +753,7 @@ async def append_case_advocate_message(
     body: CaseIntakeMessageCreate,
     user: dict = Depends(get_current_user),
 ):
-    case = _get_case(case_id, user)
+    case = require_case_access(user, cases.get(case_id), "edit")
     session = _case_advocate_session(case, user)
     content = body.content.strip()
     if not content:
@@ -684,7 +786,7 @@ async def list_case_documents(
     offset: int = Query(default=0, ge=0),
     user: dict = Depends(get_current_user),
 ):
-    case = _get_case(case_id, user)
+    case = require_case_access(user, cases.get(case_id), "view")
     return _filter_case_docs(
         _case_docs(case),
         q=q,
@@ -709,7 +811,7 @@ async def upload_case_document(
     source_person: str = Form(default=""),
     user: dict = Depends(get_current_user),
 ):
-    case = _get_case(case_id, user)
+    case = require_case_access(user, cases.get(case_id), "upload_evidence")
     ensure_can_upload_document(user, case.id)
 
     content = await file.read()
@@ -760,7 +862,7 @@ async def start_evaluation(
     bg: BackgroundTasks,
     user: dict = Depends(get_current_user),
 ):
-    case = _get_case(case_id, user)
+    case = require_case_access(user, cases.get(case_id), "run_case_read")
     entitlements = ensure_can_run_evaluation(user, case.id)
     if case.status == CaseStatus.DRAFT:
         case.status = CaseStatus.ACTIVE
@@ -801,7 +903,7 @@ async def get_evaluation(case_id: str, evaluation_id: str, user: dict = Depends(
 
 @router.put("/cases/{case_id}/support-consent", response_model=CaseRecord)
 async def update_support_consent(case_id: str, body: SupportConsent, user: dict = Depends(get_current_user)):
-    case = _get_case(case_id, user)
+    case = require_case_access(user, cases.get(case_id), "manage_support")
     case.support_consent = _consent_with_timestamp(body)
     case.updated_at = utc_now()
     cases[case.id] = case

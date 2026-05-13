@@ -17,6 +17,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from app.models import PersonCreate, Person, PersonSource, ResearchJob, JobStatus
 from app.api._store import cases, jobs, profiles
 from app.api.deps import can_access_workspace, get_current_user
+from app.services.case_access import require_case_access
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["research"])
@@ -101,16 +102,19 @@ def _run_job(request: PersonCreate, job: ResearchJob, existing: Person | None):
 async def start_research(request: PersonCreate, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Kick off a research pipeline for a person. Returns a job you can poll."""
     existing: Person | None = None
-    case = cases.get(request.case_id)
-    if not case or not can_access_workspace(user, case.workspace_id):
-        raise HTTPException(status_code=404, detail="Case not found")
+    case = require_case_access(user, cases.get(request.case_id), "manage_records")
 
     if request.person_id:
         existing = profiles.get(request.person_id)
-        if not existing or not can_access_workspace(user, existing.workspace_id):
+        if not existing:
+            raise HTTPException(status_code=404, detail=f"Person {request.person_id} not found")
+        existing_case = cases.get(existing.case_id)
+        if existing_case:
+            require_case_access(user, existing_case, "manage_records")
+        elif not can_access_workspace(user, existing.workspace_id):
             raise HTTPException(status_code=404, detail=f"Person {request.person_id} not found")
     else:
-        existing = _find_person_by_name_org(request.name, request.organization, user["workspace_id"])
+        existing = _find_person_by_name_org(request.name, request.organization, case.workspace_id)
 
     job_id = str(uuid.uuid4())[:8]
     person_id = existing.id if existing else str(uuid.uuid4())[:8]
@@ -132,7 +136,12 @@ async def start_research(request: PersonCreate, bg: BackgroundTasks, user: dict 
 async def get_job_status(job_id: str, user: dict = Depends(get_current_user)):
     """Check the status of a research job."""
     job = jobs.get(job_id)
-    if not job or not can_access_workspace(user, job.workspace_id):
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    case = cases.get(job.case_id)
+    if case:
+        require_case_access(user, case, "view")
+    elif not can_access_workspace(user, job.workspace_id):
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
@@ -142,7 +151,12 @@ async def cancel_job(job_id: str, user: dict = Depends(get_current_user)):
     """Mark a running research job as failed/cancelled. The background task
     checks job.status on each phase boundary and aborts if it sees FAILED."""
     job = jobs.get(job_id)
-    if not job or not can_access_workspace(user, job.workspace_id):
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    case = cases.get(job.case_id)
+    if case:
+        require_case_access(user, case, "manage_records")
+    elif not can_access_workspace(user, job.workspace_id):
         raise HTTPException(status_code=404, detail="Job not found")
     if job.status in (JobStatus.COMPLETE, JobStatus.FAILED):
         raise HTTPException(status_code=400, detail=f"Job already {job.status.value}")

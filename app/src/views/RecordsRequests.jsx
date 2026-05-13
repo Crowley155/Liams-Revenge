@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { ChevronRight, Copy, Loader2, Printer } from 'lucide-react';
 import {
+  fetchCaseAccess,
   fetchEntities,
   fetchKoraRequests,
   generateKoraRequests,
@@ -10,6 +11,7 @@ import {
   updateKoraRequest,
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
+import { casePermissions } from '../utils/caseAccess';
 import { ActionButton, Panel, StatusPill, formatLabel } from './caseShared';
 
 const STATUS_FLOW = ['draft', 'sent', 'partial', 'fulfilled', 'denied'];
@@ -28,19 +30,24 @@ export default function RecordsRequests() {
   const [copied, setCopied] = useState(null);
   const [generating, setGenerating] = useState(false);
   const [genJobId, setGenJobId] = useState(null);
+  const [access, setAccess] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const permissions = useMemo(() => casePermissions(access), [access]);
+  const canManageRecords = permissions.can_manage_records;
 
   const loadData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [nextEntities, nextRequests] = await Promise.all([
+      const [nextEntities, nextRequests, nextAccess] = await Promise.all([
         fetchEntities(caseId).catch(() => []),
         fetchKoraRequests('', caseId),
+        fetchCaseAccess(caseId).catch(() => null),
       ]);
       setEntities(nextEntities);
       setRequests(nextRequests);
+      setAccess(nextAccess);
     } catch (err) {
       setError(err.message || 'Failed to load records requests');
     } finally {
@@ -93,6 +100,7 @@ export default function RecordsRequests() {
   }, [requests]);
 
   const handleGenerate = async () => {
+    if (!canManageRecords) return;
     setGenerating(true);
     setError('');
     try {
@@ -111,6 +119,7 @@ export default function RecordsRequests() {
   };
 
   const updateRequestStatus = async (request, status) => {
+    if (!canManageRecords) return;
     setError('');
     try {
       const updated = status === 'sent'
@@ -132,15 +141,17 @@ export default function RecordsRequests() {
             Generate request drafts, send them yourself, and track whether responses are pending, partial, fulfilled, or denied.
           </p>
         </div>
-        <ActionButton
-          onClick={handleGenerate}
-          disabled={generating}
-          variant="primary"
-          className="px-4"
-        >
-          {generating && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-          {generating ? 'Generating...' : requests.length ? 'Regenerate Requests' : 'Generate Requests'}
-        </ActionButton>
+        {canManageRecords && (
+          <ActionButton
+            onClick={handleGenerate}
+            disabled={generating}
+            variant="primary"
+            className="px-4"
+          >
+            {generating && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            {generating ? 'Generating...' : requests.length ? 'Regenerate Requests' : 'Generate Requests'}
+          </ActionButton>
+        )}
       </div>
 
       {error && <p className="rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">{error}</p>}
@@ -154,6 +165,11 @@ export default function RecordsRequests() {
         {generating && (
           <p className="mt-3 text-sm text-text-dim">
             USDWatch is reading the current case gaps and drafting request language. This can take a minute.
+          </p>
+        )}
+        {!canManageRecords && (
+          <p className="mt-3 text-sm leading-relaxed text-text-dim">
+            You can review and copy records drafts in this shared case. Updating statuses or generating new drafts requires editor access.
           </p>
         )}
       </Panel>
@@ -222,7 +238,7 @@ export default function RecordsRequests() {
                           <Printer className="h-4 w-4" aria-hidden="true" />
                           Print / Save PDF
                         </ActionButton>
-                        {STATUS_FLOW.map((status) => {
+                        {canManageRecords && STATUS_FLOW.map((status) => {
                           if (status === request.status) return null;
                           return (
                             <ActionButton

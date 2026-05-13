@@ -138,6 +138,35 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_evals_case ON case_evaluations(workspace_id, case_id);
 
+        CREATE TABLE IF NOT EXISTS case_share_grants (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            case_id TEXT NOT NULL,
+            user_id TEXT NOT NULL DEFAULT '',
+            clerk_user_id TEXT NOT NULL DEFAULT '',
+            email TEXT NOT NULL DEFAULT '',
+            role TEXT NOT NULL DEFAULT 'viewer',
+            status TEXT NOT NULL DEFAULT 'active',
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_case_share_grants_case ON case_share_grants(workspace_id, case_id, status);
+        CREATE INDEX IF NOT EXISTS idx_case_share_grants_user ON case_share_grants(user_id, status);
+        CREATE INDEX IF NOT EXISTS idx_case_share_grants_email ON case_share_grants(email, status);
+
+        CREATE TABLE IF NOT EXISTS case_invitations (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            case_id TEXT NOT NULL,
+            email TEXT NOT NULL DEFAULT '',
+            token_hash TEXT NOT NULL DEFAULT '',
+            role TEXT NOT NULL DEFAULT 'viewer',
+            status TEXT NOT NULL DEFAULT 'pending',
+            data TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_case_invitations_case ON case_invitations(workspace_id, case_id, status);
+        CREATE INDEX IF NOT EXISTS idx_case_invitations_token ON case_invitations(token_hash);
+        CREATE INDEX IF NOT EXISTS idx_case_invitations_email ON case_invitations(email, status);
+
         CREATE TABLE IF NOT EXISTS case_intake_sessions (
             id TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL,

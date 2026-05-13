@@ -12,6 +12,8 @@ from app.models import (
     CaseIntakeSession,
     CaseEvaluation,
     CaseRecord,
+    CaseInvitation,
+    CaseShareGrant,
     GmailConnection,
     GmailImportRun,
     KoraRequest,
@@ -82,6 +84,33 @@ case_evaluations = _SqliteStore(
     "case_evaluations",
     CaseEvaluation,
     indexed_cols={"workspace_id": "workspace_id", "case_id": "case_id", "status": "status"},
+)
+
+case_share_grants = _SqliteStore(
+    "case_share_grants",
+    CaseShareGrant,
+    indexed_cols={
+        "workspace_id": "workspace_id",
+        "case_id": "case_id",
+        "user_id": "user_id",
+        "clerk_user_id": "clerk_user_id",
+        "email": "email",
+        "role": "role",
+        "status": "status",
+    },
+)
+
+case_invitations = _SqliteStore(
+    "case_invitations",
+    CaseInvitation,
+    indexed_cols={
+        "workspace_id": "workspace_id",
+        "case_id": "case_id",
+        "email": "email",
+        "token_hash": "token_hash",
+        "role": "role",
+        "status": "status",
+    },
 )
 
 case_intake_sessions = _SqliteStore(

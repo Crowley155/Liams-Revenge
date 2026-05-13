@@ -21,11 +21,23 @@ from app.models import (
     Person, ResearchJob, JobStatus,
     Address, SocialProfile, Employment, Education,
 )
-from app.api._store import profiles, jobs
+from app.api._store import cases, profiles, jobs
 from app.api.deps import can_access_workspace, get_current_user
+from app.services.case_access import require_case_access
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["enrichment"])
+
+
+def _require_person_access(person: Person | None, user: dict, action: str = "view") -> Person:
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    case = cases.get(person.case_id)
+    if case:
+        require_case_access(user, case, action)
+    elif not can_access_workspace(user, person.workspace_id):
+        raise HTTPException(status_code=404, detail="Person not found")
+    return person
 
 
 class IdentityUpdate(BaseModel):
@@ -78,8 +90,7 @@ def _run_enrichment(person_id: str, job: ResearchJob):
 async def start_enrichment(person_id: str, bg: BackgroundTasks, user: dict = Depends(get_current_user)):
     """Kick off identity enrichment for a person. Returns a job to poll."""
     person = profiles.get(person_id)
-    if not person or not can_access_workspace(user, person.workspace_id):
-        raise HTTPException(status_code=404, detail="Person not found")
+    person = _require_person_access(person, user, "manage_records")
 
     job_id = str(uuid.uuid4())[:8]
     job = ResearchJob(id=job_id, workspace_id=person.workspace_id, case_id=person.case_id, person_id=person_id)
@@ -95,8 +106,7 @@ async def start_enrichment(person_id: str, bg: BackgroundTasks, user: dict = Dep
 async def update_identity(person_id: str, update: IdentityUpdate, user: dict = Depends(get_current_user)):
     """Manually update identity enrichment fields for a person."""
     person = profiles.get(person_id)
-    if not person or not can_access_workspace(user, person.workspace_id):
-        raise HTTPException(status_code=404, detail="Person not found")
+    person = _require_person_access(person, user, "manage_records")
 
     if update.city is not None:
         person.city = update.city
@@ -155,9 +165,11 @@ async def clay_callback(person_id: str, request: Request, user: dict = Depends(g
     from app.pipeline.enrichment.clay_worker import parse_clay_response
 
     person = profiles.get(person_id)
-    if not person or not can_access_workspace(user, person.workspace_id):
+    try:
+        person = _require_person_access(person, user, "manage_records")
+    except HTTPException:
         logger.warning("Clay callback for unknown person_id: %s", person_id)
-        raise HTTPException(status_code=404, detail="Person not found")
+        raise
 
     try:
         body = await request.json()
@@ -284,8 +296,7 @@ async def confirm_social_profile(person_id: str, body: SocialProfileAction, bg: 
     scrapes + LLM-extracts data from that profile and merges into the person.
     """
     person = profiles.get(person_id)
-    if not person or not can_access_workspace(user, person.workspace_id):
-        raise HTTPException(status_code=404, detail="Person not found")
+    person = _require_person_access(person, user, "manage_records")
 
     sp = next((s for s in person.social_profiles if s.url == body.url), None)
     if not sp:
@@ -369,8 +380,7 @@ async def dismiss_social_profile(person_id: str, body: SocialProfileAction, user
     data (employment, education, addresses, intel) sourced from its URL.
     """
     person = profiles.get(person_id)
-    if not person or not can_access_workspace(user, person.workspace_id):
-        raise HTTPException(status_code=404, detail="Person not found")
+    person = _require_person_access(person, user, "manage_records")
 
     sp = next((s for s in person.social_profiles if s.url == body.url), None)
     if not sp:

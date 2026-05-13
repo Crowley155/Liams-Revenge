@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { fetchProfiles, fetchEntities, fetchCase, seedData, startResearch } from '../api/client';
+import { fetchProfiles, fetchEntities, fetchCase, fetchCaseAccess, seedData, startResearch } from '../api/client';
+import { casePermissions } from '../utils/caseAccess';
 import useResearchJob from '../hooks/useResearchJob';
 import DocLink from '../components/DocLink';
 import OrgDiagram from '../components/OrgDiagram';
@@ -33,7 +34,7 @@ function Initials({ name, color }) {
   );
 }
 
-function PersonCard({ person, caseId, onResearchDone, onError }) {
+function PersonCard({ person, caseId, canManageRecords, onResearchDone, onError }) {
   const [quotesOpen, setQuotesOpen] = useState(false);
   const [launching, setLaunching] = useState(false);
   const orgColor = ORG_COLORS[person.organization] || '#6c8aff';
@@ -127,7 +128,7 @@ function PersonCard({ person, caseId, onResearchDone, onError }) {
         >
           View profile &rarr;
         </Link>
-        {!isRunning && !isDone && (
+        {canManageRecords && !isRunning && !isDone && (
           <button
             onClick={handleResearch}
             disabled={launching}
@@ -158,6 +159,7 @@ export default function People() {
   const [people, setPeople] = useState([]);
   const [entities, setEntities] = useState([]);
   const [caseRecord, setCaseRecord] = useState(null);
+  const [access, setAccess] = useState(null);
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState(null);
@@ -165,9 +167,9 @@ export default function People() {
   const load = () => {
     setLoading(true);
     setError(null);
-    Promise.all([fetchProfiles(caseId), fetchEntities(caseId), fetchCase(caseId).catch(() => null)])
-      .then(([p, e, c]) => { setPeople(p); setEntities(e); setCaseRecord(c); })
-      .catch((err) => { setPeople([]); setEntities([]); setCaseRecord(null); setError(err.message || 'Failed to load data'); })
+    Promise.all([fetchProfiles(caseId), fetchEntities(caseId), fetchCase(caseId).catch(() => null), fetchCaseAccess(caseId).catch(() => null)])
+      .then(([p, e, c, a]) => { setPeople(p); setEntities(e); setCaseRecord(c); setAccess(a); })
+      .catch((err) => { setPeople([]); setEntities([]); setCaseRecord(null); setAccess(null); setError(err.message || 'Failed to load data'); })
       .finally(() => setLoading(false));
   };
 
@@ -199,6 +201,7 @@ export default function People() {
   const assignedIds = new Set(entityGroups.flatMap((g) => g.members.map((m) => m.id)));
   const unaffiliated = people.filter((p) => !assignedIds.has(p.id));
   const isDemoCase = caseRecord?.status === 'demo';
+  const canManageRecords = casePermissions(access).can_manage_records;
 
   if (loading) {
     return (
@@ -223,7 +226,7 @@ export default function People() {
             Every person involved — curated case evidence and pipeline-researched profiles in one place.
           </p>
         </div>
-        {people.length === 0 && isDemoCase && (
+        {people.length === 0 && isDemoCase && canManageRecords && (
           <button
             onClick={handleSeed}
             disabled={seeding}
@@ -262,7 +265,7 @@ export default function People() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {members.map((p) => (
-                <PersonCard key={p.id} person={p} caseId={caseId} onResearchDone={load} onError={setError} />
+                <PersonCard key={p.id} person={p} caseId={caseId} canManageRecords={canManageRecords} onResearchDone={load} onError={setError} />
               ))}
             </div>
           </section>
@@ -280,7 +283,7 @@ export default function People() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {unaffiliated.map((p) => (
-              <PersonCard key={p.id} person={p} caseId={caseId} onResearchDone={load} onError={setError} />
+              <PersonCard key={p.id} person={p} caseId={caseId} canManageRecords={canManageRecords} onResearchDone={load} onError={setError} />
             ))}
           </div>
         </section>
