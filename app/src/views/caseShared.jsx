@@ -101,7 +101,7 @@ export function Panel({ title, eyebrow, action, children }) {
     <section className="min-w-0 rounded-md border border-border bg-surface/75 p-4">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          {eyebrow && <p className="text-xs font-medium text-accent/80">{eyebrow}</p>}
+          {eyebrow && <p className="text-xs font-semibold text-text-dim">{eyebrow}</p>}
           <h3 className="text-lg font-bold">{title}</h3>
         </div>
         {action}

@@ -28,6 +28,7 @@ const EvidenceLocker = lazy(() => import('./views/EvidenceLocker'));
 const DocumentReview = lazy(() => import('./views/DocumentReview'));
 const RecordsRequests = lazy(() => import('./views/RecordsRequests'));
 const SelfAdvocacyPacket = lazy(() => import('./views/SelfAdvocacyPacket'));
+const CaseSettings = lazy(() => import('./views/CaseSettings'));
 
 function restoreGithubPagesSpaPath() {
   if (typeof window === 'undefined') return;
@@ -143,6 +144,7 @@ export default function App() {
                     <Route path="people/:personId" element={<ProfileDetail />} />
                     <Route path="evaluation" element={<CaseSectionRedirect />} />
                     <Route path="packet" element={<SelfAdvocacyPacket />} />
+                    <Route path="settings" element={<CaseSettings />} />
                     <Route path="overview" element={<DemoOnlyRoute><Overview /></DemoOnlyRoute>} />
                     <Route path="entities" element={<DemoOnlyRoute><Entities /></DemoOnlyRoute>} />
                     <Route path="entities/:entityId" element={<DemoOnlyRoute><EntityDetail /></DemoOnlyRoute>} />

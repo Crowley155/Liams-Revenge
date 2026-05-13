@@ -62,6 +62,7 @@ function routeContext(pathname) {
   if (pathname.includes('/records')) return { mode: 'Records Requests' };
   if (pathname.includes('/packet')) return { mode: 'Packet' };
   if (pathname.includes('/people')) return { mode: 'People' };
+  if (pathname.includes('/settings')) return { mode: 'Settings' };
   return { mode: 'Case Plan' };
 }
 

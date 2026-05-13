@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useParams } from 'react-router-dom';
-import { Building2, ClipboardList, FileText, FolderOpen, Home, Scale, Users } from 'lucide-react';
+import { Building2, ClipboardList, FileText, FolderOpen, Home, Scale, Settings, Users } from 'lucide-react';
 import { fetchCase, fetchCaseAccess } from '../api/client';
 import { CaseProvider } from '../data/useCase';
 import { sharedAccessLabel } from '../utils/caseAccess';
@@ -11,6 +11,7 @@ const PARENT_CASE_TABS = [
   { to: 'records', label: 'Records Requests', icon: ClipboardList },
   { to: 'people', label: 'People', icon: Users },
   { to: 'packet', label: 'Packet', icon: FileText },
+  { to: 'settings', label: 'Settings', icon: Settings },
 ];
 
 const DEMO_CASE_TABS = [
@@ -53,10 +54,9 @@ export default function CaseFileLayout() {
         <div className="min-w-0 rounded-md border border-border bg-surface/80 px-4 py-4 sm:px-5">
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0 space-y-1">
-              <p className="text-xs font-medium text-accent/80">Case file</p>
-              <h2 className="wrap-anywhere text-xl font-bold sm:text-2xl">
+              <h1 className="wrap-anywhere text-xl font-bold sm:text-2xl">
                 {caseRecord?.title || 'Loading case...'}
-              </h2>
+              </h1>
               <p className="text-xs text-text-dim">
                 {caseRecord?.intake?.district || 'Private workspace'} - {caseRecord?.status || 'scoped'}
               </p>
