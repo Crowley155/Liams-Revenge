@@ -31,6 +31,7 @@ from app.api._store import (
 from app.config import settings
 from app.db import _connect
 from app.models import AppUser, CaseDocument, CaseIntake, CaseRecord, CaseStatus, Workspace, WorkspacePlan, WorkspaceType
+from app.services.document_classifier import infer_document_metadata
 from app.services.text_chunker import chunk_text
 
 logger = logging.getLogger(__name__)
@@ -632,6 +633,13 @@ def import_kora_zip(
             doc.source = "kora_response"
             doc.extracted_text = text
             doc.analysis_flags = flags
+            category, confidence, tags, inferred_type = infer_document_metadata(doc.filename, text, doc.evidence_type)
+            if not doc.inferred_category or doc.inferred_category == "other" or confidence > doc.category_confidence:
+                doc.inferred_category = category
+                doc.category_confidence = confidence
+            doc.tags = sorted(set([*doc.tags, *tags]))
+            if not doc.evidence_type:
+                doc.evidence_type = inferred_type
             doc.status = "indexed" if text and not low_text else "needs_review"
             doc.processing_status = doc.status
             doc.failure_reason = None if doc.status == "indexed" else (text_error or status_note or "No usable text extracted")

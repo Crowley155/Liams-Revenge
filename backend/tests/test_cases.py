@@ -15,6 +15,32 @@ from app.services.gmail_security import encrypt_token
 client = TestClient(app)
 
 
+def _sse_events(response) -> list[tuple[str, dict]]:
+    events: list[tuple[str, dict]] = []
+    current_event = "message"
+    current_data: list[str] = []
+    text = response.read().decode("utf-8") if not hasattr(response, "_content") else response.text
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if current_data:
+                import json
+
+                events.append((current_event, json.loads("\n".join(current_data))))
+            current_event = "message"
+            current_data = []
+            continue
+        if line.startswith("event:"):
+            current_event = line.split(":", 1)[1].strip()
+        if line.startswith("data:"):
+            current_data.append(line.split(":", 1)[1].strip())
+    if current_data:
+        import json
+
+        events.append((current_event, json.loads("\n".join(current_data))))
+    return events
+
+
 def _parsed_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
@@ -467,6 +493,128 @@ def test_case_bound_advocate_updates_draft_case_and_first_case_read_activates(mo
     assert activated.json()["status"] == "active"
 
 
+def test_case_advocate_stream_emits_case_scoped_sources_actions_and_completion(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai_runtime.intake._run_agno_analysis",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mock fallback")),
+    )
+    user = _user()
+    _override_user(user)
+
+    case = CaseRecord(
+        id=f"case-{uuid.uuid4().hex[:6]}",
+        workspace_id=user["workspace_id"],
+        title="Advocate stream case",
+        intake=CaseIntake(issue_type="student_safety", issue_categories=["student_safety", "records"]),
+    )
+    cases[case.id] = case
+    source_doc = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=case.workspace_id,
+        case_id=case.id,
+        filename="supervision-note.txt",
+        extracted_text="The supervision note says staff coverage was thin during recess.",
+        document_summary="Supervision note about recess staffing.",
+        processing_status="indexed",
+        status="indexed",
+        qdrant_point_ids=["point-1"],
+    )
+    other_doc = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=case.workspace_id,
+        case_id="other-case",
+        filename="other-case-note.txt",
+        extracted_text="This should never appear in the advocate source list.",
+        processing_status="indexed",
+        status="indexed",
+        qdrant_point_ids=["point-2"],
+    )
+    case_documents[source_doc.id] = source_doc
+    case_documents[other_doc.id] = other_doc
+
+    monkeypatch.setattr("app.services.qdrant_client.is_available", lambda: True)
+    monkeypatch.setattr(
+        "app.services.qdrant_client.search_case_documents_semantic",
+        lambda query, case_id, limit=25: [
+            {"document_id": source_doc.id, "case_id": case.id, "full_text": "staff coverage meaning match", "_score": 0.91},
+            {"document_id": other_doc.id, "case_id": "other-case", "full_text": "cross case leak", "_score": 0.99},
+        ],
+    )
+
+    with client.stream(
+        "POST",
+        f"/api/cases/{case.id}/advocate/messages/stream",
+        json={"content": "What evidence do we have about supervision? Open the Evidence Locker."},
+    ) as response:
+        assert response.status_code == 200
+        events = _sse_events(response)
+
+    event_names = [name for name, _payload in events]
+    assert event_names[0] == "status"
+    assert "message" in event_names
+    assert "source" in event_names
+    assert "action" in event_names
+    assert event_names[-1] == "complete"
+
+    sources = [payload for name, payload in events if name == "source"]
+    assert sources[0]["document_id"] == source_doc.id
+    assert all(source["document_id"] != other_doc.id for source in sources)
+
+    actions = [payload for name, payload in events if name == "action"]
+    assert actions[0]["type"] == "open_evidence_locker"
+    assert actions[0]["requires_confirmation"] is True
+    assert actions[0]["status"] == "pending"
+
+    complete = events[-1][1]
+    structured = complete["session"]["messages"][-1]["structured"]
+    assert structured["sources"][0]["document_id"] == source_doc.id
+    assert structured["action_proposals"][0]["id"] == actions[0]["id"]
+    assert structured["model_route"]["fallback"] is True
+
+
+def test_case_advocate_actions_require_case_access_and_record_decisions(monkeypatch):
+    monkeypatch.setattr(
+        "app.ai_runtime.intake._run_agno_analysis",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("mock fallback")),
+    )
+    owner = _user()
+    outsider = _user()
+    _override_user(owner)
+
+    created = client.post("/api/cases", json=_case_payload("Advocate action case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    streamed = client.post(
+        f"/api/cases/{case_id}/advocate/messages/stream",
+        json={"content": "Please open the Evidence Locker so I can upload the incident report."},
+    )
+    assert streamed.status_code == 200
+    events = _sse_events(streamed)
+    action = next(payload for name, payload in events if name == "action")
+
+    _override_user(outsider)
+    hidden = client.post(f"/api/cases/{case_id}/advocate/actions/{action['id']}/approve")
+    assert hidden.status_code == 404
+
+    _override_user(owner)
+    rejected = client.post(f"/api/cases/{case_id}/advocate/actions/{action['id']}/reject")
+    assert rejected.status_code == 200
+    assert rejected.json()["action"]["status"] == "rejected"
+    assert rejected.json()["executed"] is False
+
+    streamed_again = client.post(
+        f"/api/cases/{case_id}/advocate/messages/stream",
+        json={"content": "Open the Evidence Locker again."},
+    )
+    action_again = next(payload for name, payload in _sse_events(streamed_again) if name == "action")
+    approved = client.post(f"/api/cases/{case_id}/advocate/actions/{action_again['id']}/approve")
+    assert approved.status_code == 200
+    assert approved.json()["action"]["status"] == "approved"
+    assert approved.json()["action"]["requires_confirmation"] is True
+    assert approved.json()["route"].endswith("/locker")
+
+
 def test_manual_family_narrative_override_beats_agent_patch(monkeypatch):
     monkeypatch.setattr(
         "app.ai_runtime.intake._run_agno_analysis",
@@ -607,6 +755,100 @@ def test_case_document_metadata_and_artifacts_are_private_to_workspace(monkeypat
     assert hidden_docs.status_code == 404
     hidden_preview = client.get(f"/api/documents/{doc['id']}/preview")
     assert hidden_preview.status_code == 404
+
+
+def test_case_document_category_filter_normalizes_legacy_kora_types():
+    user = _user()
+    _override_user(user)
+    case = CaseRecord(
+        id=f"case-{uuid.uuid4().hex[:6]}",
+        workspace_id=user["workspace_id"],
+        title="Legacy KORA categories",
+        intake=CaseIntake(issue_type="student_safety", issue_categories=["student_safety"]),
+    )
+    cases[case.id] = case
+    incident = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=case.workspace_id,
+        case_id=case.id,
+        filename="Critical Incident Liam Crowley 4-3-26_Redacted.pdf",
+        evidence_type="critical_incident",
+        inferred_category="",
+        processing_status="indexed",
+        status="indexed",
+    )
+    policy = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=case.workspace_id,
+        case_id=case.id,
+        filename="KSA 65-501 School-Age-Programs-Regulation-Book-PDF.pdf",
+        evidence_type="policy",
+        inferred_category="",
+        processing_status="indexed",
+        status="indexed",
+    )
+    case_documents[incident.id] = incident
+    case_documents[policy.id] = policy
+
+    incident_resp = client.get(f"/api/cases/{case.id}/documents?category=incident_safety")
+    assert incident_resp.status_code == 200
+    assert [doc["id"] for doc in incident_resp.json()] == [incident.id]
+
+    policy_resp = client.get(f"/api/cases/{case.id}/documents?category=policy_rules")
+    assert policy_resp.status_code == 200
+    assert [doc["id"] for doc in policy_resp.json()] == [policy.id]
+
+
+def test_case_document_search_includes_case_scoped_semantic_hits(monkeypatch):
+    user = _user()
+    _override_user(user)
+    case = CaseRecord(
+        id=f"case-{uuid.uuid4().hex[:6]}",
+        workspace_id=user["workspace_id"],
+        title="Semantic search case",
+        intake=CaseIntake(issue_type="student_safety", issue_categories=["student_safety"]),
+    )
+    cases[case.id] = case
+    keyword_doc = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=case.workspace_id,
+        case_id=case.id,
+        filename="supervision-note.txt",
+        extracted_text="Staff supervision note.",
+        processing_status="indexed",
+        status="indexed",
+    )
+    semantic_doc = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=case.workspace_id,
+        case_id=case.id,
+        filename="JA report.pdf",
+        extracted_text="No literal query terms here.",
+        processing_status="indexed",
+        status="indexed",
+        qdrant_point_ids=["point-1"],
+    )
+    case_documents[keyword_doc.id] = keyword_doc
+    case_documents[semantic_doc.id] = semantic_doc
+
+    monkeypatch.setattr("app.services.qdrant_client.is_available", lambda: True)
+    monkeypatch.setattr(
+        "app.services.qdrant_client.search_case_documents_semantic",
+        lambda query, case_id, limit=25: [
+            {"document_id": semantic_doc.id, "case_id": case.id, "full_text": "meaning match", "_score": 0.87},
+            {"document_id": "other-case-doc", "case_id": "other", "full_text": "leak", "_score": 0.99},
+        ],
+    )
+
+    resp = client.get(f"/api/cases/{case.id}/documents/search?q=supervision")
+    assert resp.status_code == 200
+    body = resp.json()
+    ids = [doc["id"] for doc in body["documents"]]
+    assert semantic_doc.id in ids
+    assert keyword_doc.id in ids
+    assert "other-case-doc" not in ids
+    assert body["semantic_available"] is True
+    assert body["match_reasons"][semantic_doc.id] == ["meaning"]
 
 
 def test_case_document_insight_fields_serialize():

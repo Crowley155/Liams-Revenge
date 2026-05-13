@@ -372,6 +372,92 @@ export async function sendCaseAdvocateMessage(caseId, content) {
   return res.json();
 }
 
+function parseSseChunk(buffer, onEvent) {
+  let rest = buffer;
+  let boundary = rest.indexOf('\n\n');
+  while (boundary !== -1) {
+    const rawEvent = rest.slice(0, boundary);
+    rest = rest.slice(boundary + 2);
+    let event = 'message';
+    const dataLines = [];
+    rawEvent.split('\n').forEach((line) => {
+      const trimmed = line.trimEnd();
+      if (trimmed.startsWith('event:')) event = trimmed.slice(6).trim();
+      if (trimmed.startsWith('data:')) dataLines.push(trimmed.slice(5).trim());
+    });
+    if (dataLines.length) {
+      const dataText = dataLines.join('\n');
+      const data = JSON.parse(dataText);
+      onEvent?.({ type: event, data });
+    }
+    boundary = rest.indexOf('\n\n');
+  }
+  return rest;
+}
+
+export async function streamCaseAdvocateMessage(caseId, content, { onEvent, signal } = {}) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/messages/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+    signal,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Case Advocate failed: ${res.status}`);
+  }
+  if (!res.body) {
+    const data = await res.json();
+    onEvent?.({ type: 'complete', data });
+    return data.session || data;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let finalSession = null;
+  let streamError = null;
+  const emit = (event) => {
+    if (event.type === 'complete') finalSession = event.data.session;
+    if (event.type === 'error') streamError = new Error(event.data.detail || 'Case Advocate failed');
+    onEvent?.(event);
+  };
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer = parseSseChunk(buffer + decoder.decode(value, { stream: true }), emit);
+  }
+  buffer = parseSseChunk(buffer + decoder.decode(), emit);
+  if (streamError) throw streamError;
+  return finalSession;
+}
+
+export async function approveCaseAdvocateAction(caseId, actionId) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/actions/${actionId}/approve`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Case Advocate action failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export async function rejectCaseAdvocateAction(caseId, actionId) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/advocate/actions/${actionId}/reject`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Case Advocate action failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function updateIntakeFacts(sessionId, facts) {
   const res = await authFetch(`${API_BASE}/api/intake/sessions/${sessionId}/facts`, {
     method: 'PATCH',
@@ -531,6 +617,18 @@ export async function fetchCaseDocuments(caseId, filters = {}) {
   const suffix = params.toString() ? `?${params.toString()}` : '';
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}/documents${suffix}`);
   if (!res.ok) throw new Error(`Failed to fetch case documents: ${res.status}`);
+  return res.json();
+}
+
+export async function searchCaseDocuments(caseId, filters = {}) {
+  requireCaseId(caseId);
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') params.set(key, value);
+  });
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/documents/search${suffix}`);
+  if (!res.ok) throw new Error(`Evidence search failed: ${res.status}`);
   return res.json();
 }
 

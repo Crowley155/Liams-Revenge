@@ -1,10 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ClipboardList, FileText, FileUp, FolderOpen, Home, Loader2, MessageCircle, Send, Sparkles, Users, X } from 'lucide-react';
 import {
+  AlertTriangle,
+  BookOpenCheck,
+  Check,
+  CheckCircle2,
+  ClipboardList,
+  FileText,
+  FileUp,
+  FolderOpen,
+  Home,
+  Loader2,
+  MessageCircle,
+  PanelRightClose,
+  Search,
+  Send,
+  ShieldCheck,
+  StopCircle,
+  Users,
+  XCircle,
+} from 'lucide-react';
+import {
+  approveCaseAdvocateAction,
   fetchCaseAdvocateSession,
   openOrCreateDraftCase,
-  sendCaseAdvocateMessage,
+  rejectCaseAdvocateAction,
+  streamCaseAdvocateMessage,
 } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 
@@ -14,29 +35,11 @@ function caseIdFromPath(pathname) {
 }
 
 function routeContext(pathname) {
-  if (pathname.includes('/locker')) {
-    return {
-      mode: 'Evidence Locker',
-    };
-  }
-  if (pathname.includes('/records')) {
-    return {
-      mode: 'Records Requests',
-    };
-  }
-  if (pathname.includes('/packet')) {
-    return {
-      mode: 'Packet',
-    };
-  }
-  if (pathname.includes('/people')) {
-    return {
-      mode: 'People',
-    };
-  }
-  return {
-    mode: 'Case Plan',
-  };
+  if (pathname.includes('/locker')) return { mode: 'Evidence Locker' };
+  if (pathname.includes('/records')) return { mode: 'Records Requests' };
+  if (pathname.includes('/packet')) return { mode: 'Packet' };
+  if (pathname.includes('/people')) return { mode: 'People' };
+  return { mode: 'Case Plan' };
 }
 
 function latestStructured(session) {
@@ -81,16 +84,50 @@ function localRouteForMessage(content, caseId) {
   return null;
 }
 
+function mergeStreamEvent(prev, event) {
+  const structured = prev?.structured || {};
+  if (event.type === 'message') {
+    return {
+      id: `stream-${Date.now()}`,
+      role: 'assistant',
+      content: event.data.content || '',
+      created_at: new Date().toISOString(),
+      structured: {
+        ...structured,
+        message_parts: event.data.message_parts || structured.message_parts || [],
+        trace_id: event.data.trace_id || structured.trace_id || '',
+        model_route: event.data.model_route || structured.model_route || {},
+      },
+    };
+  }
+  if (!prev) return prev;
+  const keyByType = {
+    source: 'sources',
+    action: 'action_proposals',
+    safety: 'safety_flags',
+  };
+  const key = keyByType[event.type];
+  if (!key) return prev;
+  return {
+    ...prev,
+    structured: {
+      ...structured,
+      [key]: [...(structured[key] || []), event.data],
+    },
+  };
+}
+
 function StructuredQuestionCard({ card, onAnswer, busy }) {
   const options = Array.isArray(card.options) ? card.options.filter(Boolean).slice(0, 5) : [];
   return (
     <div className="case-advocate-question-card">
       <div className="case-advocate-question-header">
-        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+        <BookOpenCheck className="h-3.5 w-3.5" aria-hidden="true" />
         <p className="case-advocate-question-label">Next question</p>
       </div>
       <div className="case-advocate-question-body">
         <p className="case-advocate-question-text">{card.question}</p>
+        {card.why && <p className="case-advocate-question-why">{card.why}</p>}
       </div>
       {options.length > 0 ? (
         <div className="case-advocate-question-options">
@@ -109,32 +146,109 @@ function StructuredQuestionCard({ card, onAnswer, busy }) {
   );
 }
 
-function AdvocateCharacter({ state = 'ready' }) {
+function SourceCards({ sources, onNavigate }) {
+  if (!sources?.length) return null;
   return (
-    <div className={`advocate-character advocate-character-${state}`} aria-hidden="true">
-      <svg viewBox="0 0 96 96" role="img">
-        <defs>
-          <linearGradient id="advocateBody" x1="21" x2="75" y1="16" y2="84" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#a9b8ff" />
-            <stop offset="1" stopColor="#5d76dd" />
-          </linearGradient>
-          <linearGradient id="advocateFolder" x1="21" x2="77" y1="50" y2="77" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#f3c777" />
-            <stop offset="1" stopColor="#d9963d" />
-          </linearGradient>
-        </defs>
-        <path className="advocate-shadow" d="M22 78c6 6 45 7 54 1 4-3 1-8-10-9H34c-11 1-16 5-12 8Z" />
-        <path className="advocate-body" d="M31 18h28l13 14v39c0 7-5 12-12 12H31c-7 0-12-5-12-12V30c0-7 5-12 12-12Z" fill="url(#advocateBody)" />
-        <path className="advocate-fold" d="M59 19v11c0 3 2 5 5 5h8" />
-        <path className="advocate-face" d="M32 42c2-5 7-8 14-8s13 3 16 8" />
-        <circle className="advocate-eye left" cx="38" cy="49" r="3.2" />
-        <circle className="advocate-eye right" cx="56" cy="49" r="3.2" />
-        <path className="advocate-mouth" d="M39 61c6 4 12 4 18 0" />
-        <path className="advocate-folder" d="M20 57h20l5 5h31v12c0 6-4 10-10 10H30c-6 0-10-4-10-10V57Z" fill="url(#advocateFolder)" />
-        <path className="advocate-folder-line" d="M28 70h40" />
-        <path className="advocate-spark one" d="M18 24l2 5 5 2-5 2-2 5-2-5-5-2 5-2 2-5Z" />
-        <path className="advocate-spark two" d="M78 44l2 4 4 2-4 2-2 4-2-4-4-2 4-2 2-4Z" />
-      </svg>
+    <div className="case-advocate-source-list" aria-label="Evidence sources">
+      {sources.slice(0, 4).map((source) => (
+        <button key={source.id} type="button" onClick={() => source.route && onNavigate(source.route)} className="case-advocate-source-card">
+          <span className="case-advocate-source-icon"><Search className="h-3.5 w-3.5" aria-hidden="true" /></span>
+          <span className="min-w-0">
+            <span className="case-advocate-source-title">{source.label || 'Case source'}</span>
+            {source.preview && <span className="case-advocate-source-preview">{source.preview}</span>}
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SafetyFlags({ flags }) {
+  if (!flags?.length) return null;
+  return (
+    <div className="case-advocate-safety-list">
+      {flags.slice(0, 2).map((flag) => (
+        <div key={`${flag.type}-${flag.label}`} className={`case-advocate-safety case-advocate-safety-${flag.severity || 'info'}`}>
+          <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+          <span>{flag.detail || flag.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ActionCards({ actions, busyActionId, onResolve }) {
+  const visible = (actions || []).filter((action) => action?.label).slice(0, 4);
+  if (!visible.length) return null;
+  return (
+    <div className="case-advocate-action-list" aria-label="Action proposals">
+      {visible.map((action) => {
+        const pending = action.status === 'pending';
+        const busy = busyActionId === action.id;
+        return (
+          <div key={action.id} className="case-advocate-action-card">
+            <div className="min-w-0">
+              <p className="case-advocate-action-title">{action.label}</p>
+              {action.description && <p className="case-advocate-action-description">{action.description}</p>}
+              {!pending && (
+                <p className={`case-advocate-action-status case-advocate-action-status-${action.status}`}>
+                  {action.status === 'approved' ? 'Approved' : 'Not now'}
+                </p>
+              )}
+            </div>
+            {pending && (
+              <div className="case-advocate-action-buttons">
+                <button type="button" onClick={() => onResolve(action, 'approve')} disabled={busy} title="Confirm action">
+                  {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+                  Confirm
+                </button>
+                <button type="button" onClick={() => onResolve(action, 'reject')} disabled={busy} title="Reject action">
+                  <XCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Not now
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MessageParts({ parts }) {
+  const blocks = (parts || []).filter((part) => part?.type && part.type !== 'text');
+  if (!blocks.length) return null;
+  return (
+    <div className="case-advocate-part-list">
+      {blocks.map((part, index) => (
+        <div key={`${part.type}-${part.title || index}`} className={`case-advocate-part case-advocate-part-${part.type}`}>
+          {part.title && <p className="case-advocate-part-title">{part.title}</p>}
+          {part.text && <p className="case-advocate-part-text">{part.text}</p>}
+          {!!part.items?.length && (
+            <ul>
+              {part.items.slice(0, 5).map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChatMessage({ item, onNavigate, onResolveAction, busyActionId }) {
+  const structured = item.structured || {};
+  const textPart = structured.message_parts?.find((part) => part.type === 'text' && part.text);
+  const displayText = item.content || textPart?.text || '';
+  if (item.role === 'user') {
+    return <div className="case-advocate-message from-user">{displayText}</div>;
+  }
+  return (
+    <div className="case-advocate-message from-advocate">
+      {displayText && <p className="case-advocate-message-copy">{displayText}</p>}
+      <MessageParts parts={structured.message_parts} />
+      <SourceCards sources={structured.sources} onNavigate={onNavigate} />
+      <SafetyFlags flags={structured.safety_flags} />
+      <ActionCards actions={structured.action_proposals} busyActionId={busyActionId} onResolve={onResolveAction} />
     </div>
   );
 }
@@ -145,14 +259,19 @@ export default function FloatingCaseAdvocate() {
   const navigate = useNavigate();
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
+  const abortRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [session, setSession] = useState(null);
+  const [streamMessage, setStreamMessage] = useState(null);
+  const [streamStatus, setStreamStatus] = useState('');
   const [message, setMessage] = useState('');
   const [activeQuestion, setActiveQuestion] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [busyActionId, setBusyActionId] = useState('');
   const [error, setError] = useState('');
 
   const caseId = caseIdFromPath(location.pathname);
+  const inCaseWorkspace = Boolean(caseId);
   const context = useMemo(() => routeContext(location.pathname), [location.pathname]);
   const routeShortcuts = useMemo(() => {
     if (!caseId) return [];
@@ -179,10 +298,10 @@ export default function FloatingCaseAdvocate() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [session?.messages?.length, open]);
+  }, [session?.messages?.length, streamMessage?.content, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     const timer = window.setTimeout(() => textareaRef.current?.focus(), 120);
     return () => window.clearTimeout(timer);
   }, [open, activeQuestion?.id]);
@@ -200,6 +319,8 @@ export default function FloatingCaseAdvocate() {
   useEffect(() => {
     loadSession();
   }, [loadSession]);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const openAdvocate = async () => {
     if (!isAuthenticated || loading) return;
@@ -228,6 +349,13 @@ export default function FloatingCaseAdvocate() {
     await openAdvocate();
   };
 
+  const cancelStream = () => {
+    abortRef.current?.abort();
+    setBusy(false);
+    setStreamStatus('');
+    setStreamMessage(null);
+  };
+
   const sendMessage = async (content, questionCard = activeQuestion) => {
     const next = (content || message).trim();
     if (!next || !caseId || busy) return;
@@ -242,6 +370,8 @@ export default function FloatingCaseAdvocate() {
     setActiveQuestion(null);
     setBusy(true);
     setError('');
+    setStreamStatus('');
+    setStreamMessage(null);
     const localRoute = questionCard ? null : localRouteForMessage(next, caseId);
     const optimistic = session ? {
       ...session,
@@ -261,6 +391,7 @@ export default function FloatingCaseAdvocate() {
             role: 'assistant',
             content: `I opened ${localRoute.label}. I will stay here if you need help with the next step.`,
             created_at: new Date().toISOString(),
+            structured: { message_parts: [{ type: 'text', text: `I opened ${localRoute.label}. I will stay here if you need help with the next step.` }] },
           },
         ],
       } : optimistic;
@@ -269,14 +400,47 @@ export default function FloatingCaseAdvocate() {
       setBusy(false);
       return;
     }
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const updated = await sendCaseAdvocateMessage(caseId, outbound);
-      setSession(updated);
+      const updated = await streamCaseAdvocateMessage(caseId, outbound, {
+        signal: controller.signal,
+        onEvent: (event) => {
+          if (event.type === 'status') setStreamStatus(event.data.label || 'Working');
+          if (['message', 'source', 'action', 'safety'].includes(event.type)) {
+            setStreamMessage((prev) => mergeStreamEvent(prev, event));
+          }
+        },
+      });
+      if (updated) setSession(updated);
       window.dispatchEvent(new CustomEvent('usdwatch:case-updated', { detail: { caseId } }));
     } catch (err) {
-      setError(err.message || 'Case Advocate could not respond');
+      if (err.name !== 'AbortError') {
+        setError(err.message || 'Case Advocate could not respond');
+      }
     } finally {
+      abortRef.current = null;
       setBusy(false);
+      setStreamStatus('');
+      setStreamMessage(null);
+    }
+  };
+
+  const resolveAction = async (action, decision) => {
+    if (!caseId || !action?.id || busyActionId) return;
+    setBusyActionId(action.id);
+    setError('');
+    try {
+      const result = decision === 'approve'
+        ? await approveCaseAdvocateAction(caseId, action.id)
+        : await rejectCaseAdvocateAction(caseId, action.id);
+      if (result.session) setSession(result.session);
+      if (decision === 'approve' && result.route) navigate(result.route);
+      if (result.executed) window.dispatchEvent(new CustomEvent('usdwatch:case-updated', { detail: { caseId } }));
+    } catch (err) {
+      setError(err.message || 'Could not update the action');
+    } finally {
+      setBusyActionId('');
     }
   };
 
@@ -302,46 +466,75 @@ export default function FloatingCaseAdvocate() {
 
   if (!isAuthenticated) return null;
 
-  const characterState = busy ? 'thinking' : (currentQuestion ? 'gap' : 'ready');
+  const messages = session?.messages || [];
 
   return (
-    <div className={`case-advocate-widget ${open ? 'is-open' : ''}`}>
+    <div className={`case-advocate-widget ${open ? 'is-open' : ''} ${inCaseWorkspace ? 'is-case-sidecar' : ''}`}>
       {open && (
         <section className="case-advocate-panel" aria-label="Case Advocate">
           <header className="case-advocate-header">
-            <div className="flex min-w-0 items-center gap-3">
-              <AdvocateCharacter state={characterState} />
+            <div className="case-advocate-header-main">
+              <span className="case-advocate-mark"><ShieldCheck className="h-4 w-4" aria-hidden="true" /></span>
               <div className="min-w-0">
-                <p className="text-xs font-medium text-accent">Case Advocate</p>
-                <h2 className="truncate text-base font-bold">Building with you</h2>
+                <p className="case-advocate-kicker">Case Advocate</p>
+                <h2 className="truncate text-base font-bold">Case sidecar</h2>
                 <p className="truncate text-xs text-text-dim">{context.mode}</p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-md p-2 text-text-dim transition-colors hover:bg-surface-alt hover:text-text"
+              className="case-advocate-icon-button"
               aria-label="Close Case Advocate"
+              title="Close Case Advocate"
             >
-              <X className="h-4 w-4" aria-hidden="true" />
+              <PanelRightClose className="h-4 w-4" aria-hidden="true" />
             </button>
           </header>
 
+          <div className="case-advocate-status-row">
+            <span className="case-advocate-status-pill">
+              <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
+              Confirm-first actions
+            </span>
+            {structured?.model_route?.model && (
+              <span className="case-advocate-model-pill">{structured.model_route.fallback ? 'Fallback' : 'Hosted'} model</span>
+            )}
+          </div>
+
           <div className="case-advocate-messages">
-            {(session?.messages || []).map((item) => (
-              <div key={item.id} className={`case-advocate-message ${item.role === 'user' ? 'from-user' : 'from-advocate'}`}>
-                {item.content}
-              </div>
+            {messages.map((item) => (
+              <ChatMessage
+                key={item.id}
+                item={item}
+                onNavigate={navigate}
+                onResolveAction={resolveAction}
+                busyActionId={busyActionId}
+              />
             ))}
+            {streamMessage && (
+              <ChatMessage
+                item={streamMessage}
+                onNavigate={navigate}
+                onResolveAction={resolveAction}
+                busyActionId={busyActionId}
+              />
+            )}
             {!session && !caseId && (
               <div className="case-advocate-message from-advocate">
-                I can start a Draft Case workspace and stay with you while you build the story, evidence, records plan, and packet.
+                <p className="case-advocate-message-copy">
+                  I can start a Draft Case workspace and stay with you while you build the story, evidence, records plan, and packet.
+                </p>
               </div>
             )}
             {busy && (
               <div className="case-advocate-thinking" role="status" aria-live="polite">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Organizing the case file...
+                {streamStatus || 'Organizing the case file...'}
+                <button type="button" onClick={cancelStream}>
+                  <StopCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Stop
+                </button>
               </div>
             )}
             <div ref={chatEndRef} />
@@ -373,7 +566,7 @@ export default function FloatingCaseAdvocate() {
               value={message}
               onChange={(event) => setMessage(event.target.value)}
               onKeyDown={handleComposerKeyDown}
-              placeholder={activeQuestion?.question || (caseId ? 'Tell me what to help organize next...' : 'Open a draft case to start...')}
+              placeholder={activeQuestion?.question || (caseId ? 'Ask about evidence, gaps, records, or next steps...' : 'Open a draft case to start...')}
               disabled={busy || (!caseId && open)}
             />
             <button type="submit" disabled={busy || !message.trim() || !caseId} aria-label="Send to Case Advocate">
@@ -391,9 +584,6 @@ export default function FloatingCaseAdvocate() {
         aria-expanded={open}
         disabled={busy && !open}
       >
-        <span className="case-advocate-launcher-character">
-          <AdvocateCharacter state={busy ? 'thinking' : 'ready'} />
-        </span>
         <span className="case-advocate-launcher-icon">
           {busy && !open ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" /> : <MessageCircle className="h-5 w-5" aria-hidden="true" />}
         </span>

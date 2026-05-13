@@ -367,6 +367,39 @@ def search_semantic(query: str, person_id: str | None = None, limit: int = 10) -
         return []
 
 
+def search_case_documents_semantic(query: str, case_id: str, limit: int = 25) -> list[dict]:
+    """Semantic search across uploaded evidence chunks for one case."""
+    client = _get_client()
+    if not client or not query.strip() or not case_id:
+        return []
+
+    embedding = _embed_text(query)
+    if not embedding:
+        return []
+
+    try:
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
+
+        results = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=embedding,
+            query_filter=Filter(
+                must=[
+                    FieldCondition(key="case_id", match=MatchValue(value=case_id)),
+                ]
+            ),
+            limit=limit,
+            score_threshold=0.45,
+        )
+        return [
+            {**point.payload, "_score": point.score}
+            for point in results
+        ]
+    except Exception as e:
+        logger.warning("Qdrant case semantic search failed for case %s: %s", case_id, e)
+        return []
+
+
 def store_enrichment_doc(person_id: str, source: str, text: str, metadata: dict | None = None):
     """
     Store enrichment results (Clay, research, etc.) as searchable documents.

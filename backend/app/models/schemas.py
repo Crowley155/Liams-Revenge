@@ -230,6 +230,48 @@ class CaseIntakeQuestion(BaseModel):
     priority: int = Field(default=1, ge=1, le=5)
 
 
+class AdvocateMessagePart(BaseModel):
+    type: str = Field(default="text", description="text | checklist | source_claim | status")
+    title: str = ""
+    text: str = ""
+    items: list[str] = Field(default_factory=list)
+    source_ids: list[str] = Field(default_factory=list)
+    severity: str = Field(default="info", description="info | success | warning | danger")
+
+
+class AdvocateSource(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    type: str = Field(default="document", description="document | case | route | records")
+    label: str = ""
+    preview: str = ""
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    route: str = ""
+    document_id: str = ""
+    case_id: str = ""
+
+
+class AdvocateActionProposal(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    type: str = Field(
+        default="navigate",
+        description="navigate | open_evidence_locker | draft_records_request | search_gmail | import_selected_gmail | start_case_read | update_family_narrative",
+    )
+    label: str = ""
+    description: str = ""
+    payload: dict = Field(default_factory=dict)
+    requires_confirmation: bool = True
+    status: str = Field(default="pending", description="pending | approved | rejected | expired")
+    created_at: datetime = Field(default_factory=utc_now)
+    resolved_at: Optional[datetime] = None
+
+
+class AdvocateSafetyFlag(BaseModel):
+    type: str = Field(default="low_confidence", description="legal_boundary | urgent_safety | missing_evidence | low_confidence")
+    label: str = ""
+    detail: str = ""
+    severity: str = Field(default="info", description="info | warning | danger")
+
+
 class CaseIntakeAnalysis(BaseModel):
     facts: CaseIntakeFacts = Field(default_factory=CaseIntakeFacts)
     confidence: dict[str, float] = Field(default_factory=dict)
@@ -243,6 +285,12 @@ class CaseIntakeAnalysis(BaseModel):
     suggested_actions: list[str] = Field(default_factory=list)
     route_suggestion: str = ""
     agent_run_ids: list[str] = Field(default_factory=list)
+    message_parts: list[AdvocateMessagePart] = Field(default_factory=list)
+    sources: list[AdvocateSource] = Field(default_factory=list)
+    action_proposals: list[AdvocateActionProposal] = Field(default_factory=list)
+    safety_flags: list[AdvocateSafetyFlag] = Field(default_factory=list)
+    model_route: dict = Field(default_factory=dict)
+    trace_id: str = ""
 
 
 class CaseIntakeMessage(BaseModel):

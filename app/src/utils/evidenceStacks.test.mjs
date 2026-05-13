@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
   buildSmartStacks,
+  documentCategoryLabel,
+  documentCategoryOf,
   documentInsightSummary,
   evidenceRoleLabel,
   filterEvidenceDocuments,
@@ -44,6 +46,26 @@ const docs = [
     source_person: 'Principal',
     uploaded_at: '2026-04-26T12:00:00Z',
   },
+  {
+    id: 'legacy-kora-1',
+    filename: 'Critical Incident Liam Crowley 4-3-26_Redacted.pdf',
+    evidence_type: 'critical_incident',
+    inferred_category: '',
+    processing_status: 'indexed',
+    tags: [],
+    document_date: '2026-04-03',
+    uploaded_at: '2026-04-25T12:00:00Z',
+  },
+  {
+    id: 'policy-1',
+    filename: 'KSA 65-501 School-Age-Programs-Regulation-Book-PDF.pdf',
+    evidence_type: 'policy',
+    inferred_category: '',
+    processing_status: 'indexed',
+    tags: [],
+    document_date: '',
+    uploaded_at: '2026-04-24T12:00:00Z',
+  },
 ];
 
 test('buildSmartStacks derives multi-membership document groups', () => {
@@ -52,11 +74,12 @@ test('buildSmartStacks derives multi-membership document groups', () => {
 
   assert.equal(byKey.needs_attention, 1);
   assert.equal(byKey.highly_relevant, 1);
-  assert.equal(byKey.incident_safety, 1);
+  assert.equal(byKey.incident_safety, 2);
   assert.equal(byKey.medical_provider, 1);
+  assert.equal(byKey.policy_rules, 1);
   assert.equal(byKey.messages, 1);
-  assert.equal(byKey.no_date, 1);
-  assert.equal(byKey.recently_added, 3);
+  assert.equal(byKey.no_date, 2);
+  assert.equal(byKey.recently_added, 5);
 });
 
 test('filterDocumentsByStack keeps smart stacks as filters rather than folders', () => {
@@ -71,6 +94,14 @@ test('filterEvidenceDocuments supports category, status, and text filters', () =
     ['message-1'],
   );
   assert.deepEqual(
+    filterEvidenceDocuments(docs, { category: 'incident_safety', status: '', q: '' }).map((doc) => doc.id),
+    ['incident-1', 'legacy-kora-1'],
+  );
+  assert.deepEqual(
+    filterEvidenceDocuments(docs, { category: 'policy_rules', status: '', q: '' }).map((doc) => doc.id),
+    ['policy-1'],
+  );
+  assert.deepEqual(
     filterEvidenceDocuments(docs, { category: '', status: 'needs_review', q: '' }).map((doc) => doc.id),
     ['medical-1'],
   );
@@ -78,6 +109,13 @@ test('filterEvidenceDocuments supports category, status, and text filters', () =
     filterEvidenceDocuments(docs, { category: '', status: '', q: 'supervision' }).map((doc) => doc.id),
     ['incident-1'],
   );
+});
+
+test('legacy KORA evidence types are normalized into parent-facing categories', () => {
+  assert.equal(documentCategoryOf(docs[3]), 'incident_safety');
+  assert.equal(documentCategoryLabel(docs[3], (value) => value), 'Incident and safety');
+  assert.equal(documentCategoryOf(docs[4]), 'policy_rules');
+  assert.equal(documentCategoryLabel({ inferred_category: '' }, (value) => value), 'Other');
 });
 
 test('documentInsightSummary shows parent-readable insight fallback text', () => {

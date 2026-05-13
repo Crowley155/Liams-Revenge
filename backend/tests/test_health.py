@@ -192,6 +192,33 @@ def test_backfill_can_target_ready_docs_missing_relevance_metadata(monkeypatch):
     assert case_documents[missing.id].relevance_model == "deterministic:evidence-relevance-v1"
 
 
+def test_metadata_backfill_assigns_categories_from_legacy_evidence_types(monkeypatch):
+    from app.api._store import case_documents
+    from app.models import CaseDocument
+    from app.scripts import backfill_document_metadata as metadata_backfill
+
+    workspace_id = f"metadata-{uuid.uuid4().hex[:6]}"
+    incident = CaseDocument(
+        id=f"doc-{uuid.uuid4().hex[:6]}",
+        workspace_id=workspace_id,
+        filename="Critical Incident Liam Crowley 4-3-26_Redacted.pdf",
+        evidence_type="critical_incident",
+        inferred_category="",
+        extracted_text="Critical incident report involving supervision and injury.",
+    )
+    case_documents[incident.id] = incident
+
+    result = metadata_backfill.backfill_document_metadata(
+        limit=10,
+        workspace_id=workspace_id,
+    )
+
+    assert result["processed"] == 1
+    assert result["updated_metadata"] == 1
+    assert case_documents[incident.id].inferred_category == "incident_safety"
+    assert "incident_safety" in case_documents[incident.id].tags
+
+
 def test_job_not_found_for_authenticated_user():
     _override_user(_user())
     resp = client.get("/api/research/nonexistent")

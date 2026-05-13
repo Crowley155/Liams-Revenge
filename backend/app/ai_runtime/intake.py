@@ -4,11 +4,21 @@ from app.time import utc_now
 
 import json
 import re
-from datetime import datetime
 
 from app.api._store import agent_runs
 from app.config import settings
-from app.models import AgentRun, CaseIntakeAnalysis, CaseIntakeFacts, CaseIntakeMessage, CaseIntakeQuestion, CaseIntakeSession
+from app.models import (
+    AdvocateActionProposal,
+    AdvocateMessagePart,
+    AdvocateSafetyFlag,
+    AdvocateSource,
+    AgentRun,
+    CaseIntakeAnalysis,
+    CaseIntakeFacts,
+    CaseIntakeMessage,
+    CaseIntakeQuestion,
+    CaseIntakeSession,
+)
 
 REASONING_MODEL = settings.deepinfra_reasoning_model
 FALLBACK_MODEL = settings.deepinfra_fallback_model
@@ -47,6 +57,13 @@ def _conversation_text(session: CaseIntakeSession) -> str:
 
 def _user_text(session: CaseIntakeSession) -> str:
     return "\n".join(message.content for message in session.messages if message.role == "user").strip()
+
+
+def _latest_user_message(session: CaseIntakeSession) -> str:
+    for message in reversed(session.messages):
+        if message.role == "user":
+            return message.content
+    return ""
 
 
 def _merge_facts(base: CaseIntakeFacts, patch: CaseIntakeFacts | dict, overrides: dict | None = None) -> CaseIntakeFacts:
@@ -153,7 +170,184 @@ def _infer_desired_outcomes(text: str) -> list[str]:
     return outcomes or ["Understand what records to request"]
 
 
-def _heuristic_analysis(session: CaseIntakeSession) -> CaseIntakeAnalysis:
+def _as_source(item: dict) -> AdvocateSource | None:
+    try:
+        return AdvocateSource(**item)
+    except Exception:
+        return None
+
+
+def _context_sources(context: dict | None) -> list[AdvocateSource]:
+    sources: list[AdvocateSource] = []
+    for item in (context or {}).get("evidence_sources", []):
+        source = _as_source(item)
+        if source:
+            sources.append(source)
+    return sources
+
+
+def _safe_route(context: dict | None, suffix: str = "") -> str:
+    base = (context or {}).get("route_base") or ""
+    return f"{base}{suffix}" if base else suffix
+
+
+def _action_proposals_for_message(message: str, context: dict | None) -> list[AdvocateActionProposal]:
+    lowered = message.lower()
+    actions: list[AdvocateActionProposal] = []
+    if any(word in lowered for word in ("evidence", "locker", "upload", "document", "file", "pdf", "incident report")):
+        actions.append(AdvocateActionProposal(
+            type="open_evidence_locker",
+            label="Open Evidence Locker",
+            description="Go to the evidence workspace so you can review or upload source records.",
+            payload={"route": _safe_route(context, "/locker")},
+        ))
+    if any(word in lowered for word in ("records", "kora", "foia", "request")):
+        actions.append(AdvocateActionProposal(
+            type="draft_records_request",
+            label="Review Records Requests",
+            description="Open the records workspace before any request is drafted or sent.",
+            payload={"route": _safe_route(context, "/records")},
+        ))
+    if any(word in lowered for word in ("gmail", "email import", "search email", "search gmail")):
+        actions.append(AdvocateActionProposal(
+            type="search_gmail",
+            label="Review Gmail Import",
+            description="Check connected Gmail evidence settings before any messages are searched or imported.",
+            payload={"route": _safe_route(context, "/locker"), "mode": "gmail"},
+        ))
+    if any(word in lowered for word in ("case read", "evaluate", "evaluation", "run the read")):
+        actions.append(AdvocateActionProposal(
+            type="start_case_read",
+            label="Prepare Case Read",
+            description="Review the case file before starting a Case Read.",
+            payload={"route": _safe_route(context, "")},
+        ))
+    if any(word in lowered for word in ("plan", "overview", "case plan")):
+        actions.append(AdvocateActionProposal(
+            type="navigate",
+            label="Open Case Plan",
+            description="Go back to the case plan overview.",
+            payload={"route": _safe_route(context, "")},
+        ))
+    return actions[:3]
+
+
+def _safety_flags_for_message(message: str, facts: CaseIntakeFacts, sources: list[AdvocateSource]) -> list[AdvocateSafetyFlag]:
+    lowered = message.lower()
+    flags: list[AdvocateSafetyFlag] = []
+    if any(word in lowered for word in ("legal advice", "sue", "lawsuit", "attorney", "lawyer", "file a complaint")):
+        flags.append(AdvocateSafetyFlag(
+            type="legal_boundary",
+            label="Information only",
+            detail="The Advocate can organize facts and prepare questions, but it should not be treated as legal advice.",
+            severity="warning",
+        ))
+    if facts.safety_risk or facts.urgent or facts.urgency_level in {"urgent", "immediate"}:
+        flags.append(AdvocateSafetyFlag(
+            type="urgent_safety",
+            label="Safety concern",
+            detail="Current safety concerns should stay visible while the case file is organized.",
+            severity="warning",
+        ))
+    if any(word in lowered for word in ("evidence", "proof", "document", "record", "timeline", "contradiction")) and not sources:
+        flags.append(AdvocateSafetyFlag(
+            type="missing_evidence",
+            label="No matching source found",
+            detail="The answer should be treated as a planning note until matching evidence is added or found.",
+            severity="info",
+        ))
+    return flags[:3]
+
+
+def _default_message_parts(
+    assistant_message: str,
+    sources: list[AdvocateSource],
+    actions: list[AdvocateActionProposal],
+    safety_flags: list[AdvocateSafetyFlag],
+) -> list[AdvocateMessagePart]:
+    parts = [AdvocateMessagePart(type="text", text=assistant_message)]
+    if sources:
+        parts.append(AdvocateMessagePart(
+            type="source_claim",
+            title="Sources checked",
+            text="I found matching evidence in the case file.",
+            source_ids=[source.id for source in sources[:4]],
+        ))
+    if actions:
+        parts.append(AdvocateMessagePart(
+            type="checklist",
+            title="Confirm before I do anything",
+            items=[action.label for action in actions],
+            severity="warning",
+        ))
+    if safety_flags:
+        parts.append(AdvocateMessagePart(
+            type="status",
+            title="Boundary to keep in mind",
+            text=safety_flags[0].detail or safety_flags[0].label,
+            severity=safety_flags[0].severity,
+        ))
+    return parts
+
+
+def _normalize_manager_output(
+    analysis: CaseIntakeAnalysis,
+    session: CaseIntakeSession,
+    context: dict | None,
+    *,
+    fallback: bool,
+    model_id: str,
+    error: str = "",
+) -> CaseIntakeAnalysis:
+    latest_message = _latest_user_message(session)
+    allowed_sources = {source.id: source for source in _context_sources(context)}
+    allowed_doc_ids = {source.document_id: source for source in allowed_sources.values() if source.document_id}
+    normalized_sources: list[AdvocateSource] = []
+    for source in analysis.sources:
+        if source.id in allowed_sources:
+            normalized_sources.append(allowed_sources[source.id])
+        elif source.document_id in allowed_doc_ids:
+            normalized_sources.append(allowed_doc_ids[source.document_id])
+    if not normalized_sources:
+        normalized_sources = list(allowed_sources.values())[:4]
+
+    action_proposals = analysis.action_proposals or _action_proposals_for_message(latest_message, context)
+    for action in action_proposals:
+        action.requires_confirmation = True
+        if action.status not in {"approved", "rejected", "expired"}:
+            action.status = "pending"
+        if not action.payload.get("route"):
+            route_by_type = {
+                "open_evidence_locker": _safe_route(context, "/locker"),
+                "draft_records_request": _safe_route(context, "/records"),
+                "search_gmail": _safe_route(context, "/locker"),
+                "start_case_read": _safe_route(context, ""),
+                "navigate": _safe_route(context, ""),
+            }
+            if action.type in route_by_type:
+                action.payload = {**action.payload, "route": route_by_type[action.type]}
+
+    safety_flags = analysis.safety_flags or _safety_flags_for_message(latest_message, analysis.facts, normalized_sources)
+    if not analysis.assistant_message:
+        analysis.assistant_message = _assistant_message(analysis.facts, analysis.missing_fields, analysis.next_question)
+    if not analysis.message_parts:
+        analysis.message_parts = _default_message_parts(analysis.assistant_message, normalized_sources, action_proposals, safety_flags)
+    analysis.sources = normalized_sources
+    analysis.action_proposals = action_proposals[:4]
+    analysis.safety_flags = safety_flags
+    analysis.model_route = {
+        "runtime": "agno",
+        "agent": "case_advocate_manager",
+        "model": model_id,
+        "provider": "deepinfra",
+        "fallback": fallback,
+        "error": error,
+    }
+    analysis.trace_id = analysis.trace_id or f"adv-{session.id}-{utc_now().strftime('%Y%m%d%H%M%S')}"
+    return analysis
+
+
+def _heuristic_analysis(session: CaseIntakeSession, context: dict | None = None) -> CaseIntakeAnalysis:
     text = _user_text(session)
     lowered = text.lower()
     categories = _infer_issue_categories(text)
@@ -210,6 +404,10 @@ def _heuristic_analysis(session: CaseIntakeSession) -> CaseIntakeAnalysis:
     if not facts.prior_actions:
         suggested_actions.append("Share what you have already tried so records and next steps fit the real history.")
     question_cards = _question_cards(facts, missing, next_question)
+    assistant_message = _assistant_message(facts, missing, next_question)
+    sources = _context_sources(context)
+    actions = _action_proposals_for_message(_latest_user_message(session), context)
+    safety_flags = _safety_flags_for_message(_latest_user_message(session), facts, sources)
     return CaseIntakeAnalysis(
         facts=facts,
         confidence=confidence,
@@ -217,11 +415,15 @@ def _heuristic_analysis(session: CaseIntakeSession) -> CaseIntakeAnalysis:
         issue_tags=facts.issue_categories,
         next_question=next_question,
         question_cards=question_cards,
-        assistant_message=_assistant_message(facts, missing, next_question),
+        assistant_message=assistant_message,
         draft_title=facts.title or "New school case",
         family_narrative_patch=narrative,
         suggested_actions=suggested_actions[:3],
         route_suggestion="",
+        message_parts=_default_message_parts(assistant_message, sources, actions, safety_flags),
+        sources=sources,
+        action_proposals=actions,
+        safety_flags=safety_flags,
     )
 
 
@@ -305,18 +507,18 @@ def _assistant_message(facts: CaseIntakeFacts, missing: list[str], next_question
     return prefix
 
 
-def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MODEL) -> CaseIntakeAnalysis:
+def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MODEL, context: dict | None = None) -> CaseIntakeAnalysis:
     if not settings.has_deepinfra:
         raise RuntimeError("DEEPINFRA_API_KEY is not configured")
     from agno.agent import Agent
     from agno.models.deepinfra import DeepInfra
 
     agent = Agent(
-        name="USDWatch Case Advocate Intake",
+        name="USDWatch Case Advocate Manager",
         model=DeepInfra(id=model_id, temperature=0.1, max_tokens=2500),
         output_schema=CaseIntakeAnalysis,
         instructions=[
-            "You are a careful parent-facing case advocate intake agent.",
+            "You are a careful parent-facing case advocate manager for a private school case file.",
             "Extract only facts supported by the parent messages; leave uncertain fields blank.",
             "Ask one practical follow-up question at a time.",
             "Put the follow-up question in next_question and question_cards, not buried inside assistant_message.",
@@ -325,14 +527,19 @@ def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MOD
             "Question card options must be complete short sentence answers, not labels.",
             "Write a concise family_narrative_patch in the parent's plain-language voice when enough story exists.",
             "Return suggested_actions that help the parent fill case-file gaps, upload evidence, or track records.",
+            "Return message_parts so the UI can render text, source-backed claims, checklists, and status boundaries.",
+            "Only cite sources from the provided evidence_sources list. Do not invent document ids or facts.",
+            "Return action_proposals only for useful next actions. Every action requires confirmation before execution.",
+            "Use safety_flags for legal-advice boundaries, current safety urgency, missing evidence, or low confidence.",
             "Do not provide legal advice or promise outcomes.",
         ],
         markdown=False,
     )
     prompt = "\n\n".join([
-        "Analyze this intake conversation and return structured JSON.",
+        "Analyze this case conversation and return structured JSON for the Case Advocate sidecar.",
         f"Current facts:\n{session.facts.model_dump_json()}",
         f"User overrides:\n{json.dumps(session.user_overrides)}",
+        f"Case context:\n{json.dumps(context or {}, default=str)}",
         f"Conversation:\n{_conversation_text(session)}",
     ])
     response = agent.run(prompt)
@@ -344,12 +551,12 @@ def _run_agno_analysis(session: CaseIntakeSession, model_id: str = REASONING_MOD
     return CaseIntakeAnalysis.model_validate_json(str(content))
 
 
-def analyze_intake_session(session: CaseIntakeSession) -> CaseIntakeSession:
+def analyze_intake_session(session: CaseIntakeSession, context: dict | None = None) -> CaseIntakeSession:
     run = AgentRun(
         workspace_id=session.workspace_id,
         case_id=session.draft_case_id or "intake",
         evaluation_id=session.id,
-        agent_id="case_advocate_intake",
+        agent_id="case_advocate_manager",
         status="running",
         model_id=REASONING_MODEL,
     )
@@ -357,20 +564,36 @@ def analyze_intake_session(session: CaseIntakeSession) -> CaseIntakeSession:
     try:
         try:
             try:
-                analysis = _run_agno_analysis(session, REASONING_MODEL)
+                analysis = _run_agno_analysis(session, REASONING_MODEL, context)
             except Exception as primary_exc:
                 if REASONING_MODEL == FALLBACK_MODEL or not settings.has_deepinfra:
                     raise
                 run.model_id = FALLBACK_MODEL
                 run.status = "fallback_model"
                 run.error = f"Primary model {REASONING_MODEL} failed: {primary_exc}"
-                analysis = _run_agno_analysis(session, FALLBACK_MODEL)
+                analysis = _run_agno_analysis(session, FALLBACK_MODEL, context)
             if run.status != "fallback_model":
                 run.status = "complete"
+            analysis = _normalize_manager_output(
+                analysis,
+                session,
+                context,
+                fallback=run.status == "fallback_model",
+                model_id=run.model_id,
+                error=run.error or "",
+            )
         except Exception as exc:
-            analysis = _heuristic_analysis(session)
+            analysis = _heuristic_analysis(session, context)
             run.status = "fallback"
             run.error = str(exc)
+            analysis = _normalize_manager_output(
+                analysis,
+                session,
+                context,
+                fallback=True,
+                model_id=run.model_id or REASONING_MODEL,
+                error=str(exc),
+            )
 
         session.facts = _merge_facts(session.facts, analysis.facts, session.user_overrides)
         session.confidence = {**session.confidence, **analysis.confidence}
@@ -392,6 +615,12 @@ def analyze_intake_session(session: CaseIntakeSession) -> CaseIntakeSession:
                     "route_suggestion": analysis.route_suggestion,
                     "confidence": analysis.confidence,
                     "agent_run_ids": analysis.agent_run_ids,
+                    "message_parts": [part.model_dump(mode="json") for part in analysis.message_parts],
+                    "sources": [source.model_dump(mode="json") for source in analysis.sources],
+                    "action_proposals": [action.model_dump(mode="json") for action in analysis.action_proposals],
+                    "safety_flags": [flag.model_dump(mode="json") for flag in analysis.safety_flags],
+                    "model_route": analysis.model_route,
+                    "trace_id": analysis.trace_id,
                 },
             ))
         session.updated_at = utc_now()

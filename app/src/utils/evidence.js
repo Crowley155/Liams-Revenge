@@ -8,6 +8,7 @@ export const EVIDENCE_CATEGORY_OPTIONS = [
   { value: 'school_records', label: 'School records' },
   { value: 'iep_504_services', label: 'IEP/504 and services' },
   { value: 'incident_safety', label: 'Incident and safety' },
+  { value: 'policy_rules', label: 'Policies and rules' },
   { value: 'medical_provider', label: 'Medical/outside provider' },
   { value: 'complaints_agency', label: 'Complaints and agency letters' },
   { value: 'photos_screenshots', label: 'Photos/screenshots' },
@@ -48,8 +49,56 @@ export function evidenceStatusOf(doc) {
   return doc.processing_status || doc.status || 'uploaded';
 }
 
+export const EVIDENCE_TYPE_CATEGORY_MAP = {
+  communications: 'messages',
+  email_export: 'messages',
+  email_message: 'messages',
+  message: 'messages',
+  meeting_notes: 'school_records',
+  school_record: 'school_records',
+  board_minutes: 'school_records',
+  attendance: 'school_records',
+  iep_504: 'iep_504_services',
+  evaluation: 'iep_504_services',
+  accommodation: 'iep_504_services',
+  critical_incident: 'incident_safety',
+  incident_report: 'incident_safety',
+  prior_incident: 'incident_safety',
+  staff_log: 'incident_safety',
+  staff_training: 'incident_safety',
+  safety_record: 'incident_safety',
+  medical: 'medical_provider',
+  provider_record: 'medical_provider',
+  agency_letter: 'complaints_agency',
+  complaint: 'complaints_agency',
+  licensing: 'complaints_agency',
+  investigation: 'complaints_agency',
+  policy: 'policy_rules',
+  regulation: 'policy_rules',
+  lease_contract: 'policy_rules',
+  insurance: 'policy_rules',
+  photo: 'photos_screenshots',
+  screenshot: 'photos_screenshots',
+  image: 'photos_screenshots',
+};
+
+export function documentCategoryOf(doc = {}) {
+  if (doc.inferred_category && doc.inferred_category !== 'other') return doc.inferred_category;
+  const taggedCategory = (doc.tags || []).find((tag) => EVIDENCE_CATEGORY_OPTIONS.some((option) => option.value === tag));
+  if (taggedCategory && taggedCategory !== 'other') return taggedCategory;
+  const mapped = EVIDENCE_TYPE_CATEGORY_MAP[doc.evidence_type || ''];
+  if (mapped) return mapped;
+  return doc.inferred_category || taggedCategory || 'other';
+}
+
 export function evidenceCategoryLabel(value, fallbackFormatter) {
   return EVIDENCE_CATEGORY_OPTIONS.find((item) => item.value === value)?.label || fallbackFormatter(value || 'evidence');
+}
+
+export function documentCategoryLabel(doc, fallbackFormatter) {
+  const category = documentCategoryOf(doc);
+  if (!category) return 'Uncategorized';
+  return evidenceCategoryLabel(category, fallbackFormatter);
 }
 
 export function evidenceRoleLabel(value, fallbackFormatter = (item) => item) {
@@ -82,6 +131,7 @@ export const SMART_STACKS = [
   { key: 'highly_relevant', label: 'Highly relevant' },
   { key: 'incident_safety', label: 'Incident and safety' },
   { key: 'medical_provider', label: 'Medical/provider' },
+  { key: 'policy_rules', label: 'Policies and rules' },
   { key: 'messages', label: 'Messages' },
   { key: 'school_records', label: 'School records' },
   { key: 'no_date', label: 'No date' },
@@ -91,7 +141,7 @@ export const SMART_STACKS = [
 export function stackMatchesDocument(doc, stackKey) {
   if (!stackKey || stackKey === 'all') return true;
   const status = evidenceStatusOf(doc);
-  const category = doc.inferred_category || doc.evidence_type || '';
+  const category = documentCategoryOf(doc);
   if (stackKey === 'needs_attention') {
     return ['needs_review', 'failed'].includes(status) || doc.insight_status === 'failed' || doc.insight_status === 'skipped';
   }
@@ -129,7 +179,7 @@ export function filterEvidenceDocuments(documents = [], filters = {}) {
   const q = (filters.q || '').trim().toLowerCase();
   return documents.filter((doc) => {
     const status = evidenceStatusOf(doc);
-    const category = doc.inferred_category || doc.evidence_type || '';
+    const category = documentCategoryOf(doc);
     if (filters.status && status !== filters.status) return false;
     if (filters.category && category !== filters.category && !(doc.tags || []).includes(filters.category)) return false;
     if (!q) return true;

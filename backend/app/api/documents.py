@@ -22,7 +22,7 @@ from app.models import CaseDocument, CaseDocumentUpdate
 from app.api._store import case_documents, cases
 from app.api.deps import can_access_workspace, get_current_user
 from app.services.case_access import require_case_access, visible_cases_for_user
-from app.services.document_classifier import infer_document_metadata
+from app.services.document_classifier import document_matches_category, infer_document_metadata
 from app.services.document_ingestion import process_document_bytes
 from app.services.document_storage import delete_document_file, resolve_document_path, save_case_document_file
 from app.services.evidence_uploads import validate_evidence_upload
@@ -185,7 +185,7 @@ async def upload_document(
         kora_request_id=kora_request_id or "",
         source=source or "manual_upload",
     )
-    category, confidence, tags, inferred_type = infer_document_metadata(doc.filename)
+    category, confidence, tags, inferred_type = infer_document_metadata(doc.filename, evidence_type=doc.evidence_type)
     doc.inferred_category = category
     doc.category_confidence = confidence
     doc.tags = tags
@@ -235,7 +235,7 @@ async def list_documents(
     if status:
         docs = [d for d in docs if d.status == status or d.processing_status == status]
     if category:
-        docs = [d for d in docs if d.inferred_category == category or d.evidence_type == category]
+        docs = [d for d in docs if document_matches_category(d, category)]
     if tag:
         docs = [d for d in docs if tag in d.tags]
     if q:
@@ -248,6 +248,8 @@ async def list_documents(
                 d.source_person,
                 d.evidence_type,
                 d.inferred_category,
+                d.document_summary,
+                d.case_relevance,
                 " ".join(d.tags),
                 d.extracted_text[:2000],
             ]).lower()

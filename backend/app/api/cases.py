@@ -7,14 +7,27 @@ import hashlib
 import json
 import mimetypes
 import os
+import re
 import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 
 from app.ai_runtime.evaluation import run_case_evaluation
 from app.ai_runtime.intake import analyze_intake_session
-from app.api._store import case_documents, case_evaluations, case_intake_sessions, case_invitations, case_share_grants, cases, usage_events, workspaces
+from app.api._store import (
+    case_documents,
+    case_evaluations,
+    case_intake_sessions,
+    case_invitations,
+    case_share_grants,
+    cases,
+    gmail_connections,
+    kora_requests,
+    usage_events,
+    workspaces,
+)
 from app.api.deps import get_current_user
 from app.models import (
     CaseAccessSummary,
@@ -54,7 +67,7 @@ from app.services.case_access import (
     visible_cases_for_user,
 )
 from app.services.case_file_builder import build_private_case_file
-from app.services.document_classifier import infer_document_metadata
+from app.services.document_classifier import document_matches_category, infer_document_metadata
 from app.services.document_ingestion import process_document_bytes
 from app.services.document_storage import save_case_document_file
 from app.services.evidence_uploads import validate_evidence_upload
@@ -99,7 +112,7 @@ def _filter_case_docs(
     if status:
         docs = [doc for doc in docs if doc.status == status or doc.processing_status == status]
     if category:
-        docs = [doc for doc in docs if doc.inferred_category == category or doc.evidence_type == category]
+        docs = [doc for doc in docs if document_matches_category(doc, category)]
     if tag:
         docs = [doc for doc in docs if tag in doc.tags]
     if q:
@@ -112,6 +125,8 @@ def _filter_case_docs(
                 doc.source_person,
                 doc.evidence_type,
                 doc.inferred_category,
+                doc.document_summary,
+                doc.case_relevance,
                 " ".join(doc.tags),
                 doc.extracted_text[:2000],
             ]).lower()
@@ -239,6 +254,11 @@ def _apply_session_to_case(case: CaseRecord, session: CaseIntakeSession) -> Case
         "suggested_actions": structured.get("suggested_actions", []),
         "route_suggestion": structured.get("route_suggestion", ""),
         "agent_run_ids": structured.get("agent_run_ids", []),
+        "sources": structured.get("sources", []),
+        "action_proposals": structured.get("action_proposals", []),
+        "safety_flags": structured.get("safety_flags", []),
+        "model_route": structured.get("model_route", {}),
+        "trace_id": structured.get("trace_id", ""),
         "updated_by": "case_advocate",
     }
     case.updated_at = utc_now()
@@ -347,6 +367,142 @@ def _case_context_summary(case: CaseRecord, docs: list[CaseDocument]) -> dict:
         "retaliation_concern": intake.retaliation_concern,
         "document_count": len(docs),
         "indexed_document_count": len([doc for doc in docs if doc.processing_status == "indexed" or doc.status == "indexed"]),
+    }
+
+
+def _advocate_evidence_sources(case: CaseRecord, query: str, *, limit: int = 4) -> list[dict]:
+    """Case-scoped hybrid evidence retrieval for Advocate turns."""
+    scoped_docs = _case_docs(case)
+    if not scoped_docs:
+        return []
+    query = query.strip()
+    keyword_docs = _filter_case_docs(scoped_docs, q=query, limit=limit) if query else scoped_docs[:limit]
+    allowed_by_id = {doc.id: doc for doc in scoped_docs}
+    scores: dict[str, float] = {}
+
+    for rank, doc in enumerate(keyword_docs):
+        scores[doc.id] = max(scores.get(doc.id, 0.0), 1.0 + (1.0 / (rank + 1)))
+
+    if query:
+        try:
+            from app.services.qdrant_client import is_available, search_case_documents_semantic
+
+            if is_available():
+                for hit in search_case_documents_semantic(query, case.id, limit=max(limit * 4, 25)):
+                    doc_id = hit.get("document_id")
+                    if not doc_id or doc_id not in allowed_by_id:
+                        continue
+                    scores[doc_id] = max(scores.get(doc_id, 0.0), 2.0 + float(hit.get("_score") or 0.0))
+        except Exception as exc:
+            logger.warning("Advocate evidence retrieval unavailable for case %s: %s", case.id, exc)
+
+    ranked_docs = sorted(
+        (allowed_by_id[doc_id] for doc_id in scores),
+        key=lambda doc: (scores.get(doc.id, 0.0), normalize_utc(doc.uploaded_at)),
+        reverse=True,
+    )[:limit]
+    sources = []
+    for doc in ranked_docs:
+        preview = (doc.document_summary or doc.case_relevance or doc.extracted_text or doc.user_description or "").strip()
+        preview = re.sub(r"\s+", " ", preview)[:320] if preview else "Evidence item in the case file."
+        sources.append({
+            "id": f"doc:{doc.id}",
+            "type": "document",
+            "label": doc.filename,
+            "preview": preview,
+            "confidence": min(scores.get(doc.id, 0.6) / 3.0, 0.95),
+            "route": f"/cases/{case.id}/locker",
+            "document_id": doc.id,
+            "case_id": case.id,
+        })
+    return sources
+
+
+def _case_advocate_context(case: CaseRecord, user: dict, content: str) -> dict:
+    docs = _case_docs(case)
+    records = [
+        request for request in kora_requests.values()
+        if request.workspace_id == case.workspace_id and request.case_id == case.id
+    ]
+    gmail = [
+        connection for connection in gmail_connections.values()
+        if connection.workspace_id == case.workspace_id and connection.case_id == case.id
+    ]
+    return {
+        "case": _case_context_summary(case, docs),
+        "route_base": f"/cases/{case.id}",
+        "user": {
+            "id": user.get("id", ""),
+            "workspace_id": user.get("workspace_id", ""),
+            "role": user.get("role", ""),
+        },
+        "evidence_sources": _advocate_evidence_sources(case, content),
+        "records": {
+            "draft_count": len(records),
+            "pending_count": len([item for item in records if item.status not in {"sent", "complete"}]),
+        },
+        "gmail": {
+            "connections": len(gmail),
+            "connected": any(connection.status == "connected" for connection in gmail),
+        },
+    }
+
+
+def _append_advocate_turn(case: CaseRecord, user: dict, content: str) -> CaseIntakeSession:
+    session = _case_advocate_session(case, user)
+    session.messages.append(CaseIntakeMessage(role="user", content=content))
+    context = _case_advocate_context(case, user, content)
+    session = analyze_intake_session(session, context=context)
+    session.case_id = case.id
+    session.draft_case_id = case.id
+    case_intake_sessions[session.id] = session
+    _apply_session_to_case(case, session)
+    return session
+
+
+def _sse(event: str, payload: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
+
+
+def _find_advocate_action(session: CaseIntakeSession, action_id: str) -> tuple[CaseIntakeMessage, int, dict]:
+    for message in reversed(session.messages):
+        actions = message.structured.get("action_proposals", []) if message.structured else []
+        for index, action in enumerate(actions):
+            if action.get("id") == action_id:
+                return message, index, action
+    raise HTTPException(status_code=404, detail="Advocate action not found")
+
+
+def _resolve_advocate_action(case: CaseRecord, user: dict, action_id: str, status: str) -> dict:
+    session = _case_advocate_session(case, user)
+    message, index, action = _find_advocate_action(session, action_id)
+    if action.get("status") != "pending":
+        raise HTTPException(status_code=409, detail="Advocate action is no longer pending")
+
+    action = {**action, "status": status, "resolved_at": utc_now().isoformat()}
+    executed = False
+    if status == "approved" and action.get("type") == "update_family_narrative":
+        narrative = str(action.get("payload", {}).get("narrative") or "").strip()
+        if narrative:
+            case.family_narrative = narrative
+            case.intake.narrative = narrative
+            case.summary = narrative[:280]
+            case.advocate_state = {**case.advocate_state, "family_narrative_manual": True}
+            case.updated_at = utc_now()
+            cases[case.id] = case
+            executed = True
+
+    actions = list(message.structured.get("action_proposals", []))
+    actions[index] = action
+    message.structured = {**message.structured, "action_proposals": actions}
+    session.updated_at = utc_now()
+    case_intake_sessions[session.id] = session
+    route = action.get("payload", {}).get("route", "")
+    return {
+        "action": action,
+        "executed": executed,
+        "route": route,
+        "session": session.model_dump(mode="json"),
     }
 
 
@@ -754,17 +910,67 @@ async def append_case_advocate_message(
     user: dict = Depends(get_current_user),
 ):
     case = require_case_access(user, cases.get(case_id), "edit")
-    session = _case_advocate_session(case, user)
     content = body.content.strip()
     if not content:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
-    session.messages.append(CaseIntakeMessage(role="user", content=content))
-    session = analyze_intake_session(session)
-    session.case_id = case.id
-    session.draft_case_id = case.id
-    case_intake_sessions[session.id] = session
-    _apply_session_to_case(case, session)
-    return session
+    return _append_advocate_turn(case, user, content)
+
+
+@router.post("/cases/{case_id}/advocate/messages/stream")
+async def append_case_advocate_message_stream(
+    case_id: str,
+    body: CaseIntakeMessageCreate,
+    user: dict = Depends(get_current_user),
+):
+    case = require_case_access(user, cases.get(case_id), "edit")
+    content = body.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    def generate():
+        yield _sse("status", {"status": "working", "label": "Organizing the case file"})
+        try:
+            session = _append_advocate_turn(case, user, content)
+            structured = _latest_advocate_structured(session)
+            latest_message = session.messages[-1] if session.messages else None
+            yield _sse("message", {
+                "content": latest_message.content if latest_message else "",
+                "message_parts": structured.get("message_parts", []),
+                "trace_id": structured.get("trace_id", ""),
+                "model_route": structured.get("model_route", {}),
+            })
+            for source in structured.get("sources", []):
+                yield _sse("source", source)
+            for action in structured.get("action_proposals", []):
+                yield _sse("action", action)
+            for flag in structured.get("safety_flags", []):
+                yield _sse("safety", flag)
+            yield _sse("complete", {"session": session.model_dump(mode="json")})
+        except Exception as exc:
+            logger.exception("Case Advocate stream failed for case %s", case.id)
+            yield _sse("error", {"detail": str(exc) or "Case Advocate failed"})
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+@router.post("/cases/{case_id}/advocate/actions/{action_id}/approve")
+async def approve_case_advocate_action(
+    case_id: str,
+    action_id: str,
+    user: dict = Depends(get_current_user),
+):
+    case = require_case_access(user, cases.get(case_id), "edit")
+    return _resolve_advocate_action(case, user, action_id, "approved")
+
+
+@router.post("/cases/{case_id}/advocate/actions/{action_id}/reject")
+async def reject_case_advocate_action(
+    case_id: str,
+    action_id: str,
+    user: dict = Depends(get_current_user),
+):
+    case = require_case_access(user, cases.get(case_id), "edit")
+    return _resolve_advocate_action(case, user, action_id, "rejected")
 
 
 @router.get("/cases/{case_id}/file")
@@ -798,6 +1004,74 @@ async def list_case_documents(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/cases/{case_id}/documents/search")
+async def search_case_documents(
+    case_id: str,
+    q: str = Query(default="", min_length=1),
+    status: str = "",
+    category: str = "",
+    tag: str = "",
+    limit: int = Query(default=75, ge=1, le=200),
+    user: dict = Depends(get_current_user),
+):
+    """Hybrid evidence search: keyword matches plus case-scoped vector matches."""
+    case = require_case_access(user, cases.get(case_id), "view")
+    query = q.strip()
+    scoped_docs = _filter_case_docs(
+        _case_docs(case),
+        status=status,
+        category=category,
+        tag=tag,
+        limit=500,
+    )
+    if not query:
+        return {
+            "documents": scoped_docs[:limit],
+            "mode": "filters",
+            "semantic_available": False,
+            "semantic_hits": 0,
+        }
+
+    keyword_docs = _filter_case_docs(scoped_docs, q=query, limit=limit)
+    allowed_by_id = {doc.id: doc for doc in scoped_docs}
+    scores: dict[str, float] = {}
+    score_reasons: dict[str, set[str]] = {}
+
+    for rank, doc in enumerate(keyword_docs):
+        scores[doc.id] = max(scores.get(doc.id, 0.0), 1.0 + (1.0 / (rank + 1)))
+        score_reasons.setdefault(doc.id, set()).add("keyword")
+
+    semantic_available = False
+    semantic_hits = 0
+    try:
+        from app.services.qdrant_client import is_available, search_case_documents_semantic
+
+        semantic_available = is_available()
+        for hit in search_case_documents_semantic(query, case.id, limit=max(limit * 4, 50)):
+            doc_id = hit.get("document_id")
+            if not doc_id or doc_id not in allowed_by_id:
+                continue
+            semantic_hits += 1
+            semantic_score = float(hit.get("_score") or 0.0)
+            scores[doc_id] = max(scores.get(doc_id, 0.0), 2.0 + semantic_score)
+            score_reasons.setdefault(doc_id, set()).add("meaning")
+    except Exception as exc:
+        logger.warning("Evidence semantic search unavailable for case %s: %s", case.id, exc)
+
+    ranked_docs = sorted(
+        (allowed_by_id[doc_id] for doc_id in scores),
+        key=lambda doc: (scores.get(doc.id, 0.0), normalize_utc(doc.uploaded_at)),
+        reverse=True,
+    )
+    return {
+        "documents": ranked_docs[:limit],
+        "mode": "hybrid",
+        "semantic_available": semantic_available,
+        "semantic_hits": semantic_hits,
+        "match_reasons": {doc_id: sorted(reasons) for doc_id, reasons in score_reasons.items()},
+    }
 
 
 @router.post("/cases/{case_id}/documents", response_model=CaseDocument)
@@ -837,7 +1111,7 @@ async def upload_case_document(
         status="processing",
         processing_status="uploaded",
     )
-    category, confidence, tags, inferred_type = infer_document_metadata(doc.filename)
+    category, confidence, tags, inferred_type = infer_document_metadata(doc.filename, evidence_type=doc.evidence_type)
     doc.inferred_category = category
     doc.category_confidence = confidence
     doc.tags = tags

@@ -24,6 +24,7 @@ import {
   fetchWorkspace,
   importGmailMessages,
   saveGmailImportRule,
+  searchCaseDocuments,
   searchGmailMessages,
   startGmailOAuth,
   syncGmailMessages,
@@ -42,8 +43,9 @@ import {
   EVIDENCE_CATEGORY_OPTIONS,
   EVIDENCE_STATUS_OPTIONS,
   buildSmartStacks,
+  documentCategoryLabel,
+  documentCategoryOf,
   documentInsightSummary,
-  evidenceCategoryLabel,
   evidenceRoleLabel,
   evidenceStatusOf,
   filterDocumentsByStack,
@@ -69,8 +71,17 @@ const SORT_OPTIONS = [
   { value: 'relevance:desc', label: 'Most relevant' },
 ];
 
-function categoryLabel(value) {
-  return evidenceCategoryLabel(value, formatLabel);
+function optionLabel(options, value) {
+  return options.find((option) => option.value === value)?.label || formatLabel(value);
+}
+
+function withCounts(options, documents, getValue) {
+  return options.map((option) => {
+    const count = option.value
+      ? documents.filter((doc) => getValue(doc) === option.value || (doc.tags || []).includes(option.value)).length
+      : documents.length;
+    return { ...option, count };
+  });
 }
 
 function sortDocuments(documents, sort, direction) {
@@ -183,7 +194,12 @@ function FilterMenu({ label, value, options, onChange }) {
               role="menuitemradio"
               aria-checked={option.value === value}
             >
-              <span>{option.label}</span>
+              <span className="min-w-0 truncate">{option.label}</span>
+              {Number.isFinite(option.count) && (
+                <span className={`ml-auto rounded-md px-2 py-0.5 text-xs ${option.value === value ? 'bg-background/20 text-background' : 'bg-background text-text-dim'}`}>
+                  {option.count}
+                </span>
+              )}
               {option.value === value && <Check className="h-4 w-4" aria-hidden="true" />}
             </button>
           ))}
@@ -258,7 +274,7 @@ function EvidenceRow({ doc, onView, onDownload, onDelete, downloading, canDelete
             {doc.evidence_role && <span className="rounded-md border border-border bg-surface px-2 py-1 text-xs font-medium leading-none text-text-dim">{evidenceRoleLabel(doc.evidence_role, formatLabel)}</span>}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-text-dim">
-            {categoryLabel(doc.inferred_category)}
+            {documentCategoryLabel(doc, formatLabel)}
             {doc.document_date ? ` - ${doc.document_date}` : ''}
             {doc.source_person ? ` - from ${doc.source_person}` : ''}
           </p>
@@ -317,6 +333,9 @@ export default function EvidenceLocker() {
   const [access, setAccess] = useState(null);
   const [accessLoading, setAccessLoading] = useState(true);
   const [documents, setDocuments] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchMeta, setSearchMeta] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [queue, setQueue] = useState([]);
   const [filters, setFilters] = useState({ q: '', category: '', status: '', sort: 'uploaded_at', direction: 'desc' });
   const [activeStack, setActiveStack] = useState('all');
@@ -358,6 +377,40 @@ export default function EvidenceLocker() {
   useEffect(() => {
     loadDocuments();
   }, [loadDocuments]);
+
+  useEffect(() => {
+    const query = filters.q.trim();
+    if (query.length < 2) {
+      setSearchResults([]);
+      setSearchMeta(null);
+      setSearchLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setSearchLoading(true);
+    const timer = window.setTimeout(() => {
+      searchCaseDocuments(caseId, { q: query, limit: 100 })
+        .then((result) => {
+          if (cancelled) return;
+          setSearchResults(result.documents || []);
+          setSearchMeta(result);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setSearchResults([]);
+          setSearchMeta({ mode: 'keyword', semantic_available: false, semantic_hits: 0, error: err.message });
+        })
+        .finally(() => {
+          if (!cancelled) setSearchLoading(false);
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [caseId, filters.q]);
 
   useEffect(() => {
     let cancelled = false;
@@ -431,11 +484,31 @@ export default function EvidenceLocker() {
   }, [documents]);
 
   const smartStacks = useMemo(() => buildSmartStacks(documents), [documents]);
+  const searchActive = filters.q.trim().length >= 2;
+  const baseDocuments = searchActive ? searchResults : documents;
   const visibleDocuments = useMemo(() => {
-    const stacked = filterDocumentsByStack(documents, activeStack);
-    const filtered = filterEvidenceDocuments(stacked, filters);
+    const stacked = filterDocumentsByStack(baseDocuments, activeStack);
+    const filtered = filterEvidenceDocuments(stacked, { ...filters, q: searchActive ? '' : filters.q });
     return sortDocuments(filtered, filters.sort, filters.direction);
-  }, [activeStack, documents, filters]);
+  }, [activeStack, baseDocuments, filters, searchActive]);
+  const categoryOptions = useMemo(
+    () => withCounts(EVIDENCE_CATEGORY_OPTIONS, documents, documentCategoryOf),
+    [documents],
+  );
+  const statusOptions = useMemo(
+    () => withCounts(EVIDENCE_STATUS_OPTIONS, documents, evidenceStatusOf),
+    [documents],
+  );
+  const activeFilterChips = useMemo(() => {
+    const chips = [];
+    if (activeStack !== 'all') {
+      chips.push({ key: 'stack', label: `Stack: ${smartStacks.find((stack) => stack.key === activeStack)?.label || formatLabel(activeStack)}` });
+    }
+    if (filters.q.trim()) chips.push({ key: 'q', label: `Search: ${filters.q.trim()}` });
+    if (filters.category) chips.push({ key: 'category', label: `Category: ${optionLabel(EVIDENCE_CATEGORY_OPTIONS, filters.category)}` });
+    if (filters.status) chips.push({ key: 'status', label: `Status: ${optionLabel(EVIDENCE_STATUS_OPTIONS, filters.status)}` });
+    return chips;
+  }, [activeStack, filters.category, filters.q, filters.status, smartStacks]);
 
   const gmailConnection = gmailStatus?.connections?.[0] || null;
   const gmailConnected = gmailConnection?.status === 'connected';
@@ -677,6 +750,18 @@ export default function EvidenceLocker() {
     }
   };
 
+  const clearFilter = (key) => {
+    if (key === 'stack') setActiveStack('all');
+    if (key === 'q') setFilters((current) => ({ ...current, q: '' }));
+    if (key === 'category') setFilters((current) => ({ ...current, category: '' }));
+    if (key === 'status') setFilters((current) => ({ ...current, status: '' }));
+  };
+
+  const clearAllFilters = () => {
+    setActiveStack('all');
+    setFilters((current) => ({ ...current, q: '', category: '', status: '' }));
+  };
+
   return (
     <div className="product-ui mx-auto max-w-7xl min-w-0 space-y-5 py-6 sm:py-8 animate-fade-up">
       <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -820,30 +905,64 @@ export default function EvidenceLocker() {
           <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
             <label className="relative min-w-0">
               <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-text-dim" aria-hidden="true" />
-              <input className="min-h-11 w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-accent" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Search filenames, people, summaries, or tags" aria-label="Search evidence" />
+              <input className="min-h-11 w-full rounded-md border border-border bg-background py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-accent" value={filters.q} onChange={(event) => setFilters((current) => ({ ...current, q: event.target.value }))} placeholder="Search evidence by keyword or meaning" aria-label="Search evidence" />
               {filters.q && (
                 <button type="button" onClick={() => setFilters((current) => ({ ...current, q: '' }))} className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-md text-text-dim hover:bg-surface-alt hover:text-text" aria-label="Clear search">
                   <X className="h-4 w-4" aria-hidden="true" />
                 </button>
               )}
             </label>
-            <FilterMenu label="Category" value={filters.category} options={EVIDENCE_CATEGORY_OPTIONS} onChange={(value) => setFilters((current) => ({ ...current, category: value }))} />
-            <FilterMenu label="Status" value={filters.status} options={EVIDENCE_STATUS_OPTIONS} onChange={(value) => setFilters((current) => ({ ...current, status: value }))} />
+            <FilterMenu label="Category" value={filters.category} options={categoryOptions} onChange={(value) => setFilters((current) => ({ ...current, category: value }))} />
+            <FilterMenu label="Status" value={filters.status} options={statusOptions} onChange={(value) => setFilters((current) => ({ ...current, status: value }))} />
             <FilterMenu label="Sort" value={`${filters.sort}:${filters.direction}`} options={SORT_OPTIONS} onChange={(value) => {
               const [sort, direction] = value.split(':');
               setFilters((current) => ({ ...current, sort, direction }));
             }} />
           </div>
 
-          {loading && <p className="text-sm text-text-dim">Loading evidence...</p>}
-          {!loading && visibleDocuments.length === 0 && (
+          <div className="flex min-w-0 flex-col gap-3 rounded-md border border-border bg-background/45 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-text">
+                {searchActive
+                  ? (searchMeta?.semantic_available ? 'Hybrid search: keywords plus meaning matches' : 'Keyword search: semantic index unavailable')
+                  : 'Search checks filenames, notes, summaries, tags, and document text.'}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-text-dim">
+                {searchActive
+                  ? `${searchLoading ? 'Searching' : `${visibleDocuments.length} result${visibleDocuments.length === 1 ? '' : 's'}`} for this case${searchMeta?.semantic_hits ? `, including ${searchMeta.semantic_hits} meaning match${searchMeta.semantic_hits === 1 ? '' : 'es'}` : ''}.`
+                  : 'Filters combine, so a smart stack plus category narrows the same result set.'}
+              </p>
+            </div>
+            {activeFilterChips.length > 0 && (
+              <div className="flex min-w-0 flex-wrap gap-2 sm:justify-end" aria-label="Active evidence filters">
+                {activeFilterChips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    onClick={() => clearFilter(chip.key)}
+                    className="inline-flex min-h-8 items-center gap-1 rounded-md border border-border bg-surface px-2 py-1 text-xs font-semibold text-text-dim transition-colors hover:border-accent/60 hover:text-text"
+                    title={`Remove ${chip.label}`}
+                  >
+                    <span className="wrap-anywhere">{chip.label}</span>
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                ))}
+                <button type="button" onClick={clearAllFilters} className="min-h-8 rounded-md border border-border px-2 py-1 text-xs font-bold text-accent transition-colors hover:bg-surface-alt">
+                  Clear all
+                </button>
+              </div>
+            )}
+          </div>
+
+          {(loading || searchLoading) && <p className="text-sm text-text-dim">{searchLoading ? 'Searching evidence...' : 'Loading evidence...'}</p>}
+          {!loading && !searchLoading && visibleDocuments.length === 0 && (
             <div className="rounded-md border border-border bg-background px-4 py-10 text-center">
               <FileSearch className="mx-auto h-8 w-8 text-text-dim" aria-hidden="true" />
               <h3 className="mt-3 font-semibold text-text">No matching evidence</h3>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-text-dim">Adjust filters, choose a different smart stack, or add the strongest document you have.</p>
             </div>
           )}
-          {!loading && visibleDocuments.length > 0 && (
+          {!loading && !searchLoading && visibleDocuments.length > 0 && (
             <div className="min-w-0 space-y-2">
               {visibleDocuments.map((doc) => (
                 <EvidenceRow

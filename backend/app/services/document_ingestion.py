@@ -22,9 +22,10 @@ def process_document_bytes(doc: CaseDocument, content: bytes) -> CaseDocument:
         doc.file_type = file_type
         doc.extracted_text = extracted
 
-        category, confidence, tags, inferred_type = infer_document_metadata(doc.filename, extracted)
-        doc.inferred_category = doc.inferred_category or category
-        doc.category_confidence = doc.category_confidence or confidence
+        category, confidence, tags, inferred_type = infer_document_metadata(doc.filename, extracted, doc.evidence_type)
+        if not doc.inferred_category or doc.inferred_category == "other" or confidence > doc.category_confidence:
+            doc.inferred_category = category
+            doc.category_confidence = confidence
         doc.tags = sorted(set([*doc.tags, *tags]))
         if not doc.evidence_type:
             doc.evidence_type = inferred_type
