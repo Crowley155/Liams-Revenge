@@ -424,6 +424,14 @@ function streamAbortContext(signal, timeoutMs) {
   const controller = new AbortController();
   let timedOut = false;
   let timeoutId = null;
+  const armTimeout = () => {
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return;
+    if (timeoutId) globalThis.clearTimeout(timeoutId);
+    timeoutId = globalThis.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+  };
   const abortFromCaller = () => {
     if (!controller.signal.aborted) controller.abort(signal?.reason);
   };
@@ -432,15 +440,11 @@ function streamAbortContext(signal, timeoutMs) {
   } else if (signal) {
     signal.addEventListener('abort', abortFromCaller, { once: true });
   }
-  if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
-    timeoutId = globalThis.setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, timeoutMs);
-  }
+  armTimeout();
   return {
     signal: controller.signal,
     timedOut: () => timedOut,
+    reset: armTimeout,
     cleanup: () => {
       if (timeoutId) globalThis.clearTimeout(timeoutId);
       signal?.removeEventListener?.('abort', abortFromCaller);
@@ -487,6 +491,7 @@ export async function streamCaseChatMessage(caseId, content, {
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
+      abortContext.reset();
       buffer = parseSseChunk(buffer + decoder.decode(value, { stream: true }), emit);
     }
     buffer = parseSseChunk(buffer + decoder.decode(), emit);

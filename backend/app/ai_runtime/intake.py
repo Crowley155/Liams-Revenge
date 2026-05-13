@@ -25,6 +25,21 @@ from app.models import (
 REASONING_MODEL = settings.deepinfra_reasoning_model
 FALLBACK_MODEL = settings.deepinfra_fallback_model
 AGNO_RUN_TIMEOUT_SECONDS = 30.0
+LOCAL_CASE_FILE_MODEL = "local-case-file"
+LOCAL_CASE_FILE_INTENTS = {
+    "case_summary",
+    "evidence_question",
+    "records_question",
+    "timeline_question",
+    "gap_question",
+    "action_request",
+    "legal_boundary",
+    "smalltalk",
+}
+
+
+class CaseChatModelTimeout(RuntimeError):
+    """Raised when a hosted chat model exceeds the per-turn budget."""
 
 
 ISSUE_KEYWORDS = {
@@ -802,6 +817,38 @@ def _fallback_case_chat_result(
     )
 
 
+def _local_case_file_chat_result(
+    session: CaseIntakeSession,
+    context: dict | None,
+    intent: str,
+    *,
+    error: str = "",
+    fallback: bool = False,
+) -> CaseChatTurnResult:
+    result = _fallback_case_chat_result(
+        session,
+        context,
+        intent,
+        model_id=LOCAL_CASE_FILE_MODEL,
+        error=error,
+    )
+    result.model_route = {
+        "runtime": "local_case_file",
+        "agent": "case_chat_manager",
+        "model": LOCAL_CASE_FILE_MODEL,
+        "provider": "local_case_file",
+        "fallback": fallback,
+        "error": error,
+    }
+    return result
+
+
+def _should_use_local_case_file_chat(intent: str, context: dict | None) -> bool:
+    if intent in LOCAL_CASE_FILE_INTENTS:
+        return True
+    return not settings.has_deepinfra
+
+
 def _normalize_case_chat_result(
     result: CaseChatTurnResult,
     session: CaseIntakeSession,
@@ -896,7 +943,7 @@ def _run_case_chat_agno_analysis_with_timeout(
         return future.result(timeout=timeout)
     except FutureTimeoutError as exc:
         future.cancel()
-        raise RuntimeError(f"Case chat model timed out after {timeout:g}s") from exc
+        raise CaseChatModelTimeout(f"Case chat model timed out after {timeout:g}s") from exc
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
 
@@ -941,6 +988,23 @@ def analyze_case_chat_session(session: CaseIntakeSession, context: dict | None =
             }
         return session
 
+    if _should_use_local_case_file_chat(intent, context):
+        run = AgentRun(
+            workspace_id=session.workspace_id,
+            case_id=session.draft_case_id or session.case_id or "case-chat",
+            evaluation_id=session.id,
+            agent_id="case_chat_manager",
+            status="complete",
+            model_id=LOCAL_CASE_FILE_MODEL,
+        )
+        agent_runs[run.id] = run
+        try:
+            result = _local_case_file_chat_result(session, context, intent)
+            return _store_case_chat_result(session, result, run)
+        finally:
+            run.completed_at = utc_now()
+            agent_runs[run.id] = run
+
     run = AgentRun(
         workspace_id=session.workspace_id,
         case_id=session.draft_case_id or session.case_id or "case-chat",
@@ -952,30 +1016,27 @@ def analyze_case_chat_session(session: CaseIntakeSession, context: dict | None =
     agent_runs[run.id] = run
     try:
         try:
-            try:
-                result = _run_case_chat_agno_analysis_with_timeout(session, REASONING_MODEL, {**context, "intent": intent})
-            except Exception as primary_exc:
-                if REASONING_MODEL == FALLBACK_MODEL or not settings.has_deepinfra:
-                    raise
-                run.model_id = FALLBACK_MODEL
-                run.status = "fallback_model"
-                run.error = f"Primary model {REASONING_MODEL} failed: {primary_exc}"
-                result = _run_case_chat_agno_analysis_with_timeout(session, FALLBACK_MODEL, {**context, "intent": intent})
-            if run.status != "fallback_model":
-                run.status = "complete"
+            result = _run_case_chat_agno_analysis_with_timeout(session, REASONING_MODEL, {**context, "intent": intent})
+            run.status = "complete"
             result = _normalize_case_chat_result(
                 result,
                 session,
                 context,
                 intent=intent,
-                fallback=run.status == "fallback_model",
+                fallback=False,
                 model_id=run.model_id,
                 error=run.error or "",
             )
         except Exception as exc:
             run.status = "fallback"
             run.error = str(exc)
-            result = _fallback_case_chat_result(session, context, intent, model_id=run.model_id or REASONING_MODEL, error=str(exc))
+            result = _local_case_file_chat_result(
+                session,
+                context,
+                intent,
+                error=str(exc),
+                fallback=True,
+            )
         return _store_case_chat_result(session, result, run)
     finally:
         run.completed_at = utc_now()

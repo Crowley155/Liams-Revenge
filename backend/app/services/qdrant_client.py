@@ -89,6 +89,47 @@ def _validated_embedding(embedding: list[float] | None) -> list[float] | None:
     return embedding
 
 
+def _search_points(
+    client,
+    *,
+    collection_name: str,
+    query_vector: list[float],
+    query_filter=None,
+    limit: int = 10,
+    score_threshold: float | None = None,
+):
+    """Run vector search across qdrant-client versions.
+
+    Newer qdrant-client releases use query_points; older releases expose search.
+    """
+    if hasattr(client, "search"):
+        kwargs = {
+            "collection_name": collection_name,
+            "query_vector": query_vector,
+            "limit": limit,
+        }
+        if query_filter is not None:
+            kwargs["query_filter"] = query_filter
+        if score_threshold is not None:
+            kwargs["score_threshold"] = score_threshold
+        return client.search(**kwargs)
+
+    if hasattr(client, "query_points"):
+        kwargs = {
+            "collection_name": collection_name,
+            "query": query_vector,
+            "limit": limit,
+        }
+        if query_filter is not None:
+            kwargs["query_filter"] = query_filter
+        if score_threshold is not None:
+            kwargs["score_threshold"] = score_threshold
+        response = client.query_points(**kwargs)
+        return getattr(response, "points", response)
+
+    raise AttributeError("Qdrant client does not support vector search")
+
+
 def _embed_text(text: str) -> list[float] | None:
     """Generate an embedding with the configured provider."""
     model = settings.embedding_model
@@ -142,7 +183,8 @@ def check_duplicate(url: str, text: str) -> Optional[dict]:
     try:
         from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-        results = client.search(
+        results = _search_points(
+            client,
             collection_name=COLLECTION_NAME,
             query_vector=embedding,
             limit=3,
@@ -386,7 +428,8 @@ def search_semantic(query: str, person_id: str | None = None, limit: int = 10) -
                 ]
             )
 
-        results = client.search(
+        results = _search_points(
+            client,
             collection_name=COLLECTION_NAME,
             query_vector=embedding,
             query_filter=query_filter,
@@ -416,7 +459,8 @@ def search_case_documents_semantic(query: str, case_id: str, limit: int = 25) ->
     try:
         from qdrant_client.models import FieldCondition, Filter, MatchValue
 
-        results = client.search(
+        results = _search_points(
+            client,
             collection_name=COLLECTION_NAME,
             query_vector=embedding,
             query_filter=Filter(

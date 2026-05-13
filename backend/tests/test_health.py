@@ -255,6 +255,37 @@ def test_deepinfra_embedding_uses_openai_compatible_route(monkeypatch):
     assert calls["dimensions"] == qdrant_client.VECTOR_SIZE
 
 
+def test_qdrant_search_points_uses_query_points_when_search_is_missing():
+    from app.services import qdrant_client
+
+    calls = {}
+
+    class FakeClient:
+        def query_points(self, **kwargs):
+            calls.update(kwargs)
+            return types.SimpleNamespace(
+                points=[
+                    types.SimpleNamespace(payload={"document_id": "doc-1"}, score=0.82),
+                ]
+            )
+
+    results = qdrant_client._search_points(
+        FakeClient(),
+        collection_name="documents",
+        query_vector=[0.1] * qdrant_client.VECTOR_SIZE,
+        query_filter="case-filter",
+        limit=3,
+        score_threshold=0.45,
+    )
+
+    assert results[0].payload["document_id"] == "doc-1"
+    assert calls["collection_name"] == "documents"
+    assert calls["query"] == [0.1] * qdrant_client.VECTOR_SIZE
+    assert calls["query_filter"] == "case-filter"
+    assert calls["limit"] == 3
+    assert calls["score_threshold"] == 0.45
+
+
 def test_job_not_found_for_authenticated_user():
     _override_user(_user())
     resp = client.get("/api/research/nonexistent")

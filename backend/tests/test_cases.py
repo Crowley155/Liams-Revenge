@@ -566,6 +566,36 @@ def test_case_chat_summary_answers_from_existing_case_without_forced_question(mo
     assert "Can you summarize my case?" not in updated.json()["family_narrative"]
 
 
+def test_case_chat_summary_uses_fast_path_without_waiting_for_model(monkeypatch):
+    calls = []
+
+    def unexpected_manager(*args, **kwargs):
+        calls.append(kwargs.get("model_id") or (args[1] if len(args) > 1 else "unknown"))
+        raise RuntimeError("model should not be called for a simple summary")
+
+    monkeypatch.setattr("app.ai_runtime.intake._run_case_chat_agno_analysis", unexpected_manager)
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Fast summary case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    with client.stream(
+        "POST",
+        f"/api/cases/{case_id}/chat/messages/stream",
+        json={"content": "Can you summarize my case?"},
+    ) as response:
+        assert response.status_code == 200
+        events = _sse_events(response)
+
+    latest = events[-1][1]["session"]["messages"][-1]
+    assert calls == []
+    assert "Fast summary case" in latest["content"]
+    assert latest["structured"]["intent"] == "case_summary"
+    assert latest["structured"]["model_route"]["runtime"] == "local_case_file"
+
+
 def test_case_chat_evidence_question_without_documents_is_answered_not_mutated(monkeypatch):
     monkeypatch.setattr(
         "app.ai_runtime.intake._run_case_chat_agno_analysis",
@@ -671,7 +701,7 @@ def test_case_advocate_stream_emits_case_scoped_sources_actions_and_completion(m
     structured = complete["session"]["messages"][-1]["structured"]
     assert structured["sources"][0]["document_id"] == source_doc.id
     assert structured["action_proposals"] == []
-    assert structured["model_route"]["fallback"] is True
+    assert structured["model_route"]["runtime"] == "local_case_file"
 
 
 def test_case_chat_clear_resets_transcript_without_erasing_case_file(monkeypatch):
@@ -714,6 +744,10 @@ def test_case_chat_clear_resets_transcript_without_erasing_case_file(monkeypatch
 def test_case_chat_stream_falls_back_when_manager_times_out(monkeypatch):
     import app.ai_runtime.intake as intake_runtime
 
+    class FakeSettings:
+        has_deepinfra = True
+
+    monkeypatch.setattr(intake_runtime, "settings", FakeSettings())
     monkeypatch.setattr(intake_runtime, "AGNO_RUN_TIMEOUT_SECONDS", 0.01)
 
     def slow_manager(*args, **kwargs):
@@ -721,7 +755,7 @@ def test_case_chat_stream_falls_back_when_manager_times_out(monkeypatch):
         return intake_runtime._fallback_case_chat_result(
             args[0],
             args[2] if len(args) > 2 else kwargs.get("context"),
-            "records_question",
+            "case_question",
             model_id="mock-model",
         )
 
@@ -736,7 +770,7 @@ def test_case_chat_stream_falls_back_when_manager_times_out(monkeypatch):
     with client.stream(
         "POST",
         f"/api/cases/{case_id}/advocate/messages/stream",
-        json={"content": "Tell me what records are missing."},
+        json={"content": "Why does this matter for my case?"},
     ) as response:
         assert response.status_code == 200
         events = _sse_events(response)
@@ -745,6 +779,87 @@ def test_case_chat_stream_falls_back_when_manager_times_out(monkeypatch):
     structured = events[-1][1]["session"]["messages"][-1]["structured"]
     assert structured["model_route"]["fallback"] is True
     assert "timed out" in structured["model_route"]["error"].lower()
+
+
+def test_case_chat_primary_timeout_does_not_start_second_hosted_model(monkeypatch):
+    import app.ai_runtime.intake as intake_runtime
+
+    class FakeSettings:
+        has_deepinfra = True
+
+    calls = []
+    monkeypatch.setattr(intake_runtime, "settings", FakeSettings())
+    monkeypatch.setattr(intake_runtime, "REASONING_MODEL", "primary-reasoning")
+    monkeypatch.setattr(intake_runtime, "FALLBACK_MODEL", "fallback-llama")
+    monkeypatch.setattr(intake_runtime, "AGNO_RUN_TIMEOUT_SECONDS", 0.01)
+
+    def slow_manager(session, model_id="primary-reasoning", context=None):
+        calls.append(model_id)
+        time.sleep(0.08)
+        return intake_runtime._fallback_case_chat_result(
+            session,
+            context,
+            "case_question",
+            model_id=model_id,
+        )
+
+    monkeypatch.setattr(intake_runtime, "_run_case_chat_agno_analysis", slow_manager)
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Hosted timeout case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    with client.stream(
+        "POST",
+        f"/api/cases/{case_id}/chat/messages/stream",
+        json={"content": "Why does this matter for my case?"},
+    ) as response:
+        assert response.status_code == 200
+        events = _sse_events(response)
+
+    assert calls == ["primary-reasoning"]
+    structured = events[-1][1]["session"]["messages"][-1]["structured"]
+    assert structured["model_route"]["fallback"] is True
+    assert "timed out" in structured["model_route"]["error"].lower()
+
+
+def test_case_chat_primary_schema_failure_does_not_start_second_hosted_model(monkeypatch):
+    import app.ai_runtime.intake as intake_runtime
+
+    class FakeSettings:
+        has_deepinfra = True
+
+    calls = []
+    monkeypatch.setattr(intake_runtime, "settings", FakeSettings())
+    monkeypatch.setattr(intake_runtime, "REASONING_MODEL", "primary-reasoning")
+    monkeypatch.setattr(intake_runtime, "FALLBACK_MODEL", "fallback-llama")
+
+    def invalid_schema(session, model_id="primary-reasoning", context=None):
+        calls.append(model_id)
+        raise ValueError("Failed to parse cleaned JSON")
+
+    monkeypatch.setattr(intake_runtime, "_run_case_chat_agno_analysis", invalid_schema)
+    user = _user()
+    _override_user(user)
+
+    created = client.post("/api/cases", json=_case_payload("Hosted schema case"))
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    with client.stream(
+        "POST",
+        f"/api/cases/{case_id}/chat/messages/stream",
+        json={"content": "Why does this matter for my case?"},
+    ) as response:
+        assert response.status_code == 200
+        events = _sse_events(response)
+
+    assert calls == ["primary-reasoning"]
+    structured = events[-1][1]["session"]["messages"][-1]["structured"]
+    assert structured["model_route"]["fallback"] is True
+    assert "parse" in structured["model_route"]["error"].lower()
 
 
 def test_case_advocate_actions_require_case_access_and_record_decisions(monkeypatch):

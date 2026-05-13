@@ -13,6 +13,21 @@ function streamFromText(chunks) {
   });
 }
 
+function streamFromDelayedText(chunks, delayMs, signal) {
+  return new ReadableStream({
+    async start(controller) {
+      const encoder = new TextEncoder();
+      signal?.addEventListener('abort', () => controller.error(new Error('aborted')), { once: true });
+      for (const chunk of chunks) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        if (signal?.aborted) return;
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    },
+  });
+}
+
 test('streamCaseChatMessage emits semantic SSE events and returns the completed session', async () => {
   const events = [];
   setAuthTokenGetter(async () => 'test-token');
@@ -58,6 +73,26 @@ test('streamCaseChatMessage times out stalled streams', async () => {
     /timed out/i,
   );
   assert.equal(aborted, true);
+});
+
+test('streamCaseChatMessage keeps active reasoning streams alive', async () => {
+  const events = [];
+  setAuthTokenGetter(async () => 'test-token');
+  globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
+  globalThis.fetch = async (_url, options) => new Response(streamFromDelayedText([
+    'event: status\ndata: {"label":"Checking the case file"}\n\n',
+    'event: status\ndata: {"label":"Still checking the case file"}\n\n',
+    'event: message_delta\ndata: {"content":"This is ready.","delta":"This is ready."}\n\n',
+    'event: complete\ndata: {"session":{"id":"session-active","messages":[]}}\n\n',
+  ], 8, options.signal), { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+
+  const session = await streamCaseChatMessage('case-1', 'Think for a bit.', {
+    timeoutMs: 15,
+    onEvent: (event) => events.push(event),
+  });
+
+  assert.equal(session.id, 'session-active');
+  assert.deepEqual(events.map((event) => event.type), ['status', 'status', 'message_delta', 'complete']);
 });
 
 test('fetchCaseChatSession falls back to legacy advocate route when production chat route is missing', async () => {
