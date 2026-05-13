@@ -17,6 +17,7 @@ import {
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
 import { casePermissions } from '../utils/caseAccess';
+import { CASE_PLAN_HELP } from '../utils/casePlanHelp';
 import { getCasePolicyReforms, policyReformCount } from '../utils/casePolicyReforms';
 import {
   ActionButton,
@@ -330,6 +331,7 @@ export default function CaseDetail() {
 
       <Panel
         title="Family Narrative"
+        help={CASE_PLAN_HELP.familyNarrative}
         action={canEditCase ? (
           <div className="flex flex-wrap gap-2">
             <ActionButton
@@ -362,6 +364,7 @@ export default function CaseDetail() {
 
       <Panel
         title="Desired Outcome"
+        help={CASE_PLAN_HELP.desiredOutcome}
         action={canEditCase ? (
           <div className="flex flex-wrap gap-2">
             <ActionButton
@@ -395,6 +398,7 @@ export default function CaseDetail() {
       {hasPolicyReforms && (
         <Panel
           title="What We're Asking For"
+          help={CASE_PLAN_HELP.policyReforms}
           action={(
             <Link to="policy-reforms" className={actionButtonClasses('secondary', 'px-4')}>
               <Scale className="h-4 w-4" aria-hidden="true" />
@@ -462,7 +466,7 @@ export default function CaseDetail() {
         </aside>
 
         <main className="space-y-5">
-          <Panel title="Case Read Summary">
+          <Panel title="Case Read Summary" help={CASE_PLAN_HELP.caseReadSummary}>
             <p className="max-w-3xl text-sm leading-relaxed text-text-dim">
               {caseReadSummary}
             </p>

@@ -1,3 +1,6 @@
+import { useId } from 'react';
+import { Info } from 'lucide-react';
+
 export const EVIDENCE_TYPES = [
   { value: 'communications', label: 'Emails, texts, portal messages' },
   { value: 'incident_report', label: 'Incident report' },
@@ -96,13 +99,47 @@ export function ActionButton({ variant = 'secondary', className = '', type = 'bu
   );
 }
 
-export function Panel({ title, eyebrow, action, children }) {
+function helpTipPositionClass(align) {
+  if (align === 'center') return 'left-1/2 -translate-x-1/2';
+  if (align === 'right') return 'right-0';
+  return 'left-0';
+}
+
+export function HelpTip({ id, label = 'More information', align = 'left', children, className = '' }) {
+  const generatedId = useId();
+  const tooltipId = id || generatedId;
+  const positionClass = helpTipPositionClass(align);
+  return (
+    <span className={['group/help relative inline-flex shrink-0', className].filter(Boolean).join(' ')}>
+      <button
+        type="button"
+        aria-label={label}
+        aria-describedby={tooltipId}
+        className="grid h-6 w-6 place-items-center rounded-md text-text-dim transition-colors hover:bg-surface-alt hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      >
+        <Info className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      <span
+        id={tooltipId}
+        role="tooltip"
+        className={`pointer-events-none absolute top-7 z-30 w-[min(17rem,calc(100vw-3rem))] rounded-md border border-border bg-background px-3 py-2 text-xs font-normal leading-relaxed text-text opacity-0 shadow-elevated transition-opacity group-hover/help:opacity-100 group-focus-within/help:opacity-100 ${positionClass}`}
+      >
+        {children}
+      </span>
+    </span>
+  );
+}
+
+export function Panel({ title, eyebrow, action, help, helpLabel, children }) {
   return (
     <section className="min-w-0 rounded-md border border-border bg-surface/75 p-4">
       <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {eyebrow && <p className="text-xs font-semibold text-text-dim">{eyebrow}</p>}
-          <h3 className="text-lg font-bold">{title}</h3>
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="text-lg font-bold">{title}</h3>
+            {help && <HelpTip align="center" label={helpLabel || `${title} help`}>{help}</HelpTip>}
+          </div>
         </div>
         {action}
       </div>

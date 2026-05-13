@@ -9,7 +9,6 @@ import {
   FileSearch,
   FileText,
   FileUp,
-  Info,
   Loader2,
   Mail,
   Search,
@@ -46,6 +45,7 @@ import {
 } from '../utils/gmailImport';
 import {
   ActionButton,
+  HelpTip,
   Panel,
   StatusPill,
   actionButtonClasses,
@@ -402,28 +402,20 @@ function ClerkGmailAccessButton({ busy, connected, disabled, onStarted, onError 
 function GmailField({ id, label, help, value, onChange, placeholder }) {
   const helpId = `${id}-help`;
   return (
-    <label className="min-w-0 space-y-1.5" htmlFor={id}>
-      <span className="flex items-center gap-1.5 text-xs font-semibold text-text-dim">
-        {label}
-        <span className="group relative inline-flex" tabIndex={0} aria-describedby={helpId}>
-          <Info className="h-3.5 w-3.5 text-text-dim" aria-hidden="true" />
-          <span
-            id={helpId}
-            role="tooltip"
-            className="pointer-events-none absolute left-1/2 top-6 z-20 w-64 -translate-x-1/2 rounded-md border border-border bg-surface px-3 py-2 text-xs font-normal leading-relaxed text-text opacity-0 shadow-elevated transition-opacity group-hover:opacity-100 group-focus:opacity-100"
-          >
-            {help}
-          </span>
-        </span>
-      </span>
+    <div className="min-w-0 space-y-1.5">
+      <div className="flex items-center gap-1.5">
+        <label className="text-xs font-semibold text-text-dim" htmlFor={id}>{label}</label>
+        <HelpTip id={helpId} label={`${label} help`}>{help}</HelpTip>
+      </div>
       <input
         id={id}
+        aria-describedby={helpId}
         className="min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45"
         value={value}
         onChange={onChange}
         placeholder={placeholder}
       />
-    </label>
+    </div>
   );
 }
 
