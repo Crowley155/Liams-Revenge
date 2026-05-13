@@ -13,7 +13,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
+from app.ai_runtime.case_drafting import draft_case_text
 from app.ai_runtime.evaluation import run_case_evaluation
 from app.ai_runtime.intake import analyze_case_chat_session, analyze_intake_session, classify_case_chat_intent
 from app.api._store import (
@@ -74,6 +76,17 @@ from app.services.workspaces import entitlements_for_workspace
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["cases"])
 CASE_DATA_PATH = Path(os.getenv("CASE_DATA_PATH", "/app/case-data/case-data.json"))
+
+
+class CaseDraftAssistRequest(BaseModel):
+    target: str = Field(default="family_narrative", pattern="^(family_narrative|desired_outcome)$")
+
+
+class CaseDraftAssistResponse(BaseModel):
+    target: str
+    draft: str
+    model_route: str
+    sources: list[str] = Field(default_factory=list)
 
 
 def _visible_case(case: CaseRecord, user: dict) -> bool:
@@ -983,6 +996,17 @@ async def update_case(case_id: str, body: CaseUpdate, user: dict = Depends(get_c
     case.updated_at = utc_now()
     cases[case.id] = case
     return case
+
+
+@router.post("/cases/{case_id}/draft-assist", response_model=CaseDraftAssistResponse)
+async def case_draft_assist(
+    case_id: str,
+    body: CaseDraftAssistRequest,
+    user: dict = Depends(get_current_user),
+):
+    case = require_case_access(user, cases.get(case_id), "edit")
+    result = draft_case_text(case, _case_docs(case), body.target)  # type: ignore[arg-type]
+    return CaseDraftAssistResponse(**result)
 
 
 @router.post("/cases/{case_id}/activate", response_model=CaseRecord)

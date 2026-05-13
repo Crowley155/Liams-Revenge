@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 from urllib.parse import quote
 
@@ -11,6 +12,7 @@ from app.config import settings
 
 CLERK_API_BASE = "https://api.clerk.com/v1"
 CLERK_GOOGLE_PROVIDER = "google"
+INVISIBLE_COPY_CHARS_RE = re.compile(r"[\ufeff\u200b-\u200d\u2060]")
 
 
 class ClerkOAuthError(RuntimeError):
@@ -30,8 +32,12 @@ def _env(key: str, default: str = "") -> str:
     return value if value else default
 
 
+def _clean_secret(value: str) -> str:
+    return INVISIBLE_COPY_CHARS_RE.sub("", value or "").strip()
+
+
 def clerk_secret_key() -> str:
-    return _env("CLERK_SECRET_KEY", settings.clerk_secret_key or "")
+    return _clean_secret(_env("CLERK_SECRET_KEY", settings.clerk_secret_key or ""))
 
 
 def clerk_oauth_configured() -> bool:

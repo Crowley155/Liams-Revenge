@@ -454,6 +454,32 @@ def test_case_evaluation_fallback_completes_without_model_key(monkeypatch):
     assert body["result"]["recommended_records"]
 
 
+def test_case_draft_assist_generates_text_without_saving(monkeypatch):
+    monkeypatch.delenv("DEEPINFRA_API_KEY", raising=False)
+    user = _user()
+    _override_user(user)
+
+    payload = _case_payload("Draft assist case")
+    payload["narrative"] = "My son was injured during aftercare and the program has not explained supervision."
+    payload["desired_outcome"] = ""
+    payload["desired_outcomes"] = []
+    created = client.post("/api/cases", json=payload)
+    assert created.status_code == 200
+    case_id = created.json()["id"]
+
+    assisted = client.post(f"/api/cases/{case_id}/draft-assist", json={"target": "desired_outcome"})
+    assert assisted.status_code == 200
+    body = assisted.json()
+    assert body["target"] == "desired_outcome"
+    assert "safety" in body["draft"].lower() or "supervision" in body["draft"].lower()
+    assert body["model_route"].startswith("local-fallback")
+
+    fetched = client.get(f"/api/cases/{case_id}")
+    assert fetched.status_code == 200
+    assert fetched.json()["intake"]["desired_outcome"] == ""
+    assert fetched.json()["intake"]["desired_outcomes"] == []
+
+
 def test_guided_intake_fields_and_support_consent_are_persisted():
     user = _user()
     _override_user(user)

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { clearCaseChat, fetchCaseChatSession, grantCaseCollaborator, setAuthTokenGetter, streamCaseChatMessage } from './client.js';
+import { clearCaseChat, draftCaseText, fetchCaseChatSession, grantCaseCollaborator, setAuthTokenGetter, streamCaseChatMessage } from './client.js';
 
 function streamFromText(chunks) {
   return new ReadableStream({
@@ -194,4 +194,27 @@ test('grantCaseCollaborator creates direct case share grants', async () => {
   const result = await grantCaseCollaborator('case-1', { email: 'helper@example.com', role: 'viewer' });
 
   assert.equal(result.grant.id, 'grant-1');
+});
+
+test('draftCaseText posts a non-mutating draft assist request', async () => {
+  setAuthTokenGetter(async () => 'test-token');
+  globalThis.localStorage = { removeItem() {}, getItem() { return ''; } };
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, 'http://localhost:8000/api/cases/case-1/draft-assist');
+    assert.equal(options.method, 'POST');
+    assert.equal(options.headers.Authorization, 'Bearer test-token');
+    assert.deepEqual(JSON.parse(options.body), { target: 'family_narrative' });
+    return new Response(JSON.stringify({
+      target: 'family_narrative',
+      draft: 'Draft text',
+      model_route: 'local-fallback:model',
+      sources: [],
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  };
+
+  const result = await draftCaseText('case-1', 'family_narrative');
+  assert.equal(result.draft, 'Draft text');
 });

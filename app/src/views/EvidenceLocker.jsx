@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useClerk } from '@clerk/clerk-react';
+import { useUser } from '@clerk/clerk-react';
 import { useParams } from 'react-router-dom';
 import {
   Check,
@@ -9,6 +9,7 @@ import {
   FileSearch,
   FileText,
   FileUp,
+  Info,
   Loader2,
   Mail,
   Search,
@@ -28,12 +29,18 @@ import {
   saveGmailImportRule,
   searchCaseDocuments,
   searchGmailMessages,
-  syncGmailMessages,
   uploadCaseDocument,
 } from '../api/client';
 import { clerkEnabled } from '../auth/AuthContext';
-import { gmailOAuthScopes } from '../auth/gmailAccess';
+import { GMAIL_READONLY_SCOPE } from '../auth/gmailAccess';
 import { casePermissions, caseRoleLabel } from '../utils/caseAccess';
+import {
+  gmailRelevanceLabel,
+  gmailRuleHasCriteria,
+  parseGmailKeywordInput,
+  parseGmailRuleInput,
+  shouldAutoSelectGmailMessage,
+} from '../utils/gmailImport';
 import {
   ActionButton,
   Panel,
@@ -337,17 +344,83 @@ function EvidenceRow({ doc, viewHref, onDownload, onDelete, downloading, canDele
   );
 }
 
-function ClerkGmailAccessButton({ busy, connected, disabled }) {
-  const { openUserProfile } = useClerk();
+function ClerkGmailAccessButton({ busy, connected, disabled, onStarted, onError }) {
+  const { user, isLoaded } = useUser();
+
+  const handleGrant = async () => {
+    if (!user) {
+      onError?.('Sign in before granting Gmail access.');
+      return;
+    }
+    try {
+      const returnUrl = window.location.href;
+      window.sessionStorage?.setItem('usdwatch:gmail-return-url', returnUrl);
+      const redirectUrl = `${window.location.origin}/sso-callback?redirect_url=${encodeURIComponent(returnUrl)}`;
+      const googleAccount = (user.externalAccounts || []).find((account) => {
+        const provider = account.providerSlug?.() || account.provider || '';
+        return provider === 'google' || provider === 'oauth_google';
+      });
+      const result = googleAccount
+        ? await googleAccount.reauthorize({
+          redirectUrl,
+          additionalScopes: [GMAIL_READONLY_SCOPE],
+          oidcPrompt: 'consent',
+        })
+        : await user.createExternalAccount({
+          strategy: 'oauth_google',
+          redirectUrl,
+          additionalScopes: [GMAIL_READONLY_SCOPE],
+          oidcPrompt: 'consent',
+        });
+      const nextUrl = result?.verification?.externalVerificationRedirectURL?.href;
+      if (nextUrl) {
+        onStarted?.();
+        window.location.assign(nextUrl);
+        return;
+      }
+      onStarted?.('Gmail access was started. Refresh status after Google confirms access.');
+    } catch (err) {
+      onError?.(err.message || 'Could not start Google authorization.');
+    }
+  };
+
   return (
     <button
-      disabled={busy || disabled}
-      onClick={() => openUserProfile({ additionalOAuthScopes: gmailOAuthScopes })}
+      disabled={busy || disabled || !isLoaded}
+      onClick={handleGrant}
       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Mail className="h-4 w-4" aria-hidden="true" />}
-      {connected ? 'Manage Gmail access' : 'Grant Gmail access'}
+      {connected ? 'Re-authorize Gmail' : 'Grant Gmail access'}
     </button>
+  );
+}
+
+function GmailField({ id, label, help, value, onChange, placeholder }) {
+  const helpId = `${id}-help`;
+  return (
+    <label className="min-w-0 space-y-1.5" htmlFor={id}>
+      <span className="flex items-center gap-1.5 text-xs font-semibold text-text-dim">
+        {label}
+        <span className="group relative inline-flex" tabIndex={0} aria-describedby={helpId}>
+          <Info className="h-3.5 w-3.5 text-text-dim" aria-hidden="true" />
+          <span
+            id={helpId}
+            role="tooltip"
+            className="pointer-events-none absolute left-1/2 top-6 z-20 w-64 -translate-x-1/2 rounded-md border border-border bg-surface px-3 py-2 text-xs font-normal leading-relaxed text-text opacity-0 shadow-elevated transition-opacity group-hover:opacity-100 group-focus:opacity-100"
+          >
+            {help}
+          </span>
+        </span>
+      </span>
+      <input
+        id={id}
+        className="min-h-11 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+      />
+    </label>
   );
 }
 
@@ -659,27 +732,35 @@ export default function EvidenceLocker() {
   };
 
   const handleSaveGmailRule = async () => {
+    if (!canManageGmail) {
+      showNotice('warning', 'Only the case owner can connect Gmail for this case. You can still upload exported emails as files.');
+      return;
+    }
+    if (!gmailRuleHasCriteria(gmailRule)) {
+      showNotice('warning', 'Add at least one domain, email, or keyword before saving a Gmail rule.');
+      return;
+    }
     setBusy(true);
     showNotice(null, '');
     try {
       const run = await saveGmailImportRule({
         case_id: caseId,
-        domains: gmailRule.domains.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean),
-        email_addresses: gmailRule.email_addresses.split(/[,\s]+/).map((item) => item.trim()).filter(Boolean),
-        keywords: gmailRule.keywords.split(',').map((item) => item.trim()).filter(Boolean),
+        domains: parseGmailRuleInput(gmailRule.domains),
+        email_addresses: parseGmailRuleInput(gmailRule.email_addresses),
+        keywords: parseGmailKeywordInput(gmailRule.keywords),
         include_attachments: gmailRule.include_attachments,
       });
       const status = await fetchGmailStatus(caseId);
       setGmailStatus(status);
       showNotice(run.error ? 'warning' : 'success', run.error || (status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved.' : 'Gmail rule saved. Grant Gmail access, then check the connection.'));
     } catch (err) {
-      showNotice('error', err.message || 'Gmail rule failed');
+      showNotice('error', err.message === 'Failed to fetch' ? 'Could not reach the Gmail import service. Refresh and try again.' : err.message || 'Gmail rule failed');
     } finally {
       setBusy(false);
     }
   };
 
-  const handleConnectGmail = async () => {
+  const handleRefreshGmailConnection = async () => {
     setBusy(true);
     showNotice(null, '');
     try {
@@ -689,7 +770,7 @@ export default function EvidenceLocker() {
       const email = result.connection?.google_email || status.connections?.[0]?.google_email;
       showNotice('success', email ? `Gmail connected for ${email}.` : 'Gmail connected.');
     } catch (err) {
-      showNotice('warning', err.message || 'Grant Gmail access in your account, then check the connection.');
+      showNotice('warning', err.message || 'Grant Gmail access, then refresh the Gmail status.');
     } finally {
       setBusy(false);
     }
@@ -706,8 +787,9 @@ export default function EvidenceLocker() {
         max_results: 25,
       });
       setGmailMessages(result.messages || []);
-      setSelectedGmailMessages((result.messages || []).map((item) => item.id));
-      showNotice('info', `Found ${result.messages?.length || 0} matching Gmail message${result.messages?.length === 1 ? '' : 's'}.`);
+      const likelyRelevant = (result.messages || []).filter(shouldAutoSelectGmailMessage);
+      setSelectedGmailMessages(likelyRelevant.map((item) => item.id));
+      showNotice('info', `Found ${result.messages?.length || 0} matching Gmail message${result.messages?.length === 1 ? '' : 's'}. ${likelyRelevant.length} likely relevant message${likelyRelevant.length === 1 ? '' : 's'} selected.`);
     } catch (err) {
       showNotice('error', err.message || 'Gmail search failed');
     } finally {
@@ -736,24 +818,6 @@ export default function EvidenceLocker() {
       showNotice('success', `Imported ${run.imported_messages} message${run.imported_messages === 1 ? '' : 's'} and ${run.imported_attachments} attachment${run.imported_attachments === 1 ? '' : 's'}.`);
     } catch (err) {
       showNotice('error', err.message || 'Gmail import failed');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleSyncGmail = async () => {
-    setBusy(true);
-    showNotice(null, '');
-    try {
-      const run = await syncGmailMessages({
-        case_id: caseId,
-        connection_id: gmailConnection?.id || '',
-        max_results: 25,
-      });
-      await loadDocuments();
-      showNotice('success', `Sync imported ${run.imported_messages} message${run.imported_messages === 1 ? '' : 's'} and ${run.imported_attachments} attachment${run.imported_attachments === 1 ? '' : 's'}.`);
-    } catch (err) {
-      showNotice('error', err.message || 'Gmail sync failed');
     } finally {
       setBusy(false);
     }
@@ -838,17 +902,51 @@ export default function EvidenceLocker() {
             )}
           </div>
 
-          <details className="min-w-0 rounded-md border border-border bg-background/55">
-            <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-text">
-              <span className="inline-flex items-center gap-2"><Mail className="h-4 w-4 text-accent" aria-hidden="true" /> Import from Gmail</span>
+          <section className="min-w-0 rounded-md border border-border bg-background/55 px-4 py-4" aria-labelledby="gmail-import-title">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 id="gmail-import-title" className="inline-flex items-center gap-2 text-sm font-bold text-text">
+                  <Mail className="h-4 w-4 text-accent" aria-hidden="true" />
+                  Import from Gmail
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-text-dim">
+                  Search Gmail with a rule, review matches, then import selected messages as evidence.
+                </p>
+              </div>
               <span className="rounded-md border border-border px-2 py-1 text-xs font-medium text-text-dim">Beta</span>
-            </summary>
-            <div className="space-y-3 border-t border-border p-4">
+            </div>
+            <div className="mt-4 space-y-4">
+              {!canManageGmail && (
+                <p className="rounded-md border border-warning/30 bg-warning/8 px-3 py-2 text-xs leading-relaxed text-warning">
+                  Gmail import is owner-only because it connects a personal mailbox. Editors can upload exported emails or PDFs.
+                </p>
+              )}
               {gmailConnection?.google_email && <p className="rounded-md border border-success/30 bg-success/8 px-3 py-2 text-xs text-success">Connected to {gmailConnection.google_email}</p>}
               <div className="grid gap-2 sm:grid-cols-3">
-                <input aria-label="Gmail domains" className="min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailRule.domains} onChange={(event) => setGmailRule((current) => ({ ...current, domains: event.target.value }))} placeholder="Domains" />
-                <input aria-label="Gmail addresses" className="min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailRule.email_addresses} onChange={(event) => setGmailRule((current) => ({ ...current, email_addresses: event.target.value }))} placeholder="Addresses" />
-                <input aria-label="Gmail keywords" className="min-h-11 rounded-md border border-border bg-surface px-3 py-2 text-sm outline-none transition-colors focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailRule.keywords} onChange={(event) => setGmailRule((current) => ({ ...current, keywords: event.target.value }))} placeholder="Keywords" />
+                <GmailField
+                  id="gmail-domains"
+                  label="Domains"
+                  help="Use a school or agency domain like usd232.org. USDWatch searches messages from or to that domain."
+                  value={gmailRule.domains}
+                  onChange={(event) => setGmailRule((current) => ({ ...current, domains: event.target.value }))}
+                  placeholder="usd232.org"
+                />
+                <GmailField
+                  id="gmail-emails"
+                  label="Emails"
+                  help="Use a specific person or inbox. Messages from or to that email will be included in the Gmail search results."
+                  value={gmailRule.email_addresses}
+                  onChange={(event) => setGmailRule((current) => ({ ...current, email_addresses: event.target.value }))}
+                  placeholder="principal@usd232.org"
+                />
+                <GmailField
+                  id="gmail-keywords"
+                  label="Keywords"
+                  help="Use case-specific words like incident, supervision, records, the school name, or a child name to reduce noise."
+                  value={gmailRule.keywords}
+                  onChange={(event) => setGmailRule((current) => ({ ...current, keywords: event.target.value }))}
+                  placeholder="incident, supervision"
+                />
               </div>
               <div className="flex flex-wrap gap-4 text-sm text-text-dim">
                 <label className="flex min-h-11 items-center gap-2">
@@ -857,25 +955,28 @@ export default function EvidenceLocker() {
                 </label>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button disabled={busy} onClick={handleSaveGmailRule} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Save rule</button>
+                <button disabled={busy || !canManageGmail || !gmailRuleHasCriteria(gmailRule)} onClick={handleSaveGmailRule} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Save search rule</button>
                 {clerkEnabled ? (
-                  <ClerkGmailAccessButton busy={busy} connected={gmailConnected} disabled={!gmailStatus?.configured} />
+                  <ClerkGmailAccessButton
+                    busy={busy}
+                    connected={gmailConnected}
+                    disabled={!canManageGmail || !gmailStatus?.configured}
+                    onStarted={(message) => showNotice('info', message || 'Google authorization started. Return here after approving access.')}
+                    onError={(message) => showNotice('error', message)}
+                  />
                 ) : (
                   <button disabled className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background opacity-60">
                     <Mail className="h-4 w-4" aria-hidden="true" />
                     Grant Gmail access
                   </button>
                 )}
-                <button disabled={busy || !gmailStatus?.configured} onClick={handleConnectGmail} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Check connection</button>
+                <button disabled={busy || !canManageGmail || !gmailStatus?.configured} onClick={handleRefreshGmailConnection} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Refresh Gmail status</button>
                 {gmailConnected && <button disabled={busy} onClick={handleDisconnectGmail} className="min-h-11 rounded-md border border-danger/40 px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60">Disconnect</button>}
               </div>
               {gmailConnected && (
                 <div className="space-y-3 rounded-md border border-border bg-surface p-3">
                   <input aria-label="Gmail search" className="min-h-11 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/45" value={gmailQuery} onChange={(event) => setGmailQuery(event.target.value)} placeholder="Optional Gmail search override" />
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <button disabled={busy} onClick={handleSearchGmail} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Search messages</button>
-                    <button disabled={busy} onClick={handleSyncGmail} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Sync latest</button>
-                  </div>
+                  <button disabled={busy} onClick={handleSearchGmail} className="min-h-11 w-full rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Search Gmail</button>
                   {gmailMessages.length > 0 && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between gap-2 text-xs text-text-dim">
@@ -887,9 +988,13 @@ export default function EvidenceLocker() {
                           <label key={message.id} className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-background p-2 text-xs">
                             <input type="checkbox" className="mt-1" checked={selectedGmailMessages.includes(message.id)} onChange={() => toggleGmailMessage(message.id)} />
                             <span className="min-w-0">
-                              <span className="block truncate font-semibold text-text">{message.subject || '(no subject)'}</span>
+                              <span className="flex min-w-0 flex-wrap items-center gap-2">
+                                <span className="truncate font-semibold text-text">{message.subject || '(no subject)'}</span>
+                                <span className="rounded-md border border-border bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-text-dim">{gmailRelevanceLabel(message)}</span>
+                              </span>
                               <span className="mt-1 block truncate text-text-dim">{message.from}</span>
                               <span className="mt-1 block text-text-dim">{message.snippet}</span>
+                              {message.case_relevance_reason && <span className="mt-1 block text-[11px] text-text-dim">{message.case_relevance_reason}</span>}
                             </span>
                           </label>
                         ))}
@@ -901,7 +1006,7 @@ export default function EvidenceLocker() {
               )}
               <p className="text-xs leading-relaxed text-text-dim">{gmailStatus?.configured ? 'Gmail access is granted through your USDWatch account. USDWatch does not store Google refresh tokens.' : gmailStatus?.message || 'Gmail import needs Clerk backend credentials before it can connect.'}</p>
             </div>
-          </details>
+          </section>
         </div>
       </Panel>
       ) : (

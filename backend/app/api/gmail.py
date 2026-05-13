@@ -230,11 +230,11 @@ async def connect_gmail(body: GmailConnectRequest, user: dict = Depends(get_curr
 
 @router.post("/gmail/search")
 async def search_gmail(body: GmailSearchRequest, user: dict = Depends(get_current_user)):
-    _get_case(body.case_id, user)
+    case = _get_case(body.case_id, user)
     connection = _connection_for_case(body.case_id, user, body.connection_id)
     access_token = _sync_connection_from_clerk(connection, user, raise_on_missing=True)
     try:
-        return list_matching_messages(connection, access_token=access_token, max_results=body.max_results, query=body.query)
+        return list_matching_messages(connection, access_token=access_token, max_results=body.max_results, query=body.query, case=case)
     except GmailImportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

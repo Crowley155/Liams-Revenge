@@ -639,6 +639,20 @@ export async function updateCase(caseId, data) {
   return res.json();
 }
 
+export async function draftCaseText(caseId, target) {
+  requireCaseId(caseId);
+  const res = await authFetch(`${API_BASE}/api/cases/${caseId}/draft-assist`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Draft assist failed: ${res.status}`);
+  }
+  return res.json();
+}
+
 export async function fetchCaseFile(caseId) {
   const res = await authFetch(`${API_BASE}/api/cases/${caseId}/file`);
   if (!res.ok) throw new Error(`Case file not found: ${res.status}`);

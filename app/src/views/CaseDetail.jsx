@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Download, FileText, Loader2, Printer, Scale } from 'lucide-react';
+import { Download, FileText, Loader2, Printer, Scale, Wand2 } from 'lucide-react';
 import {
+  draftCaseText,
   fetchCase,
   fetchCaseAccess,
   fetchCaseDocuments,
@@ -56,6 +57,8 @@ export default function CaseDetail() {
   const [busy, setBusy] = useState(false);
   const [savingNarrative, setSavingNarrative] = useState(false);
   const [savingOutcome, setSavingOutcome] = useState(false);
+  const [draftingNarrative, setDraftingNarrative] = useState(false);
+  const [draftingOutcome, setDraftingOutcome] = useState(false);
 
   const loadCase = useCallback(async () => {
     setError('');
@@ -226,6 +229,25 @@ export default function CaseDetail() {
     }
   };
 
+  const handleDraftAssist = async (target) => {
+    if (!canEditCase) return;
+    const setDrafting = target === 'family_narrative' ? setDraftingNarrative : setDraftingOutcome;
+    setDrafting(true);
+    setError('');
+    try {
+      const result = await draftCaseText(caseId, target);
+      if (target === 'family_narrative') {
+        setFamilyNarrative(result.draft || '');
+      } else {
+        setDesiredOutcome(result.draft || '');
+      }
+    } catch (err) {
+      setError(err.message || 'Could not draft text from this case file');
+    } finally {
+      setDrafting(false);
+    }
+  };
+
   const handlePrintPacket = () => {
     printDocument({
       title: packet?.title || `Self-Advocacy Packet - ${caseRecord?.title || 'Case'}`,
@@ -309,13 +331,24 @@ export default function CaseDetail() {
       <Panel
         title="Family Narrative"
         action={canEditCase ? (
-          <ActionButton
-            disabled={savingNarrative || familyNarrative === (caseRecord.family_narrative || caseRecord.intake?.narrative || '')}
-            onClick={handleSaveNarrative}
-            variant="primary"
-          >
-            {savingNarrative ? 'Saving...' : 'Save Narrative'}
-          </ActionButton>
+          <div className="flex flex-wrap gap-2">
+            <ActionButton
+              disabled={draftingNarrative}
+              onClick={() => handleDraftAssist('family_narrative')}
+              variant="secondary"
+              aria-label="Draft family narrative from the case file"
+            >
+              {draftingNarrative ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wand2 className="h-4 w-4" aria-hidden="true" />}
+              Draft
+            </ActionButton>
+            <ActionButton
+              disabled={savingNarrative || familyNarrative === (caseRecord.family_narrative || caseRecord.intake?.narrative || '')}
+              onClick={handleSaveNarrative}
+              variant="primary"
+            >
+              {savingNarrative ? 'Saving...' : 'Save Narrative'}
+            </ActionButton>
+          </div>
         ) : null}
       >
         <textarea
@@ -330,13 +363,24 @@ export default function CaseDetail() {
       <Panel
         title="Desired Outcome"
         action={canEditCase ? (
-          <ActionButton
-            disabled={savingOutcome || desiredOutcome.trim() === savedDesiredOutcome.trim()}
-            onClick={handleSaveDesiredOutcome}
-            variant="primary"
-          >
-            {savingOutcome ? 'Saving...' : 'Save Desired Outcome'}
-          </ActionButton>
+          <div className="flex flex-wrap gap-2">
+            <ActionButton
+              disabled={draftingOutcome}
+              onClick={() => handleDraftAssist('desired_outcome')}
+              variant="secondary"
+              aria-label="Draft desired outcome from the case file"
+            >
+              {draftingOutcome ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Wand2 className="h-4 w-4" aria-hidden="true" />}
+              Draft
+            </ActionButton>
+            <ActionButton
+              disabled={savingOutcome || desiredOutcome.trim() === savedDesiredOutcome.trim()}
+              onClick={handleSaveDesiredOutcome}
+              variant="primary"
+            >
+              {savingOutcome ? 'Saving...' : 'Save Desired Outcome'}
+            </ActionButton>
+          </div>
         ) : null}
       >
         <textarea

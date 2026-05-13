@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { AuthenticateWithRedirectCallback } from '@clerk/clerk-react';
 import { BrowserRouter, Navigate, Routes, Route, useNavigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import RequireAuth from './auth/RequireAuth';
@@ -53,6 +54,20 @@ function CaseSectionRedirect({ section = '' }) {
 
 function RouteFallback() {
   return <div className="grid min-h-[40vh] place-items-center text-sm text-text-dim">Loading workspace...</div>;
+}
+
+function SsoCallback() {
+  const fallback = typeof window !== 'undefined'
+    ? window.sessionStorage?.getItem('usdwatch:gmail-return-url') || '/cases'
+    : '/cases';
+  return (
+    <div className="grid min-h-[40vh] place-items-center text-sm text-text-dim">
+      <AuthenticateWithRedirectCallback
+        signInFallbackRedirectUrl={fallback}
+        signUpFallbackRedirectUrl={fallback}
+      />
+    </div>
+  );
 }
 
 function EvaluateRedirect() {
@@ -159,6 +174,7 @@ export default function App() {
                 <Route path="ai-disclosure" element={<StaticEditorialPage pagePath="/ai-disclosure" />} />
                 <Route path="privacy" element={<StaticEditorialPage pagePath="/privacy" />} />
                 <Route path="login" element={<Login />} />
+                <Route path="sso-callback" element={<SsoCallback />} />
 
                 {/* Protected routes */}
                 <Route element={<RequireAuth />}>

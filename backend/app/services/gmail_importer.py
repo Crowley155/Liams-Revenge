@@ -24,6 +24,39 @@ from app.services.file_types import normalize_file_type
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
 MAX_GMAIL_IMPORT_BYTES = 50 * 1024 * 1024
+CASE_SIGNAL_TERMS = (
+    "incident",
+    "injury",
+    "hurt",
+    "unsafe",
+    "supervision",
+    "aftercare",
+    "bullying",
+    "assault",
+    "records",
+    "investigation",
+    "policy",
+    "504",
+    "iep",
+    "retaliation",
+    "principal",
+)
+SCHOOL_NOISE_TERMS = (
+    "newsletter",
+    "lunch menu",
+    "menu",
+    "spirit day",
+    "pto",
+    "fundraiser",
+    "school store",
+    "yearbook",
+    "picture day",
+    "field trip",
+    "attendance reminder",
+    "automated",
+    "no-reply",
+    "noreply",
+)
 
 
 class GmailImportError(RuntimeError):
@@ -66,7 +99,105 @@ def build_gmail_query(rule: GmailImportRule, *, newer_than_days: int | None = No
     return " ".join(chunks).strip()
 
 
-def list_matching_messages(connection: GmailConnection, *, access_token: str, max_results: int = 25, query: str = "") -> dict[str, Any]:
+def _normalized(value: str) -> str:
+    return re.sub(r"\s+", " ", value or "").strip().lower()
+
+
+def _contains_word_or_phrase(haystack: str, term: str) -> bool:
+    if re.fullmatch(r"[a-z0-9]+", term):
+        return bool(re.search(rf"\b{re.escape(term)}\b", haystack))
+    return term in haystack
+
+
+def _case_terms(case: CaseRecord | None) -> set[str]:
+    if not case:
+        return set()
+    values = [
+        case.title,
+        case.intake.district,
+        case.intake.school,
+        case.intake.issue_type,
+        case.intake.grade_level,
+        *case.intake.issue_categories,
+    ]
+    terms = {_normalized(value) for value in values if _normalized(value)}
+    for token in re.findall(r"\b[A-Z][a-z]{2,}\b", case.intake.narrative or ""):
+        lowered = token.lower()
+        if lowered not in {"the", "parent", "student", "school", "program", "district"}:
+            terms.add(lowered)
+    return {term for term in terms if len(term) >= 3}
+
+
+def _date_terms(case: CaseRecord | None) -> set[str]:
+    if not case or not case.intake.incident_date:
+        return set()
+    raw = case.intake.incident_date[:10]
+    terms = {raw}
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return terms
+    terms.update({
+        parsed.strftime("%m/%d/%Y").lower(),
+        f"{parsed.month}/{parsed.day}/{parsed.year}",
+        parsed.strftime("%B %d, %Y").lower().replace(" 0", " "),
+        parsed.strftime("%b %d, %Y").lower().replace(" 0", " "),
+        f"{parsed.strftime('%B').lower()} {parsed.day}",
+        f"{parsed.strftime('%b').lower()} {parsed.day}",
+    })
+    return terms
+
+
+def score_gmail_message_relevance(message: dict[str, Any], case: CaseRecord | None) -> dict[str, Any]:
+    """Score Gmail preview results before import so broad school rules do not auto-ingest noise."""
+    haystack = _normalized(" ".join([
+        str(message.get("from", "")),
+        str(message.get("to", "")),
+        str(message.get("cc", "")),
+        str(message.get("subject", "")),
+        str(message.get("snippet", "")),
+        str(message.get("date", "")),
+    ]))
+    factors: list[str] = []
+    score = 0.18
+
+    matched_case_terms = [term for term in _case_terms(case) if term and term in haystack]
+    if matched_case_terms:
+        score += min(0.34, 0.14 + len(matched_case_terms[:4]) * 0.05)
+        factors.append("matches case terms")
+
+    matched_signal_terms = [term for term in CASE_SIGNAL_TERMS if _contains_word_or_phrase(haystack, term)]
+    if matched_signal_terms:
+        score += min(0.3, 0.12 + len(matched_signal_terms[:4]) * 0.045)
+        factors.append("mentions incident, records, safety, or response terms")
+
+    if any(term and term in haystack for term in _date_terms(case)):
+        score += 0.14
+        factors.append("matches the incident date")
+
+    matched_noise_terms = [term for term in SCHOOL_NOISE_TERMS if term in haystack]
+    if matched_noise_terms and not matched_signal_terms:
+        score -= 0.22
+        factors.append("looks like routine school communication")
+    elif matched_noise_terms:
+        score -= 0.08
+
+    bounded = round(max(0.05, min(0.98, score)), 2)
+    if bounded >= 0.7:
+        label = "likely_relevant"
+    elif bounded >= 0.45:
+        label = "possible_match"
+    else:
+        label = "review_first"
+    reason = "; ".join(factors) if factors else "No strong case terms were found in the preview."
+    return {
+        "case_relevance_score": bounded,
+        "case_relevance_label": label,
+        "case_relevance_reason": reason,
+    }
+
+
+def list_matching_messages(connection: GmailConnection, *, access_token: str, max_results: int = 25, query: str = "", case: CaseRecord | None = None) -> dict[str, Any]:
     q = query.strip() or build_gmail_query(connection.rule)
     if not q:
         raise GmailImportError("Add at least one domain, email address, or keyword before searching Gmail.")
@@ -83,7 +214,9 @@ def list_matching_messages(connection: GmailConnection, *, access_token: str, ma
             "format": "metadata",
             "metadataHeaders": ["From", "To", "Cc", "Subject", "Date"],
         })
-        summaries.append(_message_summary(msg))
+        summary = _message_summary(msg)
+        summary.update(score_gmail_message_relevance(summary, case))
+        summaries.append(summary)
     return {"query": q, "messages": summaries, "result_size_estimate": response.get("resultSizeEstimate", len(summaries))}
 
 
