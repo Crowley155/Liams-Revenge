@@ -43,8 +43,8 @@ def teardown_function():
 def _case(workspace_id: str, narrative: str, **intake_overrides) -> CaseRecord:
     intake = CaseIntake(
         state="KS",
-        district="Test USD",
-        school="Test Elementary",
+        district=intake_overrides.pop("district", "Test USD"),
+        school=intake_overrides.pop("school", "Test Elementary"),
         issue_type=intake_overrides.pop("issue_type", "student_safety"),
         issue_categories=intake_overrides.pop("issue_categories", ["student_safety"]),
         incident_date=intake_overrides.pop("incident_date", "2026-02-03"),
@@ -101,10 +101,73 @@ def test_generic_student_safety_case_is_not_ocr_ready():
 
     result = assess_ocr_readiness(case, [document])
 
-    assert result.overall_status == "not_ready"
+    assert result.overall_status == "no_ocr_theory_indicated"
     assert not result.potential_allegations
-    assert any(gate.key == "protected_basis" and gate.status == "missing" for gate in result.gates)
+    assert any(gate.key == "protected_basis" and gate.status == "not_supported" for gate in result.gates)
     assert any("safety" in route.lower() or "records" in route.lower() for route in result.non_ocr_routes)
+
+
+def test_crowley_safety_case_with_generic_civil_rights_language_is_not_ocr_ready():
+    workspace_id = f"w-{uuid.uuid4().hex[:8]}"
+    case = _case(
+        workspace_id,
+        (
+            "My six-year-old son was attacked by a nine-year-old during the JCPRD aftercare program at Mize Elementary "
+            "on April 2, 2026. I am concerned about aftercare supervision, incident reporting, district oversight, "
+            "and policy reform so children are kept safe from harm."
+        ),
+        issue_type="student_safety",
+        issue_categories=["student_safety", "records", "supervision", "kora_response"],
+        incident_date="2026-04-02",
+        district="USD 232",
+        school="Mize Elementary",
+        desired_outcome=(
+            "I want the district and JCPRD to review and improve supervision policies and procedures for after-school programs."
+        ),
+        iep_504_status="",
+        retaliation_concern=False,
+    )
+    docs = [
+        _doc(
+            workspace_id,
+            case.id,
+            (
+                "General liability policy excludes employment practices claims based on race, national origin, sex, "
+                "disability, harassment, retaliation, evaluations, demotion, and related services."
+            ),
+            filename="general-liability-policy.pdf",
+        ),
+        _doc(
+            workspace_id,
+            case.id,
+            (
+                "Staff training manual includes generic equal employment opportunity language, sexual harassment policy, "
+                "ADA notice, ADHD medication storage examples, and retaliation policy links."
+            ),
+            filename="staff-training-manual.pdf",
+        ),
+        _doc(
+            workspace_id,
+            case.id,
+            (
+                "Prior incident report for another child says a parent mentioned an IEP and accommodations. "
+                "This report does not involve this child or the April 2 incident."
+            ),
+            filename="other-student-incident.pdf",
+        ),
+    ]
+
+    result = assess_ocr_readiness(case, docs)
+
+    assert result.overall_status == "no_ocr_theory_indicated"
+    assert result.confidence == "low"
+    assert not result.potential_allegations
+    assert any(gate.key == "protected_basis" and gate.status == "not_supported" for gate in result.gates)
+    assert any(gate.key == "protected_activity" and gate.status == "not_supported" for gate in result.gates)
+    assert any(gate.key == "evidence_support" and gate.status == "not_applicable" for gate in result.gates)
+    assert all("504" not in item and "IEP" not in item for item in result.recommended_records)
+    assert result.reviewed_evidence
+    assert all(ref.role in {"insurance_contract", "staff_training", "comparator_incident"} for ref in result.reviewed_evidence)
 
 
 def test_section_504_retaliation_case_flags_ocr_readiness_with_scoped_evidence():
@@ -149,7 +212,7 @@ def test_section_504_retaliation_case_flags_ocr_readiness_with_scoped_evidence()
 
     result = assess_ocr_readiness(case, [request_doc, adverse_doc, safety_control_doc, other_case_doc])
 
-    assert result.overall_status in {"plausible_for_ocr_review", "strong_readiness"}
+    assert result.overall_status == "evidence_supported_ocr_question"
     theories = " ".join(item.theory for item in result.potential_allegations).lower()
     assert "504" in theories
     assert "retaliation" in theories
@@ -163,6 +226,7 @@ def test_section_504_retaliation_case_flags_ocr_readiness_with_scoped_evidence()
     assert adverse_doc.id in cited_ids
     assert safety_control_doc.id not in cited_ids
     assert other_case_doc.id not in cited_ids
+    assert any(ref.document_id == request_doc.id and ref.route.endswith(f"/locker/{request_doc.id}") for ref in result.reviewed_evidence)
     assert any(ref.id == "ocr-504-fape-reg" for ref in result.source_refs)
 
 
@@ -206,8 +270,6 @@ def test_case_evaluation_persists_deterministic_ocr_readiness(monkeypatch):
     body = fetched.json()
 
     assert body["status"] == "complete"
-    assert body["result"]["ocr_readiness"]["overall_status"] in {
-        "plausible_for_ocr_review",
-        "strong_readiness",
-    }
+    assert body["result"]["ocr_readiness"]["overall_status"] == "evidence_supported_ocr_question"
     assert body["result"]["ocr_readiness"]["source_refs"]
+    assert body["result"]["ocr_readiness"]["schema_version"] == "ocr_readiness_v2"

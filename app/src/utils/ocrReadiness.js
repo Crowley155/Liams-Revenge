@@ -1,24 +1,30 @@
 const STATUS_LABELS = {
-  not_ready: 'Not ready',
+  no_ocr_theory_indicated: 'No OCR theory indicated yet',
   needs_more_info: 'Needs more information',
-  plausible_for_ocr_review: 'Potential OCR issue',
-  strong_readiness: 'Strong OCR readiness',
+  possible_ocr_question: 'Possible OCR question',
+  evidence_supported_ocr_question: 'Evidence-supported OCR question',
 };
 
 const STATUS_TONES = {
-  not_ready: 'neutral',
+  no_ocr_theory_indicated: 'neutral',
   needs_more_info: 'warning',
-  plausible_for_ocr_review: 'info',
-  strong_readiness: 'success',
+  possible_ocr_question: 'info',
+  evidence_supported_ocr_question: 'success',
 };
 
 const GATE_LABELS = {
   jurisdiction: 'OCR-covered school or program',
   protected_basis: 'Protected civil-rights basis',
+  protected_activity: 'Protected activity',
+  adverse_action: 'Adverse action or denial',
+  causal_nexus: 'Protected-basis connection',
   timeliness: 'OCR timing screen',
   factual_sufficiency: 'Concrete facts',
   evidence_support: 'Source support',
+  limiting_facts: 'Limiting facts',
 };
+
+export const OCR_SCHEMA_VERSION = 'ocr_readiness_v2';
 
 export function ocrStatusLabel(status) {
   return STATUS_LABELS[status] || 'Needs review';
@@ -38,6 +44,12 @@ export function summarizeOcrSources(sourceRefs = []) {
   return `${count} authority reference${count === 1 ? '' : 's'}`;
 }
 
-export function hasOcrReadiness(result) {
-  return Boolean(result?.ocr_readiness);
+export function hasCurrentOcrReadiness(result) {
+  return result?.ocr_readiness?.schema_version === OCR_SCHEMA_VERSION;
+}
+
+export function reviewedEvidenceHref(caseId, evidence = {}) {
+  if (evidence.route) return evidence.route;
+  if (caseId && evidence.document_id) return `/cases/${caseId}/locker/${evidence.document_id}`;
+  return '';
 }

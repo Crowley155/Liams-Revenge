@@ -42,4 +42,4 @@ def test_seed_ocr_benchmark_is_idempotent_and_does_not_touch_existing_case():
         if evaluation.workspace_id == user["workspace_id"] and evaluation.case_id == BENCHMARK_CASE_ID
     ]
     assert len(evaluations) == 1
-    assert evaluations[0].result.ocr_readiness.overall_status == "strong_readiness"
+    assert evaluations[0].result.ocr_readiness.overall_status == "evidence_supported_ocr_question"

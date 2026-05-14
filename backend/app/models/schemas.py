@@ -465,10 +465,20 @@ class OcrSourceRef(BaseModel):
     retrieved_at: str = ""
 
 
+class OcrEvidenceRef(BaseModel):
+    id: str
+    document_id: str = ""
+    label: str = ""
+    role: str = ""
+    snippet: str = ""
+    route: str = ""
+    supports: list[str] = Field(default_factory=list)
+
+
 class OcrGate(BaseModel):
     key: str
     label: str
-    status: str = Field(default="unknown", description="pass | weak | missing | not_applicable | unknown")
+    status: str = Field(default="unknown", description="met | partially_supported | not_supported | not_applicable | unknown")
     rationale: str = ""
     evidence_ids: list[str] = Field(default_factory=list)
     missing_items: list[str] = Field(default_factory=list)
@@ -481,23 +491,26 @@ class OcrPotentialAllegation(BaseModel):
     supporting_facts: list[str] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
     missing_facts: list[str] = Field(default_factory=list)
-    confidence: str = Field(default="low", description="low | medium | high")
+    confidence: str = Field(default="not_supported", description="not_supported | possible | evidence_supported")
     cautions: list[str] = Field(default_factory=list)
 
 
 class OcrReadinessResult(BaseModel):
+    schema_version: str = "ocr_readiness_v2"
     overall_status: str = Field(
-        default="not_ready",
-        description="not_ready | needs_more_info | plausible_for_ocr_review | strong_readiness",
+        default="no_ocr_theory_indicated",
+        description="no_ocr_theory_indicated | needs_more_info | possible_ocr_question | evidence_supported_ocr_question",
     )
     summary: str = ""
     gates: list[OcrGate] = Field(default_factory=list)
     potential_allegations: list[OcrPotentialAllegation] = Field(default_factory=list)
+    reviewed_evidence: list[OcrEvidenceRef] = Field(default_factory=list)
     recommended_records: list[str] = Field(default_factory=list)
     non_ocr_routes: list[str] = Field(default_factory=list)
     source_refs: list[OcrSourceRef] = Field(default_factory=list)
     cautions: list[str] = Field(default_factory=list)
-    confidence: str = Field(default="low", description="low | medium | high")
+    confidence: str = Field(default="low", description="low | medium")
+    trace_metadata: dict = Field(default_factory=dict)
 
 
 class CaseEvaluationResult(BaseModel):
