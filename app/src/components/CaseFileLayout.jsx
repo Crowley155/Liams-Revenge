@@ -56,10 +56,10 @@ export default function CaseFileLayout() {
 
   return (
     <CaseProvider caseId={caseId}>
-      <div className="product-ui w-full min-w-0 max-w-full space-y-6 overflow-hidden">
-        <div className="min-w-0 overflow-hidden rounded-md border border-border bg-surface/80 px-4 py-4 sm:px-5">
-          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0 space-y-1">
+      <div className="product-ui w-full min-w-0 max-w-full space-y-6">
+        <div className="min-w-0 rounded-md border border-border bg-surface/80 px-4 py-4 sm:px-5">
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="min-w-0 max-w-3xl space-y-1">
               <h1 className="wrap-anywhere text-xl font-bold sm:text-2xl">
                 {caseRecord?.title || 'Loading case...'}
               </h1>
@@ -72,7 +72,7 @@ export default function CaseFileLayout() {
                 </p>
               )}
             </div>
-            <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto pb-1 lg:w-auto">
+            <nav aria-label="Case sections" className="grid min-w-0 grid-cols-2 gap-2 border-t border-border/70 pt-3 sm:flex sm:flex-wrap sm:items-center">
               {tabs.map((item) => {
                 const Icon = item.icon;
                 return (
@@ -81,19 +81,19 @@ export default function CaseFileLayout() {
                   to={item.to}
                   end={item.end}
                   className={({ isActive }) =>
-                    `inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-semibold transition-colors ${
+                    `inline-flex min-h-10 max-w-full items-center justify-start gap-2 whitespace-nowrap rounded-md border px-3 py-2 text-xs font-semibold leading-none transition-colors sm:justify-center ${
                       isActive
-                        ? 'bg-accent text-background'
-                        : 'text-text-dim hover:bg-surface-alt hover:text-text'
+                        ? 'border-accent bg-accent text-background'
+                        : 'border-transparent text-text-dim hover:border-border hover:bg-surface-alt hover:text-text'
                     }`
                   }
                 >
-                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   {item.label}
                 </NavLink>
                 );
               })}
-            </div>
+            </nav>
           </div>
         </div>
         <Outlet />
