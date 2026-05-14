@@ -143,6 +143,7 @@ async def upload_document(
     entity_ids: Optional[str] = Form(default=""),
     person_ids: Optional[str] = Form(default=""),
     kora_request_id: Optional[str] = Form(default=""),
+    records_request_id: Optional[str] = Form(default=""),
     case_id: Optional[str] = Form(default=""),
     source: Optional[str] = Form(default="manual_upload"),
     evidence_type: Optional[str] = Form(default=""),
@@ -182,7 +183,8 @@ async def upload_document(
         source_person=source_person or "",
         entity_ids=ent_ids,
         person_ids=per_ids,
-        kora_request_id=kora_request_id or "",
+        kora_request_id=records_request_id or kora_request_id or "",
+        records_request_id=records_request_id or kora_request_id or "",
         source=source or "manual_upload",
     )
     category, confidence, tags, inferred_type = infer_document_metadata(doc.filename, evidence_type=doc.evidence_type)

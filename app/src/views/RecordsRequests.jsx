@@ -4,17 +4,17 @@ import { ChevronRight, Copy, Loader2, Printer } from 'lucide-react';
 import {
   fetchCaseAccess,
   fetchEntities,
-  fetchKoraRequests,
-  generateKoraRequests,
+  fetchRecordsRequests,
+  generateRecordsRequests,
   getJobStatus,
-  markKoraSent,
-  updateKoraRequest,
+  markRecordsRequestSent,
+  updateRecordsRequest,
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
 import { casePermissions } from '../utils/caseAccess';
 import { ActionButton, Panel, StatusPill, formatLabel } from './caseShared';
 
-const STATUS_FLOW = ['draft', 'sent', 'partial', 'fulfilled', 'denied'];
+const STATUS_FLOW = ['draft', 'needs_review', 'sent', 'partial', 'fulfilled', 'denied'];
 
 function entityNamesFor(request, entities) {
   return (request.entity_ids || [])
@@ -42,7 +42,7 @@ export default function RecordsRequests() {
     try {
       const [nextEntities, nextRequests, nextAccess] = await Promise.all([
         fetchEntities(caseId).catch(() => []),
-        fetchKoraRequests('', caseId),
+        fetchRecordsRequests('', caseId),
         fetchCaseAccess(caseId).catch(() => null),
       ]);
       setEntities(nextEntities);
@@ -104,7 +104,7 @@ export default function RecordsRequests() {
     setGenerating(true);
     setError('');
     try {
-      const job = await generateKoraRequests(caseId);
+      const job = await generateRecordsRequests(caseId);
       setGenJobId(job.id);
     } catch (err) {
       setGenerating(false);
@@ -123,8 +123,8 @@ export default function RecordsRequests() {
     setError('');
     try {
       const updated = status === 'sent'
-        ? await markKoraSent(request.id)
-        : await updateKoraRequest(request.id, { status });
+        ? await markRecordsRequestSent(request.id)
+        : await updateRecordsRequest(request.id, { status });
       setRequests((current) => current.map((item) => (item.id === updated.id ? updated : item)));
     } catch (err) {
       setError(err.message || 'Failed to update request');
@@ -135,10 +135,10 @@ export default function RecordsRequests() {
     <div className="mx-auto max-w-6xl space-y-6 py-8 animate-fade-up">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-xs font-medium text-accent/80">Records tracking</p>
+          <p className="text-xs font-medium text-accent/80">State/federal grounding</p>
           <h2 className="mt-1 text-3xl font-bold">Records Requests</h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-text-dim">
-            Generate request drafts, send them yourself, and track whether responses are pending, partial, fulfilled, or denied.
+            Draft requests from the case facts, the selected state, and federal education-records rules. Review everything before you send it.
           </p>
         </div>
         {canManageRecords && (
@@ -149,7 +149,7 @@ export default function RecordsRequests() {
             className="px-4"
           >
             {generating && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-            {generating ? 'Generating...' : requests.length ? 'Regenerate Requests' : 'Generate Requests'}
+            {generating ? 'Generating...' : requests.length ? 'Refresh Drafts' : 'Draft Requests'}
           </ActionButton>
         )}
       </div>
@@ -164,12 +164,12 @@ export default function RecordsRequests() {
         </div>
         {generating && (
           <p className="mt-3 text-sm text-text-dim">
-            USDWatch is reading the current case gaps and drafting request language. This can take a minute.
+            USDWatch is checking the case facts, state rule pack, and education-records routes before drafting.
           </p>
         )}
         {!canManageRecords && (
           <p className="mt-3 text-sm leading-relaxed text-text-dim">
-            You can review and copy records drafts in this shared case. Updating statuses or generating new drafts requires editor access.
+            You can review and copy records drafts in this shared case. Updating statuses or drafting new requests requires editor access.
           </p>
         )}
       </Panel>
@@ -180,7 +180,7 @@ export default function RecordsRequests() {
           <div className="rounded-md border border-border bg-background px-4 py-8 text-center">
             <h3 className="font-semibold text-text">No records requests yet</h3>
             <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-text-dim">
-              Generate drafts after your story and evidence are in. You stay in control of what gets sent.
+              Draft requests after your story has enough detail. USDWatch will label the state or federal authority it used, and you stay in control of what gets sent.
             </p>
           </div>
         )}
@@ -203,6 +203,7 @@ export default function RecordsRequests() {
                       <span className="mt-1 block text-xs text-text-dim">
                         {names.join(', ') || request.custodian?.name || 'Records custodian'}
                         {request.record_category ? ` - ${formatLabel(request.record_category)}` : ''}
+                        {request.request_law_code ? ` - ${request.request_law_code}` : ''}
                       </span>
                     </span>
                     <StatusPill status={request.status} />
@@ -211,6 +212,27 @@ export default function RecordsRequests() {
                   {isExpanded && (
                     <div className="mt-4 space-y-3 pl-7">
                       {request.relevance && <p className="text-sm leading-relaxed text-text-dim">{request.relevance}</p>}
+                      {request.legal_basis && (
+                        <p className="rounded-md border border-border bg-background px-3 py-2 text-xs leading-relaxed text-text-dim">
+                          <strong className="text-text">Grounding:</strong> {request.legal_basis}
+                          {request.jurisdiction_confirmed === false ? ' Confirm the state law and custodian before sending.' : ''}
+                        </p>
+                      )}
+                      {request.source_refs?.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {request.source_refs.map((source) => (
+                            <a
+                              key={source.rule_id}
+                              href={source.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="rounded-md border border-border px-2 py-1 text-xs font-semibold text-text-dim transition-colors hover:border-accent/40 hover:text-accent"
+                            >
+                              {source.title}
+                            </a>
+                          ))}
+                        </div>
+                      )}
                       <pre className="max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-background p-4 text-xs leading-relaxed text-text-dim">
                         {request.letter_text || request.records_description}
                       </pre>

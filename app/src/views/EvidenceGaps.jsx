@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useCase } from '../data/useCase';
 import { useAuth } from '../auth/AuthContext';
-import { fetchKoraRequests } from '../api/client';
+import { fetchRecordsRequests } from '../api/client';
 
 const IMPORTANCE_STYLE = {
   CRITICAL: { bg: 'bg-red-500/15', text: 'text-red-400' },
@@ -13,16 +13,28 @@ const IMPORTANCE_STYLE = {
 
 const DEFAULT_STYLE = { bg: 'bg-text-dim/15', text: 'text-text-dim' };
 
+function displayGapMethod(method = '') {
+  return method
+    .replace(/\bKORA\b/gi, 'public-records')
+    .replace(/\s+\/\s+/g, ' / ')
+    .trim();
+}
+
+function isRecordsRequestGap(method = '') {
+  const displayMethod = displayGapMethod(method).toLowerCase();
+  return displayMethod.includes('records') || displayMethod.includes('request');
+}
+
 export default function EvidenceGaps() {
   const { caseId } = useParams();
   const data = useCase();
   const { isAuthenticated } = useAuth();
-  const [koraRequests, setKoraRequests] = useState([]);
+  const [recordsRequests, setRecordsRequests] = useState([]);
   const [importanceFilter, setImportanceFilter] = useState('');
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchKoraRequests('', caseId).then(setKoraRequests).catch(() => {});
+      fetchRecordsRequests('', caseId).then(setRecordsRequests).catch(() => {});
     }
   }, [caseId, isAuthenticated]);
 
@@ -38,16 +50,16 @@ export default function EvidenceGaps() {
     [gaps, importanceFilter],
   );
 
-  const koraByGapId = useMemo(() => {
+  const recordsByGapId = useMemo(() => {
     const m = {};
-    for (const req of koraRequests) {
+    for (const req of recordsRequests) {
       for (const gid of (req.evidence_gap_ids || [])) {
         if (!m[gid]) m[gid] = [];
         m[gid].push(req);
       }
     }
     return m;
-  }, [koraRequests]);
+  }, [recordsRequests]);
 
   const counts = useMemo(() => {
     const m = {};
@@ -67,7 +79,7 @@ export default function EvidenceGaps() {
         <p className="text-[15px] leading-[1.8] text-text/80 max-w-2xl text-pretty">
           {gaps.length} identified gaps in the evidence record. Each one represents a document,
           record, or confirmation that could strengthen or change the case.
-          {koraRequests.length > 0 && ` ${koraRequests.length} KORA requests are already in motion to fill them.`}
+          {recordsRequests.length > 0 && ` ${recordsRequests.length} records requests are already in motion to fill them.`}
         </p>
       </div>
 
@@ -101,7 +113,7 @@ export default function EvidenceGaps() {
       <div className="space-y-3">
         {filtered.map((gap) => {
           const style = IMPORTANCE_STYLE[gap.importance] || DEFAULT_STYLE;
-          const linkedKora = koraByGapId[gap.id] || [];
+          const linkedRecords = recordsByGapId[gap.id] || [];
 
           return (
             <div
@@ -116,19 +128,19 @@ export default function EvidenceGaps() {
                   <p className="text-[15px] font-semibold text-text">{gap.item}</p>
                   <p className="text-xs text-text-dim mt-1">
                     <span className="text-text-dim/60">{gap.id}</span>
-                    <span className="mx-2 text-text-dim/30">·</span>
-                    <span>Method: {gap.method}</span>
+                    <span className="mx-2 text-text-dim/30">-</span>
+                    <span>Method: {displayGapMethod(gap.method)}</span>
                   </p>
                 </div>
               </div>
 
-              {linkedKora.length > 0 && (
+              {linkedRecords.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-border/40">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-accent/70 mb-1.5">
-                    Linked KORA Requests
+                    Linked Records Requests
                   </p>
                   <div className="space-y-1.5">
-                    {linkedKora.map((req) => {
+                    {linkedRecords.map((req) => {
                       const statusColor = {
                         draft: 'text-text-dim bg-text-dim/10',
                         sent: 'text-accent bg-accent/10',
@@ -150,11 +162,11 @@ export default function EvidenceGaps() {
                 </div>
               )}
 
-              {linkedKora.length === 0 && gap.method?.toUpperCase().includes('KORA') && (
+              {linkedRecords.length === 0 && isRecordsRequestGap(gap.method) && (
                 <div className="mt-3 pt-3 border-t border-border/40">
                   <p className="text-xs text-warning/80 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-warning inline-block" />
-                    KORA-eligible but no request generated yet
+                    Records-request gap but no draft generated yet
                   </p>
                 </div>
               )}
@@ -174,11 +186,11 @@ export default function EvidenceGaps() {
         <div className="bg-surface-alt border border-border rounded-xl p-6 sm:p-8">
           <p className="text-[15px] leading-[1.8] text-text/85 text-pretty">
             Every gap in this list is a question the institutions could answer but haven't.
-            Some require KORA requests. Some require subpoenas. Some just require someone
-            to ask. The point of this page is transparency — you can see exactly what we
+            Some require public-records requests. Some require education-records requests. Some just require someone
+            to ask. The point of this page is transparency - you can see exactly what we
             know, what we don't, and what we're doing about it.
           </p>
-          {isAuthenticated && koraRequests.length > 0 && (
+          {isAuthenticated && recordsRequests.length > 0 && (
             <Link
               to={`/cases/${caseId}/records`}
               className="inline-block mt-4 text-sm font-medium text-accent hover:text-accent-hover transition-colors"

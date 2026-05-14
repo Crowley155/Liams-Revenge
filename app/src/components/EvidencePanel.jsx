@@ -231,7 +231,7 @@ function getAccessHint(source) {
     return 'Available via Westlaw, LexisNexis, or Justia (if published). Request attorney access for full opinion text.';
   if (['statute', 'regulation'].includes(source.type))
     return 'Available via Kansas Revisor of Statutes website (ksrevisor.gov) or Cornell LII.';
-  return 'Contact attorney for access or submit KORA request to the issuing entity.';
+  return 'Contact an attorney for access or submit a public-records request to the issuing entity.';
 }
 
 function SourceDetail({ source }) {

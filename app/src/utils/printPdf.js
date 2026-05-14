@@ -1,5 +1,5 @@
 /**
- * Opens a print-friendly window for a KORA letter, battle card, or packet.
+ * Opens a print-friendly window for a records request, battle card, or packet.
  * The user can then "Save as PDF" from the browser print dialog.
  */
 export function printDocument({ title, body, meta = {} }) {

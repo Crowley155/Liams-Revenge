@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   friendlyGmailError,
   formatGmailRuleSummary,
+  gmailConnectionActionLabel,
   gmailRuleHasCriteria,
   removeGmailRuleValue,
   parseGmailRuleInput,
@@ -64,8 +65,13 @@ test('friendlyGmailError explains disabled Gmail API setup without raw Google JS
 
   assert.equal(
     message,
-    'Gmail access is approved, but Gmail API is not enabled for this Google Cloud project. Enable Gmail API in Google Cloud, then check Gmail access again.',
+    'Gmail access is approved, but Gmail API is not enabled for this Google Cloud project. Enable Gmail API in Google Cloud, then check the connection again.',
   );
   assert.equal(message.includes('{'), false);
   assert.equal(message.includes('console.developers.google.com'), false);
+});
+
+test('gmailConnectionActionLabel uses parent-friendly connection language', () => {
+  assert.equal(gmailConnectionActionLabel(false), 'Connect Gmail');
+  assert.equal(gmailConnectionActionLabel(true), 'Reconnect Gmail');
 });

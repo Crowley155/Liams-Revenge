@@ -92,6 +92,7 @@ def _claim_legacy_case_for_owner(user: AppUser, workspace: Workspace) -> None:
         jobs,
         kora_requests,
         profiles,
+        records_requests,
         usage_events,
     )
 
@@ -107,6 +108,7 @@ def _claim_legacy_case_for_owner(user: AppUser, workspace: Workspace) -> None:
         entities,
         jobs,
         kora_requests,
+        records_requests,
         case_documents,
         case_evaluations,
         agent_runs,

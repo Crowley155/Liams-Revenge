@@ -226,26 +226,32 @@ export async function fetchEntityGraph(caseId = '') {
   return res.json();
 }
 
-// KORA requests
-export async function generateKoraRequests(caseId) {
+// Records requests
+export async function generateRecordsRequests(caseId) {
   const params = `?case_id=${encodeURIComponent(requireCaseId(caseId))}`;
-  const res = await authFetch(`${API_BASE}/api/kora/generate${params}`, { method: 'POST' });
-  if (!res.ok) throw new Error(`KORA generation failed: ${res.status}`);
+  const res = await authFetch(`${API_BASE}/api/records/generate${params}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Records request generation failed: ${res.status}`);
   return res.json();
 }
 
-export async function fetchKoraRequests(entityId = '', caseId = '') {
+export async function fetchRecordsRulePacks() {
+  const res = await authFetch(`${API_BASE}/api/records/rule-packs`);
+  if (!res.ok) throw new Error(`Failed to fetch records rule packs: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchRecordsRequests(entityId = '', caseId = '') {
   const params = new URLSearchParams();
   if (entityId) params.set('entity_id', entityId);
   if (caseId) params.set('case_id', caseId);
   const suffix = params.toString() ? `?${params.toString()}` : '';
-  const res = await authFetch(`${API_BASE}/api/kora/requests${suffix}`);
-  if (!res.ok) throw new Error(`Failed to fetch KORA requests: ${res.status}`);
+  const res = await authFetch(`${API_BASE}/api/records/requests${suffix}`);
+  if (!res.ok) throw new Error(`Failed to fetch records requests: ${res.status}`);
   return res.json();
 }
 
-export async function updateKoraRequest(id, data) {
-  const res = await authFetch(`${API_BASE}/api/kora/requests/${id}`, {
+export async function updateRecordsRequest(id, data) {
+  const res = await authFetch(`${API_BASE}/api/records/requests/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -254,8 +260,8 @@ export async function updateKoraRequest(id, data) {
   return res.json();
 }
 
-export async function markKoraSent(id) {
-  const res = await authFetch(`${API_BASE}/api/kora/requests/${id}/mark-sent`, { method: 'POST' });
+export async function markRecordsRequestSent(id) {
+  const res = await authFetch(`${API_BASE}/api/records/requests/${id}/mark-sent`, { method: 'POST' });
   if (!res.ok) throw new Error(`Mark sent failed: ${res.status}`);
   return res.json();
 }
@@ -264,7 +270,7 @@ export async function markKoraSent(id) {
 export async function uploadDocument(file, {
   entityIds = [],
   personIds = [],
-  koraRequestId = '',
+  recordsRequestId = '',
   caseId = '',
   source = 'manual_upload',
   evidenceType = '',
@@ -277,7 +283,7 @@ export async function uploadDocument(file, {
   form.append('file', file);
   form.append('entity_ids', entityIds.join(','));
   form.append('person_ids', personIds.join(','));
-  form.append('kora_request_id', koraRequestId);
+  form.append('records_request_id', recordsRequestId);
   form.append('case_id', caseId);
   form.append('source', source);
   form.append('evidence_type', evidenceType);

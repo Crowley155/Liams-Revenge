@@ -974,6 +974,90 @@ class KoraRequest(BaseModel):
     updated_at: datetime = Field(default_factory=utc_now)
 
 
+class LegalAuthoritySource(BaseModel):
+    rule_id: str
+    title: str
+    url: str
+    summary: str = ""
+    jurisdiction: str = ""
+    source_type: str = Field(default="official_guidance", description="statute | regulation | official_guidance")
+    effective_date: str = ""
+    retrieved_at: str = ""
+
+
+class JurisdictionRulePack(BaseModel):
+    rule_pack_id: str
+    jurisdiction: str
+    name: str
+    version: str
+    status: str = Field(default="pilot", description="pilot | unsupported")
+    public_records_law_code: str = ""
+    public_records_law_label: str = ""
+    public_records_citation: str = ""
+    request_deadline: str = ""
+    sources: list[LegalAuthoritySource] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+class RecordsRequestTemplate(BaseModel):
+    id: str
+    request_type: str
+    title: str
+    description: str = ""
+    source_rule_ids: list[str] = Field(default_factory=list)
+
+
+class RecordsRequestDraft(BaseModel):
+    title: str
+    request_type: str = "state_public_records"
+    record_category: str = ""
+    records_description: str = ""
+    reason: str = ""
+    priority: str = "medium"
+
+
+class EvidenceReviewDecision(BaseModel):
+    document_id: str
+    case_id: str = ""
+    decision: str = Field(default="review", description="likely_relevant | possible_match | not_relevant | review")
+    reason: str = ""
+    decided_by: str = ""
+    decided_at: datetime = Field(default_factory=utc_now)
+
+
+class RecordsRequest(BaseModel):
+    """A state/federal records request draft grounded in a jurisdiction rule pack."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
+    workspace_id: str = "demo"
+    case_id: str = "crowley-v-usd232"
+    request_type: str = Field(
+        default="state_public_records",
+        description="state_public_records | education_records_ferpa | special_education_idea | jurisdiction_review",
+    )
+    request_law_code: str = ""
+    jurisdiction: str = ""
+    jurisdiction_confirmed: bool = True
+    entity_ids: list[str] = Field(default_factory=list)
+    custodian: Optional[RecordsCustodian] = None
+    subject: str = ""
+    records_description: str = ""
+    legal_basis: str = ""
+    relevance: str = ""
+    evidence_gap_ids: list[str] = Field(default_factory=list)
+    person_ids: list[str] = Field(default_factory=list)
+    record_category: str = ""
+    status: str = Field(default="draft", description="draft | needs_review | sent | fulfilled | denied | partial")
+    letter_text: str = ""
+    source_refs: list[LegalAuthoritySource] = Field(default_factory=list)
+    cautions: list[str] = Field(default_factory=lambda: ["This is not legal advice"])
+    trace_metadata: dict = Field(default_factory=dict)
+    sent_at: Optional[datetime] = None
+    response_notes: str = ""
+    response_doc_ids: list[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
+
+
 # ---------------------------------------------------------------------------
 # Document intake
 # ---------------------------------------------------------------------------
@@ -1010,7 +1094,8 @@ class CaseDocument(BaseModel):
     entity_ids: list[str] = Field(default_factory=list)
     person_ids: list[str] = Field(default_factory=list)
     kora_request_id: str = ""
-    source: str = Field(default="manual_upload", description="kora_response | manual_upload | email_export")
+    records_request_id: str = ""
+    source: str = Field(default="manual_upload", description="records_response | kora_response | manual_upload | gmail_import | email_export")
     email_message_id: str = ""
     email_thread_id: str = ""
     email_subject: str = ""

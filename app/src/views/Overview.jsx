@@ -5,7 +5,7 @@ import { useCase } from '../data/useCase';
 import DocLink from '../components/DocLink';
 import { useAuth } from '../auth/AuthContext';
 import {
-  generateKoraRequests, fetchKoraRequests, markKoraSent, updateKoraRequest,
+  generateRecordsRequests, fetchRecordsRequests, markRecordsRequestSent, updateRecordsRequest,
   uploadDocument, fetchDocuments, fetchEntities, getJobStatus,
 } from '../api/client';
 import { printDocument } from '../utils/printPdf';
@@ -253,16 +253,16 @@ export default function Overview() {
         </div>
       </section>
 
-      {/* Section 4: KORA Requests + Document Upload (auth-gated) */}
-      {isAuthenticated && <KoraSection caseId={caseId} />}
+      {/* Section 4: Records Requests + Document Upload (auth-gated) */}
+      {isAuthenticated && <RecordsSection caseId={caseId} />}
 
     </div>
   );
 }
 
-function KoraSection({ caseId }) {
+function RecordsSection({ caseId }) {
   const [entities, setEntities] = useState([]);
-  const [koraRequests, setKoraRequests] = useState([]);
+  const [recordsRequests, setRecordsRequests] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [generating, setGenerating] = useState(false);
   const [genJobId, setGenJobId] = useState(null);
@@ -276,7 +276,7 @@ function KoraSection({ caseId }) {
 
   const loadData = useCallback(() => {
     fetchEntities(caseId).then(setEntities).catch(() => {});
-    fetchKoraRequests('', caseId).then(setKoraRequests).catch(() => {});
+    fetchRecordsRequests('', caseId).then(setRecordsRequests).catch(() => {});
     fetchDocuments('', caseId).then(setDocuments).catch(() => {});
   }, [caseId]);
 
@@ -298,7 +298,7 @@ function KoraSection({ caseId }) {
             setError(null);
             loadData();
           } else {
-            setError(job.error || 'KORA generation failed — check backend logs');
+            setError(job.error || 'Records request generation failed. Check backend logs.');
           }
           return;
         }
@@ -319,7 +319,7 @@ function KoraSection({ caseId }) {
     setGenerating(true);
     setError(null);
     try {
-      const job = await generateKoraRequests(caseId);
+      const job = await generateRecordsRequests(caseId);
       setGenJobId(job.id);
     } catch (err) {
       console.error(err);
@@ -336,8 +336,8 @@ function KoraSection({ caseId }) {
 
   async function handleMarkSent(req) {
     try {
-      const updated = await markKoraSent(req.id);
-      setKoraRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      const updated = await markRecordsRequestSent(req.id);
+      setRecordsRequests((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
     } catch (err) {
       console.error(err);
     }
@@ -359,8 +359,8 @@ function KoraSection({ caseId }) {
   }
 
   const filtered = filterEntity
-    ? koraRequests.filter((r) => r.entity_ids.includes(filterEntity))
-    : koraRequests;
+    ? recordsRequests.filter((r) => r.entity_ids.includes(filterEntity))
+    : recordsRequests;
 
   const CATEGORY_LABELS = {
     incident_reports: 'Incident Reports',
@@ -375,6 +375,7 @@ function KoraSection({ caseId }) {
 
   const STATUS_COLORS = {
     draft: 'bg-text-dim/10 text-text-dim',
+    needs_review: 'bg-warning/15 text-warning',
     sent: 'bg-accent/15 text-accent',
     fulfilled: 'bg-success/15 text-success',
     denied: 'bg-danger/15 text-danger',
@@ -396,7 +397,7 @@ function KoraSection({ caseId }) {
             disabled={generating}
             className="inline-flex min-h-11 items-center rounded-md bg-accent px-4 text-xs font-semibold text-background transition-colors hover:bg-accent-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/45 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {generating ? 'Generating...' : koraRequests.length > 0 ? 'Regenerate KORA Requests' : 'Generate KORA Requests'}
+            {generating ? 'Generating...' : recordsRequests.length > 0 ? 'Refresh Records Requests' : 'Draft Records Requests'}
           </button>
           {generating && (
             <span className="text-xs text-text-dim flex items-center gap-1.5">
@@ -415,10 +416,10 @@ function KoraSection({ caseId }) {
       )}
 
       {/* Status pipeline summary */}
-      {koraRequests.length > 0 && (
+      {recordsRequests.length > 0 && (
         <div className="flex items-center gap-1 text-[11px]">
-          {['draft', 'sent', 'partial', 'fulfilled', 'denied'].map((s, i) => {
-            const count = koraRequests.filter((r) => r.status === s).length;
+          {['draft', 'needs_review', 'sent', 'partial', 'fulfilled', 'denied'].map((s, i) => {
+            const count = recordsRequests.filter((r) => r.status === s).length;
             if (count === 0 && s !== 'draft' && s !== 'sent') return null;
             return (
               <span key={s} className="flex items-center gap-1">
@@ -433,7 +434,7 @@ function KoraSection({ caseId }) {
       )}
 
       {/* Entity filter chips */}
-      {entities.length > 0 && koraRequests.length > 0 && (
+      {entities.length > 0 && recordsRequests.length > 0 && (
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setFilterEntity('')}
@@ -441,10 +442,10 @@ function KoraSection({ caseId }) {
               !filterEntity ? 'bg-accent/15 text-accent border-accent/30' : 'text-text-dim border-border hover:border-accent/30'
             }`}
           >
-            All ({koraRequests.length})
+            All ({recordsRequests.length})
           </button>
           {entities.map((ent) => {
-            const count = koraRequests.filter((r) => r.entity_ids.includes(ent.id)).length;
+            const count = recordsRequests.filter((r) => r.entity_ids.includes(ent.id)).length;
             if (count === 0) return null;
             return (
               <button
@@ -519,7 +520,7 @@ function KoraSection({ caseId }) {
                       </button>
                       <button
                         onClick={() => printDocument({
-                          title: req.subject || 'KORA Request',
+                          title: req.subject || 'Records Request',
                           body: (req.letter_text || req.records_description || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'),
                           meta: {
                             'Status': req.status,
@@ -543,8 +544,8 @@ function KoraSection({ caseId }) {
                       {req.status === 'sent' && (
                         <button
                           onClick={async () => {
-                            const updated = await updateKoraRequest(req.id, { status: 'fulfilled' });
-                            setKoraRequests((prev) => prev.map((r) => r.id === updated.id ? updated : r));
+                            const updated = await updateRecordsRequest(req.id, { status: 'fulfilled' });
+                            setRecordsRequests((prev) => prev.map((r) => r.id === updated.id ? updated : r));
                           }}
                           className="text-[11px] font-medium px-3 py-1 rounded bg-success/15 text-success hover:bg-success/30 transition-colors"
                         >
@@ -554,8 +555,8 @@ function KoraSection({ caseId }) {
                       {req.status === 'sent' && (
                         <button
                           onClick={async () => {
-                            const updated = await updateKoraRequest(req.id, { status: 'denied' });
-                            setKoraRequests((prev) => prev.map((r) => r.id === updated.id ? updated : r));
+                            const updated = await updateRecordsRequest(req.id, { status: 'denied' });
+                            setRecordsRequests((prev) => prev.map((r) => r.id === updated.id ? updated : r));
                           }}
                           className="text-[11px] font-medium px-3 py-1 rounded bg-danger/15 text-danger hover:bg-danger/30 transition-colors"
                         >
@@ -571,11 +572,11 @@ function KoraSection({ caseId }) {
         </div>
       )}
 
-      {koraRequests.length === 0 && !generating && (
+      {recordsRequests.length === 0 && !generating && (
         <div className="text-center py-8 bg-surface border border-border rounded-lg">
-          <p className="text-sm text-text-dim">No KORA requests generated yet.</p>
+          <p className="text-sm text-text-dim">No records requests drafted yet.</p>
           <p className="text-xs text-text-dim/60 mt-1">
-            Click "Generate KORA Requests" to analyze the case and produce records request letters.
+            Draft records requests from the case facts and the applicable state or federal records route.
           </p>
         </div>
       )}
@@ -586,7 +587,7 @@ function KoraSection({ caseId }) {
           <div>
             <h4 className="text-sm font-bold">Uploaded Documents</h4>
             <p className="text-xs text-text-dim">
-              Upload KORA responses, evidence files, or any document you want available in the Evidence Locker.
+              Upload records responses, evidence files, or any document you want available in the Evidence Locker.
             </p>
           </div>
           <label className="inline-flex min-h-11 cursor-pointer items-center rounded-md border border-border bg-surface px-4 text-xs font-semibold text-text-dim transition-colors hover:border-accent/40 hover:text-accent focus-within:ring-2 focus-within:ring-accent/45">

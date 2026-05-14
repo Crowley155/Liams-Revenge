@@ -174,7 +174,7 @@ function SourceRow({ source }) {
     ? 'Available via Westlaw, LexisNexis, or Justia (if published). Request attorney access for full opinion text.'
     : source.type === 'statute' || source.type === 'regulation'
     ? 'Available via Kansas Revisor of Statutes website (ksrevisor.gov) or Cornell LII.'
-    : 'Contact attorney for access or submit KORA request to the issuing entity.';
+    : 'Contact an attorney for access or submit a public-records request to the issuing entity.';
 
   return (
     <div

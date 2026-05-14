@@ -16,6 +16,7 @@ from app.models import (
     GmailConnection,
     GmailImportRun,
     KoraRequest,
+    RecordsRequest,
     CaseDocument,
     Entity,
     Person,
@@ -58,6 +59,19 @@ kora_requests = _SqliteStore(
         "case_id": "case_id",
         "status": "status",
         "record_category": "record_category",
+    },
+)
+
+records_requests = _SqliteStore(
+    "records_requests",
+    RecordsRequest,
+    indexed_cols={
+        "workspace_id": "workspace_id",
+        "case_id": "case_id",
+        "status": "status",
+        "record_category": "record_category",
+        "request_law_code": "request_law_code",
+        "jurisdiction": "jurisdiction",
     },
 )
 

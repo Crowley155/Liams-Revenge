@@ -25,7 +25,7 @@ from app.api._store import (
     case_share_grants,
     cases,
     gmail_connections,
-    kora_requests,
+    records_requests,
     usage_events,
     workspaces,
 )
@@ -525,7 +525,7 @@ def _advocate_evidence_sources(case: CaseRecord, query: str, *, limit: int = 4) 
 def _case_advocate_context(case: CaseRecord, user: dict, content: str, *, intent: str = "") -> dict:
     docs = _case_docs(case)
     records = [
-        request for request in kora_requests.values()
+        request for request in records_requests.values()
         if request.workspace_id == case.workspace_id and request.case_id == case.id
     ]
     gmail = [
@@ -543,7 +543,7 @@ def _case_advocate_context(case: CaseRecord, user: dict, content: str, *, intent
         "evidence_sources": _advocate_evidence_sources(case, content) if intent == "evidence_question" else [],
         "records": {
             "draft_count": len(records),
-            "pending_count": len([item for item in records if item.status not in {"sent", "complete"}]),
+            "pending_count": len([item for item in records if item.status not in {"sent", "fulfilled"}]),
         },
         "gmail": {
             "connections": len(gmail),

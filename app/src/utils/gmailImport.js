@@ -27,10 +27,10 @@ export function friendlyGmailError(value) {
     lowered.includes('gmail api')
     && (lowered.includes('not been used') || lowered.includes('disabled'))
   ) {
-    return 'Gmail access is approved, but Gmail API is not enabled for this Google Cloud project. Enable Gmail API in Google Cloud, then check Gmail access again.';
+    return 'Gmail access is approved, but Gmail API is not enabled for this Google Cloud project. Enable Gmail API in Google Cloud, then check the connection again.';
   }
   if (message) return message;
-  return 'Gmail could not be reached. Check Gmail access, then try again.';
+  return 'Gmail could not be reached. Check the connection, then try again.';
 }
 
 function arrayFromRuleValue(value, keyword = false) {
@@ -75,6 +75,10 @@ export function formatGmailRuleSummary(rule = {}) {
 export function shouldAutoSelectGmailMessage(message) {
   return message?.case_relevance_label === 'likely_relevant'
     || Number(message?.case_relevance_score || 0) >= 0.7;
+}
+
+export function gmailConnectionActionLabel(connected) {
+  return connected ? 'Reconnect Gmail' : 'Connect Gmail';
 }
 
 export function gmailRelevanceLabel(message) {

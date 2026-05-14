@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.db import init_db, migrate_json_to_sqlite
 from app.time import normalize_utc
-from app.api import agent_os, auth, cases, documents, enrichment, entities, gmail, intake, kora, maintenance, profiles, research
+from app.api import agent_os, auth, cases, documents, enrichment, entities, gmail, intake, maintenance, profiles, records, research
 from app.api.deps import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -90,7 +90,7 @@ app.include_router(research.router, prefix="/api")
 app.include_router(profiles.router, prefix="/api")
 app.include_router(entities.router, prefix="/api")
 app.include_router(enrichment.router, prefix="/api")
-app.include_router(kora.router, prefix="/api")
+app.include_router(records.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
 app.include_router(gmail.router, prefix="/api")
 app.include_router(agent_os.router, prefix="/api")

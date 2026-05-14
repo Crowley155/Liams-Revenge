@@ -37,6 +37,7 @@ import { casePermissions, caseRoleLabel } from '../utils/caseAccess';
 import {
   friendlyGmailError,
   formatGmailRuleSummary,
+  gmailConnectionActionLabel,
   gmailRelevanceLabel,
   gmailRuleHasCriteria,
   normalizeGmailRule,
@@ -352,7 +353,7 @@ function ClerkGmailAccessButton({ busy, connected, disabled, onStarted, onError 
 
   const handleGrant = async () => {
     if (!user) {
-      onError?.('Sign in before granting Gmail access.');
+      onError?.('Sign in before connecting Gmail.');
       return;
     }
     try {
@@ -381,7 +382,7 @@ function ClerkGmailAccessButton({ busy, connected, disabled, onStarted, onError 
         window.location.assign(nextUrl);
         return;
       }
-      onStarted?.('Gmail access was started. Refresh status after Google confirms access.');
+      onStarted?.('Gmail connection started. Check the connection after Google confirms access.');
     } catch (err) {
       onError?.(err.message || 'Could not start Google authorization.');
     }
@@ -394,7 +395,7 @@ function ClerkGmailAccessButton({ busy, connected, disabled, onStarted, onError 
       className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background transition-colors hover:bg-accent-hover disabled:opacity-60"
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Mail className="h-4 w-4" aria-hidden="true" />}
-      {connected ? 'Re-authorize Gmail' : 'Grant Gmail access'}
+      {gmailConnectionActionLabel(connected)}
     </button>
   );
 }
@@ -822,7 +823,7 @@ export default function EvidenceLocker() {
       setGmailStatus(status);
       const savedRule = status.connections?.[0]?.rule || normalizedRule;
       setGmailRule(gmailRuleToForm(savedRule));
-      showNotice('success', status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved. Search it to review matching messages.' : 'Gmail rule saved. Grant Gmail access, then check Gmail access.');
+      showNotice('success', status.connections?.[0]?.status === 'connected' ? 'Gmail rule saved. Search it to review matching messages.' : 'Gmail rule saved. Connect Gmail, then check the connection.');
     } catch (err) {
       showNotice('error', err.message === 'Failed to fetch' ? 'Could not reach the Gmail import service. Refresh and try again.' : friendlyGmailError(err.message || 'Gmail rule failed'));
     } finally {
@@ -864,7 +865,7 @@ export default function EvidenceLocker() {
       setGmailRule(gmailRuleToForm(result.connection?.rule || status.connections?.[0]?.rule || {}));
       setGmailMessages([]);
       setSelectedGmailMessages([]);
-      showNotice('success', 'Gmail search rule cleared. Gmail access stays connected.');
+      showNotice('success', 'Gmail search rule cleared. Gmail stays connected.');
     } catch (err) {
       showNotice('error', err.message || 'Could not clear the Gmail rule.');
     } finally {
@@ -882,7 +883,7 @@ export default function EvidenceLocker() {
       const email = result.connection?.google_email || status.connections?.[0]?.google_email;
       showNotice('success', email ? `Gmail connected for ${email}.` : 'Gmail connected.');
     } catch (err) {
-      showNotice('warning', friendlyGmailError(err.message || 'Grant Gmail access, then check Gmail access.'));
+      showNotice('warning', friendlyGmailError(err.message || 'Connect Gmail, then check the connection.'));
     } finally {
       setBusy(false);
     }
@@ -1085,10 +1086,10 @@ export default function EvidenceLocker() {
                 ) : (
                   <button disabled className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 py-2 text-sm font-semibold text-background opacity-60">
                     <Mail className="h-4 w-4" aria-hidden="true" />
-                    Grant Gmail access
+                    Connect Gmail
                   </button>
                 )}
-                <button disabled={busy || !canManageGmail || !gmailStatus?.configured} onClick={handleCheckGmailAccess} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Check Gmail access</button>
+                <button disabled={busy || !canManageGmail || !gmailStatus?.configured} onClick={handleCheckGmailAccess} className="min-h-11 rounded-md border border-border px-3 py-2 text-sm font-semibold text-text-dim transition-colors hover:bg-surface-alt hover:text-text disabled:opacity-60">Check connection</button>
                 {gmailConnected && <button disabled={busy} onClick={handleDisconnectGmail} className="min-h-11 rounded-md border border-danger/40 px-3 py-2 text-sm font-semibold text-danger transition-colors hover:bg-danger/10 disabled:opacity-60">Disconnect</button>}
               </div>
               {gmailConnected && (
@@ -1128,7 +1129,7 @@ export default function EvidenceLocker() {
                   )}
                 </div>
               )}
-              <p className="text-xs leading-relaxed text-text-dim">{gmailStatus?.configured ? 'Gmail access is granted through your USDWatch account. USDWatch does not store Google refresh tokens.' : gmailStatus?.message || 'Gmail import needs Clerk backend credentials before it can connect.'}</p>
+              <p className="text-xs leading-relaxed text-text-dim">{gmailStatus?.configured ? 'Gmail is connected through your USDWatch account. USDWatch does not store Google refresh tokens.' : gmailStatus?.message || 'Gmail import needs Clerk backend credentials before it can connect.'}</p>
             </div>
           </section>
         </div>

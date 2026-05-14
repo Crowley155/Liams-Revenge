@@ -140,6 +140,83 @@ def _backfill_legacy_case_invitations(conn: sqlite3.Connection) -> int:
     return created
 
 
+def _backfill_legacy_kora_requests(conn: sqlite3.Connection) -> int:
+    """Copy legacy KORA request rows into the national records_requests table."""
+    if not _table_exists(conn, "kora_requests") or not _table_exists(conn, "records_requests"):
+        return 0
+
+    now = datetime.now(timezone.utc).isoformat()
+    created = 0
+    rows = conn.execute(
+        """
+        SELECT id, workspace_id, case_id, status, record_category, data
+        FROM kora_requests
+        """
+    ).fetchall()
+    for row in rows:
+        existing = conn.execute(
+            "SELECT id FROM records_requests WHERE id = ? LIMIT 1",
+            (row["id"],),
+        ).fetchone()
+        if existing:
+            continue
+        try:
+            data = json.loads(row["data"] or "{}")
+        except json.JSONDecodeError:
+            data = {}
+
+        record_data = {
+            "id": data.get("id") or row["id"],
+            "workspace_id": data.get("workspace_id") or row["workspace_id"],
+            "case_id": data.get("case_id") or row["case_id"],
+            "request_type": "state_public_records",
+            "request_law_code": "KS_KORA",
+            "jurisdiction": "KS",
+            "jurisdiction_confirmed": True,
+            "entity_ids": data.get("entity_ids") or [],
+            "custodian": data.get("custodian"),
+            "subject": data.get("subject") or "",
+            "records_description": data.get("records_description") or "",
+            "legal_basis": data.get("legal_basis") or "Kansas Open Records Act, K.S.A. 45-215 et seq.",
+            "relevance": data.get("relevance") or "",
+            "evidence_gap_ids": data.get("evidence_gap_ids") or [],
+            "person_ids": data.get("person_ids") or [],
+            "record_category": data.get("record_category") or row["record_category"] or "",
+            "status": data.get("status") or row["status"] or "draft",
+            "letter_text": data.get("letter_text") or "",
+            "source_refs": [],
+            "cautions": ["This is not legal advice"],
+            "trace_metadata": {"migrated_from": "kora_requests"},
+            "sent_at": data.get("sent_at"),
+            "response_notes": data.get("response_notes") or "",
+            "response_doc_ids": data.get("response_doc_ids") or [],
+            "created_at": data.get("created_at") or now,
+            "updated_at": now,
+        }
+        conn.execute(
+            """
+            INSERT INTO records_requests
+                (id, workspace_id, case_id, status, record_category, request_law_code, jurisdiction, data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                record_data["id"],
+                record_data["workspace_id"],
+                record_data["case_id"],
+                record_data["status"],
+                record_data["record_category"],
+                record_data["request_law_code"],
+                record_data["jurisdiction"],
+                json.dumps(record_data, default=str),
+            ),
+        )
+        created += 1
+
+    if created:
+        logger.info("Backfilled %d legacy KORA rows into records_requests", created)
+    return created
+
+
 def _connect() -> sqlite3.Connection:
     DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=15)
@@ -197,6 +274,20 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_kora_case ON kora_requests(case_id);
         CREATE INDEX IF NOT EXISTS idx_kora_status ON kora_requests(status);
+
+        CREATE TABLE IF NOT EXISTS records_requests (
+            id        TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL DEFAULT 'demo',
+            case_id   TEXT NOT NULL DEFAULT 'crowley-v-usd232',
+            status    TEXT NOT NULL DEFAULT 'draft',
+            record_category TEXT NOT NULL DEFAULT '',
+            request_law_code TEXT NOT NULL DEFAULT '',
+            jurisdiction TEXT NOT NULL DEFAULT '',
+            data      TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_records_case ON records_requests(case_id);
+        CREATE INDEX IF NOT EXISTS idx_records_status ON records_requests(status);
+        CREATE INDEX IF NOT EXISTS idx_records_law ON records_requests(request_law_code);
 
         CREATE TABLE IF NOT EXISTS case_documents (
             id        TEXT PRIMARY KEY,
@@ -316,7 +407,7 @@ def init_db():
     for table in ("persons", "entities", "jobs"):
         _ensure_column(conn, table, "workspace_id", "TEXT NOT NULL DEFAULT 'demo'")
         _ensure_column(conn, table, "case_id", "TEXT NOT NULL DEFAULT 'crowley-v-usd232'")
-    for table in ("kora_requests", "case_documents"):
+    for table in ("kora_requests", "records_requests", "case_documents"):
         _ensure_column(conn, table, "workspace_id", "TEXT NOT NULL DEFAULT 'demo'")
     for name, definition in (
         ("clerk_user_id", "TEXT"),
@@ -330,10 +421,12 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_entities_workspace ON entities(workspace_id, case_id);
         CREATE INDEX IF NOT EXISTS idx_jobs_workspace ON jobs(workspace_id, case_id);
         CREATE INDEX IF NOT EXISTS idx_kora_workspace ON kora_requests(workspace_id, case_id);
+        CREATE INDEX IF NOT EXISTS idx_records_workspace ON records_requests(workspace_id, case_id);
         CREATE INDEX IF NOT EXISTS idx_docs_workspace ON case_documents(workspace_id, case_id);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_users_clerk_user ON users(clerk_user_id) WHERE clerk_user_id IS NOT NULL AND clerk_user_id != '';
     """)
     _backfill_legacy_case_invitations(conn)
+    _backfill_legacy_kora_requests(conn)
     conn.commit()
     conn.close()
     logger.info("SQLite database ready at %s", DB_PATH)

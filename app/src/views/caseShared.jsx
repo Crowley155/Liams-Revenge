@@ -122,7 +122,7 @@ export function HelpTip({ id, label = 'More information', align = 'left', childr
       <span
         id={tooltipId}
         role="tooltip"
-        className={`pointer-events-none absolute top-7 z-30 w-[min(17rem,calc(100vw-3rem))] rounded-md border border-border bg-[var(--color-surface-alt)] px-3 py-2 text-xs font-normal leading-relaxed text-text opacity-0 shadow-elevated transition-opacity group-hover/help:opacity-100 group-focus-within/help:opacity-100 ${positionClass}`}
+        className={`pointer-events-none absolute top-7 z-30 hidden w-[min(17rem,calc(100vw-3rem))] rounded-md border border-border bg-[var(--color-surface-alt)] px-3 py-2 text-xs font-normal leading-relaxed text-text shadow-elevated group-hover/help:block group-focus-within/help:block ${positionClass}`}
       >
         {children}
       </span>
