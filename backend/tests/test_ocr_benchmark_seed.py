@@ -1,6 +1,6 @@
 import uuid
 
-from app.api._store import case_documents, cases
+from app.api._store import case_documents, case_evaluations, cases
 from app.models import CaseIntake, CaseRecord
 from app.scripts.seed_ocr_benchmark import BENCHMARK_CASE_ID, seed_ocr_benchmark
 from app.services.workspaces import resolve_user_workspace
@@ -19,8 +19,8 @@ def test_seed_ocr_benchmark_is_idempotent_and_does_not_touch_existing_case():
     )
     cases[existing.id] = existing
 
-    first = seed_ocr_benchmark(owner_email=owner_email)
-    second = seed_ocr_benchmark(owner_email=owner_email)
+    first = seed_ocr_benchmark(owner_email=owner_email, create_evaluation=True)
+    second = seed_ocr_benchmark(owner_email=owner_email, create_evaluation=True)
 
     assert first["case_id"] == BENCHMARK_CASE_ID
     assert second["case_id"] == BENCHMARK_CASE_ID
@@ -36,3 +36,10 @@ def test_seed_ocr_benchmark_is_idempotent_and_does_not_touch_existing_case():
     ]
     assert len(docs) == 5
     assert len({doc.id for doc in docs}) == 5
+
+    evaluations = [
+        evaluation for evaluation in case_evaluations.values()
+        if evaluation.workspace_id == user["workspace_id"] and evaluation.case_id == BENCHMARK_CASE_ID
+    ]
+    assert len(evaluations) == 1
+    assert evaluations[0].result.ocr_readiness.overall_status == "strong_readiness"

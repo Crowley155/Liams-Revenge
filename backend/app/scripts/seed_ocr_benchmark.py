@@ -3,15 +3,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 
-from app.api._store import case_documents, cases
+from app.api._store import case_documents, case_evaluations, cases
+from app.ai_runtime.evaluation import _fallback_result
 from app.db import init_db
-from app.models import CaseDocument, CaseIntake, CaseRecord, CaseStatus
+from app.models import CaseDocument, CaseEvaluation, CaseIntake, CaseRecord, CaseStatus, EvaluationStatus
 from app.services.workspaces import resolve_user_workspace
 from app.time import utc_now
 
 
 DEFAULT_OWNER_EMAIL = "william.crowley@gmail.com"
 BENCHMARK_CASE_ID = "ocr-benchmark-504-retaliation"
+BENCHMARK_EVALUATION_ID = "ocr-bench-read"
 SEED_KIND = "ocr_readiness_benchmark"
 SEED_VERSION = "2026-05-14-v1"
 
@@ -130,7 +132,27 @@ def _benchmark_case(user: dict) -> CaseRecord:
     )
 
 
-def seed_ocr_benchmark(owner_email: str = DEFAULT_OWNER_EMAIL) -> dict:
+def _seed_evaluation(case: CaseRecord, docs: list[CaseDocument]) -> CaseEvaluation:
+    existing = case_evaluations.get(BENCHMARK_EVALUATION_ID)
+    now = utc_now()
+    evaluation = CaseEvaluation(
+        id=BENCHMARK_EVALUATION_ID,
+        workspace_id=case.workspace_id,
+        case_id=case.id,
+        status=EvaluationStatus.COMPLETE,
+        model_tier="deterministic-seed",
+        workflow_steps=["seeded_benchmark", "ocr_readiness_screening"],
+        result=_fallback_result(case, docs),
+        started_at=existing.started_at if existing and existing.started_at else now,
+        completed_at=now,
+        created_at=existing.created_at if existing else now,
+        updated_at=now,
+    )
+    case_evaluations[evaluation.id] = evaluation
+    return evaluation
+
+
+def seed_ocr_benchmark(owner_email: str = DEFAULT_OWNER_EMAIL, *, create_evaluation: bool = False) -> dict:
     email = owner_email.lower().strip()
     user = resolve_user_workspace(clerk_user_id=_seed_clerk_id(email), email=email)
     now = utc_now()
@@ -154,6 +176,7 @@ def seed_ocr_benchmark(owner_email: str = DEFAULT_OWNER_EMAIL) -> dict:
         ):
             case_documents.pop(doc.id, None)
 
+    seeded_docs = []
     for spec in DOC_SPECS:
         existing_doc = case_documents.get(spec["id"])
         doc = CaseDocument(
@@ -177,12 +200,16 @@ def seed_ocr_benchmark(owner_email: str = DEFAULT_OWNER_EMAIL) -> dict:
             processed_at=now,
         )
         case_documents[doc.id] = doc
+        seeded_docs.append(doc)
+
+    evaluation = _seed_evaluation(case, seeded_docs) if create_evaluation else None
 
     return {
         "owner_email": email,
         "workspace_id": user["workspace_id"],
         "case_id": BENCHMARK_CASE_ID,
         "document_count": len(DOC_SPECS),
+        "evaluation_id": evaluation.id if evaluation else "",
         "seed_version": SEED_VERSION,
     }
 
@@ -190,9 +217,10 @@ def seed_ocr_benchmark(owner_email: str = DEFAULT_OWNER_EMAIL) -> dict:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed the OCR readiness benchmark case.")
     parser.add_argument("--owner-email", default=DEFAULT_OWNER_EMAIL)
+    parser.add_argument("--with-evaluation", action="store_true")
     args = parser.parse_args()
     init_db()
-    result = seed_ocr_benchmark(owner_email=args.owner_email)
+    result = seed_ocr_benchmark(owner_email=args.owner_email, create_evaluation=args.with_evaluation)
     print(result)
 
 
