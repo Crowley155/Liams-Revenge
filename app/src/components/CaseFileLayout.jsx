@@ -56,8 +56,8 @@ export default function CaseFileLayout() {
 
   return (
     <CaseProvider caseId={caseId}>
-      <div className="product-ui min-w-0 space-y-6">
-        <div className="min-w-0 rounded-md border border-border bg-surface/80 px-4 py-4 sm:px-5">
+      <div className="product-ui w-full min-w-0 max-w-full space-y-6 overflow-hidden">
+        <div className="min-w-0 overflow-hidden rounded-md border border-border bg-surface/80 px-4 py-4 sm:px-5">
           <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div className="min-w-0 space-y-1">
               <h1 className="wrap-anywhere text-xl font-bold sm:text-2xl">
@@ -72,7 +72,7 @@ export default function CaseFileLayout() {
                 </p>
               )}
             </div>
-            <div className="flex min-w-0 max-w-full gap-1 overflow-x-auto pb-1">
+            <div className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto pb-1 lg:w-auto">
               {tabs.map((item) => {
                 const Icon = item.icon;
                 return (

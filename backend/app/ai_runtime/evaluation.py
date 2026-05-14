@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 
 from app.api._store import agent_runs, case_evaluations
+from app.ai_runtime.ocr_readiness import assess_ocr_readiness
 from app.config import settings
 from app.models import (
     AgentRun,
@@ -223,7 +224,7 @@ def _fallback_result(case: CaseRecord | None, documents: list[CaseDocument], raw
         ),
     ]
 
-    return CaseEvaluationResult(
+    result = CaseEvaluationResult(
         executive_summary=(
             "This case has enough information for an initial triage. The strongest next move is to turn the parent narrative into a dated evidence timeline, "
             "then request the official records that confirm notice, response, policy duties, and any internal inconsistencies."
@@ -246,6 +247,9 @@ def _fallback_result(case: CaseRecord | None, documents: list[CaseDocument], raw
         ],
         confidence=0.62 if has_documents else 0.48,
     )
+    if case:
+        result.ocr_readiness = assess_ocr_readiness(case, documents)
+    return result
 
 
 def run_case_evaluation(case: CaseRecord, documents: list[CaseDocument], evaluation: CaseEvaluation, *, premium: bool = False) -> CaseEvaluation:
@@ -312,6 +316,7 @@ def run_case_evaluation(case: CaseRecord, documents: list[CaseDocument], evaluat
         else:
             result = _fallback_result(case, documents)
 
+        result.ocr_readiness = assess_ocr_readiness(case, documents)
         evaluation.result = result
         evaluation.status = EvaluationStatus.COMPLETE
         evaluation.completed_at = utc_now()

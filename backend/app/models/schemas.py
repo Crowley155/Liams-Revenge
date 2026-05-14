@@ -457,6 +457,49 @@ class RecommendedRecord(BaseModel):
     priority: str = "medium"
 
 
+class OcrSourceRef(BaseModel):
+    id: str
+    title: str
+    url: str
+    summary: str = ""
+    retrieved_at: str = ""
+
+
+class OcrGate(BaseModel):
+    key: str
+    label: str
+    status: str = Field(default="unknown", description="pass | weak | missing | not_applicable | unknown")
+    rationale: str = ""
+    evidence_ids: list[str] = Field(default_factory=list)
+    missing_items: list[str] = Field(default_factory=list)
+
+
+class OcrPotentialAllegation(BaseModel):
+    theory: str
+    protected_basis: str = ""
+    authority_refs: list[str] = Field(default_factory=list)
+    supporting_facts: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    missing_facts: list[str] = Field(default_factory=list)
+    confidence: str = Field(default="low", description="low | medium | high")
+    cautions: list[str] = Field(default_factory=list)
+
+
+class OcrReadinessResult(BaseModel):
+    overall_status: str = Field(
+        default="not_ready",
+        description="not_ready | needs_more_info | plausible_for_ocr_review | strong_readiness",
+    )
+    summary: str = ""
+    gates: list[OcrGate] = Field(default_factory=list)
+    potential_allegations: list[OcrPotentialAllegation] = Field(default_factory=list)
+    recommended_records: list[str] = Field(default_factory=list)
+    non_ocr_routes: list[str] = Field(default_factory=list)
+    source_refs: list[OcrSourceRef] = Field(default_factory=list)
+    cautions: list[str] = Field(default_factory=list)
+    confidence: str = Field(default="low", description="low | medium | high")
+
+
 class CaseEvaluationResult(BaseModel):
     executive_summary: str = ""
     likely_claims: list[str] = Field(default_factory=list)
@@ -467,6 +510,7 @@ class CaseEvaluationResult(BaseModel):
     recommended_records: list[RecommendedRecord] = Field(default_factory=list)
     next_steps: list[str] = Field(default_factory=list)
     risk_flags: list[str] = Field(default_factory=list)
+    ocr_readiness: Optional[OcrReadinessResult] = None
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
 
 

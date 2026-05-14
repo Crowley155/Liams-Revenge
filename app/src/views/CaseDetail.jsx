@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Download, FileText, Loader2, Printer, Scale, Wand2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, CircleDashed, Download, FileText, Info, Loader2, Printer, Scale, ShieldCheck, Wand2 } from 'lucide-react';
 import {
   draftCaseText,
   fetchCase,
@@ -20,6 +20,7 @@ import { casePermissions } from '../utils/caseAccess';
 import { caseGapMetric, caseHasDraftSource, recordsRequestMetric } from '../utils/caseMetrics';
 import { CASE_PLAN_HELP } from '../utils/casePlanHelp';
 import { getCasePolicyReforms, policyReformCount } from '../utils/casePolicyReforms';
+import { ocrGateLabel, ocrStatusLabel, ocrStatusTone, summarizeOcrSources } from '../utils/ocrReadiness';
 import {
   ActionButton,
   Metric,
@@ -41,6 +42,162 @@ function outcomeTextFromCase(caseRecord) {
   const intake = caseRecord?.intake || {};
   if (intake.desired_outcome) return intake.desired_outcome;
   return (intake.desired_outcomes || []).join('\n');
+}
+
+const OCR_STATUS_CLASSES = {
+  neutral: 'border-border bg-background text-text-dim',
+  warning: 'border-warning/35 bg-warning/10 text-warning',
+  info: 'border-info/35 bg-info/10 text-info',
+  success: 'border-success/35 bg-success/10 text-success',
+};
+
+const OCR_GATE_CLASSES = {
+  pass: 'text-success',
+  weak: 'text-warning',
+  missing: 'text-text-dim',
+  not_applicable: 'text-text-dim',
+  unknown: 'text-text-dim',
+};
+
+function OcrGateIcon({ status }) {
+  const className = `h-4 w-4 ${OCR_GATE_CLASSES[status] || OCR_GATE_CLASSES.unknown}`;
+  if (status === 'pass') return <CheckCircle2 className={className} aria-hidden="true" />;
+  if (status === 'weak') return <AlertTriangle className={className} aria-hidden="true" />;
+  return <CircleDashed className={className} aria-hidden="true" />;
+}
+
+function OcrReadinessPanel({ readiness }) {
+  if (!readiness) return null;
+  const tone = ocrStatusTone(readiness.overall_status);
+  const statusClass = OCR_STATUS_CLASSES[tone] || OCR_STATUS_CLASSES.neutral;
+  const allegations = readiness.potential_allegations || [];
+  const gates = readiness.gates || [];
+  const sources = readiness.source_refs || [];
+  const records = readiness.recommended_records || [];
+  const cautions = readiness.cautions || [];
+
+  return (
+    <Panel title="OCR Readiness" help={CASE_PLAN_HELP.ocrReadiness}>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold ${statusClass}`}>
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              {ocrStatusLabel(readiness.overall_status)}
+            </div>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-text-dim">
+              {readiness.summary || 'Run a Case Read to assess whether the facts are ready for an OCR screen.'}
+            </p>
+          </div>
+          <div className="rounded-md border border-border bg-background px-3 py-2 text-xs leading-relaxed text-text-dim">
+            <span className="font-semibold text-text">{summarizeOcrSources(sources)}</span>
+            <span className="block">Readiness screen, not a legal decision.</span>
+          </div>
+        </div>
+
+        {gates.length > 0 && (
+          <div>
+            <h4 className="text-sm font-bold text-text">Readiness checks</h4>
+            <div className="mt-2 divide-y divide-border rounded-md border border-border">
+              {gates.map((gate) => (
+                <div key={gate.key || gate.label} className="grid gap-2 px-3 py-3 text-sm sm:grid-cols-[1fr_2fr]">
+                  <div className="flex min-w-0 items-center gap-2 font-semibold text-text">
+                    <OcrGateIcon status={gate.status} />
+                    <span>{ocrGateLabel(gate)}</span>
+                  </div>
+                  <div className="min-w-0 text-text-dim">
+                    <p className="leading-relaxed">{gate.rationale}</p>
+                    {(gate.missing_items || []).length > 0 && (
+                      <ul className="mt-2 flex flex-col gap-1">
+                        {gate.missing_items.map((item) => (
+                          <li key={item} className="leading-relaxed">Missing: {item}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {allegations.length > 0 && (
+          <div>
+            <h4 className="text-sm font-bold text-text">Potential OCR issues</h4>
+            <div className="mt-2 divide-y divide-border border-y border-border">
+              {allegations.map((item) => (
+                <section key={`${item.theory}-${item.protected_basis}`} className="py-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <h5 className="text-sm font-bold text-text">{item.theory}</h5>
+                      {item.protected_basis && <p className="mt-1 text-xs text-text-dim">Basis: {item.protected_basis}</p>}
+                    </div>
+                    <span className="inline-flex w-fit items-center rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-text-dim">
+                      {item.confidence || 'low'} confidence
+                    </span>
+                  </div>
+                  {(item.supporting_facts || []).length > 0 && (
+                    <ul className="mt-3 space-y-2 text-sm leading-relaxed text-text-dim">
+                      {item.supporting_facts.map((fact) => <li key={fact}>{fact}</li>)}
+                    </ul>
+                  )}
+                  {(item.evidence_ids || []).length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2" aria-label="Evidence references">
+                      {item.evidence_ids.map((id) => (
+                        <span key={id} className="rounded-md border border-info/30 bg-info/10 px-2 py-1 text-xs font-semibold text-info">
+                          Evidence {id}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {(item.missing_facts || []).length > 0 && (
+                    <p className="mt-3 text-xs leading-relaxed text-warning">
+                      More needed: {item.missing_facts.join('; ')}
+                    </p>
+                  )}
+                </section>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {records.length > 0 && (
+          <div>
+            <h4 className="text-sm font-bold text-text">Records that would strengthen this screen</h4>
+            <ul className="mt-2 grid gap-x-6 gap-y-2 text-sm leading-relaxed text-text-dim sm:grid-cols-2">
+              {records.map((record) => <li key={record}>{record}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {sources.length > 0 && (
+          <div>
+            <h4 className="text-sm font-bold text-text">Authority references</h4>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {sources.map((source) => (
+                <a
+                  key={source.id}
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-text-dim transition-colors hover:border-accent/50 hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  <Info className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{source.title}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {cautions.length > 0 && (
+          <div className="rounded-md border border-border bg-background px-3 py-3 text-xs leading-relaxed text-text-dim">
+            {cautions.map((caution) => <p key={caution}>{caution}</p>)}
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
 }
 
 export default function CaseDetail() {
@@ -298,7 +455,7 @@ export default function CaseDetail() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 py-8 animate-fade-up">
+    <div className="mx-auto w-full min-w-0 max-w-6xl space-y-6 py-8 animate-fade-up">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end" aria-label="Case actions">
         <ActionButton
           disabled={busy || !packet}
@@ -453,8 +610,8 @@ export default function CaseDetail() {
         </Panel>
       )}
 
-      <div className="grid gap-5 lg:grid-cols-[320px_1fr]">
-        <aside className="space-y-5">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[320px_1fr]">
+        <aside className="min-w-0 space-y-5">
           <Panel title="Next Steps">
             <div className="mb-3 rounded-md border border-border bg-background px-3 py-3 text-xs leading-relaxed text-text-dim">
               <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -474,7 +631,7 @@ export default function CaseDetail() {
           </Panel>
         </aside>
 
-        <main className="space-y-5">
+        <main className="min-w-0 space-y-5">
           <Panel title="Case Read Summary" help={CASE_PLAN_HELP.caseReadSummary}>
             <p className="max-w-3xl text-sm leading-relaxed text-text-dim">
               {caseReadSummary}
@@ -501,6 +658,8 @@ export default function CaseDetail() {
               </div>
             </dl>
           </Panel>
+
+          <OcrReadinessPanel readiness={result?.ocr_readiness} />
 
         </main>
       </div>
