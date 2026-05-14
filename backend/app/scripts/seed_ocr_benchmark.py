@@ -15,19 +15,65 @@ DEFAULT_OWNER_EMAIL = "william.crowley@gmail.com"
 BENCHMARK_CASE_ID = "ocr-benchmark-504-retaliation"
 BENCHMARK_EVALUATION_ID = "ocr-bench-read"
 SEED_KIND = "ocr_readiness_benchmark"
-SEED_VERSION = "2026-05-14-v1"
+SEED_VERSION = "2026-05-14-v2"
 
 DOC_SPECS = [
     {
+        "id": "ocr-bench-parent-timeline",
+        "filename": "parent-timeline-and-narrative.txt",
+        "evidence_type": "parent_statement",
+        "document_date": "2026-01-08",
+        "description": "Parent timeline written in plain language before the formal 504 request.",
+        "text": (
+            "I am writing this down because I do not want the story to get flattened into one bad day. "
+            "My son Mateo is in third grade. He is bright, funny, and usually wants to do the right thing, "
+            "but his ADHD makes transitions, noise, and unstructured aftercare time hard for him. Since October, "
+            "I have been getting calls that he is leaving the group, crying in the hallway, or being sent to the "
+            "office instead of getting a calm reset. I have asked the school and aftercare staff to make a simple "
+            "plan: one adult check-in when aftercare starts, a warning before transitions, and a quiet place to "
+            "cool down before things escalate. I am worried that the school is treating this like misbehavior "
+            "instead of a disability-related support need. I want a Section 504 evaluation so everyone is clear "
+            "about what supports Mateo needs during the full school day and aftercare program."
+        ),
+    },
+    {
+        "id": "ocr-bench-medical-support",
+        "filename": "pediatric-adhd-support-note.txt",
+        "evidence_type": "student_record",
+        "document_date": "2025-12-18",
+        "description": "Parent-uploaded student support note documenting ADHD-related needs.",
+        "text": (
+            "Student record summary from pediatric visit dated December 18, 2025: Mateo has an ADHD diagnosis "
+            "and benefits from predictable routines, advance transition warnings, short adult check-ins, and a "
+            "quiet reset space when overstimulated. Parent reports after-school care has been the hardest part "
+            "of the day because it is noisy, crowded, and less structured than class time."
+        ),
+    },
+    {
         "id": "ocr-bench-504-request",
-        "filename": "504-evaluation-request.txt",
+        "filename": "504-evaluation-request-email.txt",
         "evidence_type": "iep_504",
         "document_date": "2026-01-10",
-        "description": "Parent request for Section 504 evaluation and accommodations.",
+        "description": "Parent request for Section 504 evaluation and aftercare accommodations.",
         "text": (
-            "January 10, 2026 email to principal and 504 coordinator: I am requesting a Section 504 evaluation "
-            "and accommodations for my child's ADHD. The aftercare setting has become unsafe without consistent "
-            "supervision and behavior supports. Please confirm the evaluation process and interim supports."
+            "January 10, 2026 email from Maria Lopez to Principal Dunn and the 504 coordinator: I am requesting "
+            "a Section 504 evaluation for my son Mateo because his ADHD is affecting access to school and the "
+            "district aftercare program. I am also requesting interim accommodations while the evaluation is pending, "
+            "including a transition warning before aftercare, a calm reset location, and a named adult check-in. "
+            "Please confirm who is responsible for considering supports during aftercare."
+        ),
+    },
+    {
+        "id": "ocr-bench-classroom-log",
+        "filename": "classroom-aftercare-incident-log.txt",
+        "evidence_type": "incident_report",
+        "document_date": "2026-01-16",
+        "description": "School log showing recurring aftercare escalation before the complaint.",
+        "text": (
+            "January 16, 2026 behavior and aftercare log: Mateo became overwhelmed during the transition from "
+            "homework club to gym. Staff noted he covered his ears, left the line, and cried near the cafeteria. "
+            "The log says staff sent him to the office for pickup because aftercare did not have a quiet area or "
+            "a written accommodation plan. Parent was called at 4:42 p.m."
         ),
     },
     {
@@ -37,41 +83,63 @@ DOC_SPECS = [
         "document_date": "2026-01-24",
         "description": "School response delaying evaluation and accommodations discussion.",
         "text": (
-            "January 24, 2026 response from assistant principal: We are not starting a 504 evaluation at this time. "
-            "Aftercare is run separately, and we do not plan to discuss accommodations for that program."
+            "January 24, 2026 response from Assistant Principal Reed: We are not starting a 504 evaluation at this "
+            "time because Mateo's grades are passing. Aftercare is run by a separate program, so the school will not "
+            "create a different supervision plan for him there. If aftercare staff cannot keep him with the group, "
+            "you may need to pick him up early."
         ),
     },
     {
         "id": "ocr-bench-protected-complaint",
-        "filename": "parent-disability-complaint.txt",
+        "filename": "parent-disability-complaint-email.txt",
         "evidence_type": "communications",
         "document_date": "2026-01-31",
         "description": "Parent complaint documenting disability-related support concerns.",
         "text": (
             "January 31, 2026 parent email: I am complaining in writing that the district has refused to evaluate "
-            "my child under Section 504 and has not considered disability-related accommodations for aftercare."
+            "Mateo under Section 504 and has not considered disability-related accommodations for aftercare. This "
+            "is not just a discipline issue. The same ADHD-related needs are showing up during a district program, "
+            "and the answer cannot be that he is sent home instead of supported. Please treat this as a civil-rights "
+            "and disability access complaint and tell me how to appeal the refusal to evaluate."
+        ),
+    },
+    {
+        "id": "ocr-bench-meeting-notes",
+        "filename": "meeting-notes-after-complaint.txt",
+        "evidence_type": "meeting_notes",
+        "document_date": "2026-02-01",
+        "description": "Parent notes from a school-aftercare meeting after the written complaint.",
+        "text": (
+            "February 1, 2026 parent notes from meeting with Assistant Principal Reed and aftercare site lead: "
+            "Parent repeated the Section 504 evaluation request and asked whether aftercare staff could use the "
+            "same supports recommended by Mateo's doctor. Staff said aftercare is not special education and that "
+            "they would not promise a quiet space or one adult assigned to him. Parent said she was worried Mateo "
+            "would be removed because she complained."
         ),
     },
     {
         "id": "ocr-bench-adverse-action",
-        "filename": "aftercare-exclusion-after-complaint.txt",
+        "filename": "aftercare-exclusion-email.txt",
         "evidence_type": "communications",
         "document_date": "2026-02-03",
         "description": "Adverse action after protected disability-related complaint.",
         "text": (
-            "February 3, 2026 principal email: After your complaint last week, your child may not attend aftercare "
-            "for the rest of this week. We will not discuss 504 accommodations for aftercare."
+            "February 3, 2026 principal email: After your complaint last week, Mateo may not attend aftercare for "
+            "the rest of this week. We need time to determine whether the program can safely serve him. We will not "
+            "discuss 504 accommodations for aftercare until the district decides whether an evaluation is needed."
         ),
     },
     {
         "id": "ocr-bench-safety-control",
-        "filename": "generic-supervision-control.txt",
+        "filename": "generic-playground-safety-control.txt",
         "evidence_type": "incident_report",
         "document_date": "2026-02-04",
         "description": "Control document with general safety facts but no protected basis by itself.",
         "text": (
-            "February 4, 2026 incident note: Staff reviewed playground supervision after a student fell. "
-            "This note does not mention disability, race, sex, national origin, protected activity, or accommodations."
+            "February 4, 2026 generic playground safety memo: Staff reviewed playground supervision after a student "
+            "fell near the climbing structure. The memo discusses ratios, radio use, and first-aid follow-up. It "
+            "does not identify Mateo, does not discuss disability supports, and does not mention a 504 evaluation, "
+            "civil-rights complaint, or accommodations."
         ),
     },
 ]
@@ -84,15 +152,23 @@ def _seed_clerk_id(email: str) -> str:
 
 def _benchmark_case(user: dict) -> CaseRecord:
     narrative = (
-        "This synthetic benchmark tests whether USDWatch can identify an OCR-readiness theory without calling it a legal violation. "
-        "The parent requested a Section 504 evaluation and aftercare accommodations for a child with ADHD on January 10, 2026. "
-        "The school delayed or refused the evaluation discussion, the parent complained in writing on January 31, and the principal "
-        "excluded the child from aftercare on February 3 after that complaint."
+        "My name is Maria Lopez, and I am trying to get help for my third-grade son, Mateo. Mateo has ADHD. "
+        "He is not a bad kid, but he needs predictable transitions, short adult check-ins, and a quiet way to reset "
+        "when the after-school program gets loud. Since the fall, I have been getting calls that he is crying, leaving "
+        "the group, or being sent to the office during aftercare. I asked for simple supports first, then I asked in "
+        "writing for a 504 evaluation on January 10, 2026 because the same disability-related needs were affecting "
+        "his access to the school day and aftercare. The assistant principal responded that his grades were passing "
+        "and that aftercare was separate, so they were not starting the 504 evaluation or creating an aftercare support "
+        "plan. On January 31, I complained in writing that refusing to evaluate Mateo and sending him home instead of "
+        "considering accommodations was a disability access problem. A few days later, on February 3, the principal "
+        "emailed that Mateo was excluded from aftercare for the rest of the week after my complaint. I want the district "
+        "to evaluate Mateo properly, consider accommodations that work in aftercare, explain who is responsible for the "
+        "program, and stop treating my advocacy as the problem."
     )
     return CaseRecord(
         id=BENCHMARK_CASE_ID,
         workspace_id=user["workspace_id"],
-        title="OCR Benchmark - Section 504 Retaliation",
+        title="OCR Benchmark - Section 504 Access and Retaliation",
         status=CaseStatus.ACTIVE,
         intake=CaseIntake(
             state="KS",
@@ -103,13 +179,15 @@ def _benchmark_case(user: dict) -> CaseRecord:
             incident_date="2026-02-03",
             narrative=narrative,
             desired_outcome=(
-                "Evaluate Section 504 eligibility, identify appropriate aftercare accommodations, and stop excluding the child "
-                "because the parent raised disability-related concerns."
+                "Complete a proper Section 504 evaluation, consider aftercare accommodations, remove the exclusion, "
+                "explain who is responsible for supporting Mateo in the district aftercare program, and stop retaliating "
+                "against the parent for raising disability-related concerns."
             ),
             desired_outcomes=[
-                "Complete a Section 504 evaluation.",
-                "Document aftercare accommodations and supervision supports.",
-                "Address potential retaliation after the parent complaint.",
+                "Complete a Section 504 evaluation with parent input and relevant aftercare records.",
+                "Decide whether Mateo needs transition, reset-space, and adult check-in accommodations during aftercare.",
+                "Rescind or explain the aftercare exclusion and document any safety plan.",
+                "Address whether the exclusion was connected to the January 31 disability complaint.",
             ],
             impacted_party_age=9,
             grade_level="3rd grade",
@@ -127,6 +205,11 @@ def _benchmark_case(user: dict) -> CaseRecord:
             "seed_kind": SEED_KIND,
             "seed_version": SEED_VERSION,
             "seeded_for": user["email"],
+            "source_basis": "synthetic_composite",
+            "inspiration_note": (
+                "Synthetic composite inspired by public parent-rights themes and National Parents Union advocacy priorities; "
+                "it does not describe a real family or a real NPU-handled case."
+            ),
         },
         created_by=user["id"],
     )

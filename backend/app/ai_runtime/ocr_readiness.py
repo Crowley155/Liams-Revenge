@@ -371,10 +371,12 @@ def _classify_document(doc: CaseDocument, text: str) -> str:
         return "policy_context"
     if any(term in haystack for term in ("policy", "procedure", "licensing", "regulation", "handbook")):
         return "policy_context"
-    if _contains_any(haystack, DISABILITY_REQUEST_TERMS + PROTECTED_ACTIVITY_TERMS):
-        return "parent_communication"
+    if any(term in haystack for term in ("principal email", "assistant principal", "school response", "district response", "response from")):
+        return "school_response"
     if _contains_any(haystack, ADVERSE_ACTION_TERMS) and _contains_any(haystack, SCHOOL_ACTOR_TERMS):
         return "school_response"
+    if _contains_any(haystack, DISABILITY_REQUEST_TERMS + PROTECTED_ACTIVITY_TERMS):
+        return "parent_communication"
     if any(term in haystack for term in ("email", "from:", "to:", "principal email", "school response", "district response")):
         if any(term in haystack for term in ("principal email", "district response", "school response")):
             return "school_response"
